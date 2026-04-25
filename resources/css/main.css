@@ -9,6 +9,7 @@
     --surface: #ffffff;
     --page: #f3f6fb;
     --field: #ffffff;
+    --table-head: #f8fafc;
     --shadow: 0 20px 44px rgba(37, 99, 235, .18);
 }
 
@@ -20,6 +21,7 @@
     --surface: #0b1526;
     --page: #07111f;
     --field: #0f1b2d;
+    --table-head: #101c2e;
     --shadow: 0 20px 44px rgba(0, 0, 0, .32);
 }
 
@@ -408,7 +410,7 @@ input {
 
 .company-table thead {
     border-bottom: 1px solid var(--line);
-    background: color-mix(in srgb, var(--surface) 88%, var(--page));
+    background: var(--table-head);
 }
 
 .company-table th {
@@ -492,6 +494,7 @@ input {
 }
 
 @media (max-width: 900px) {
+
     .app-header,
     .page-heading,
     .table-tools {
@@ -519,6 +522,7 @@ input {
 }
 
 @media (max-width: 560px) {
+
     .profile-dropdown,
     .language-dropdown {
         right: auto;

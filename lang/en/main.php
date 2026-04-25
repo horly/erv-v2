@@ -17,5 +17,6 @@ return [
     'users' => 'User management',
     'logout' => 'Logout',
     'admin_badge' => 'Admin',
+    'superadmin_badge' => 'Superadmin',
     'default_country' => 'Congo (DRC)',
 ];

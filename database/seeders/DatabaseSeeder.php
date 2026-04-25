@@ -20,8 +20,11 @@ class DatabaseSeeder extends Seeder
         $subscription = Subscription::updateOrCreate(
             ['code' => 'EXAD-DEFAULT'],
             [
-                'name' => 'Abonnement EXAD par défaut',
+                'name' => 'Abonnement EXAD par defaut',
+                'type' => 'standard',
+                'company_limit' => 1,
                 'status' => 'active',
+                'expires_at' => now()->addYear()->toDateString(),
             ],
         );
 

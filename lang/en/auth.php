@@ -35,4 +35,6 @@ return [
     'contact_admin' => 'Contact your administrator',
     'copyright' => '© 2026 EXAD ERP - All rights reserved.',
     'privacy' => 'Privacy',
+    'session_expired' => 'Your session has expired. Please try again.',
+    'unauthorized' => 'You are not authorized to access this page.',
 ];

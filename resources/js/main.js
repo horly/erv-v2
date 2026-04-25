@@ -9,6 +9,8 @@
     const searchInput = document.getElementById('companySearch');
     const table = document.getElementById('companyTable');
     const visibleCount = document.getElementById('visibleCount');
+    const flashToast = document.querySelector('.flash-toast');
+    const subscriptionForm = document.querySelector('.subscription-form');
     const storageKey = 'exad-theme';
 
     const applyTheme = (theme) => {
@@ -85,4 +87,92 @@
             visibleCount.textContent = String(visible);
         }
     });
+
+    if (flashToast) {
+        const autohideDuration = Number(flashToast.dataset.autohide || 15000);
+        flashToast.style.setProperty('--flash-duration', `${autohideDuration}ms`);
+
+        const hideToast = () => {
+            flashToast.classList.add('is-hiding');
+            window.setTimeout(() => flashToast.remove(), 220);
+        };
+
+        flashToast.querySelector('.flash-close')?.addEventListener('click', hideToast);
+        window.setTimeout(hideToast, autohideDuration);
+    }
+
+    if (subscriptionForm) {
+        const requiredFields = Array.from(subscriptionForm.querySelectorAll('[data-required-message]'));
+        const modalTitle = document.getElementById('subscriptionModalLabel');
+        const submitButton = document.getElementById('subscriptionSubmit');
+        const methodInput = document.getElementById('subscriptionMethod');
+        const modeInput = document.getElementById('subscriptionFormMode');
+        const idInput = document.getElementById('subscriptionId');
+        const nameInput = document.getElementById('subscriptionName');
+        const typeInput = document.getElementById('subscriptionType');
+        const expiryInput = document.getElementById('subscriptionExpiry');
+
+        const setFieldState = (field, state) => {
+            field.classList.toggle('is-invalid', state === 'invalid');
+            field.classList.toggle('is-valid', state === 'valid');
+        };
+
+        const validateField = (field, showEmptyError = true) => {
+            const hasValue = field.value.trim() !== '';
+
+            if (!hasValue) {
+                setFieldState(field, showEmptyError ? 'invalid' : null);
+                return false;
+            }
+
+            setFieldState(field, 'valid');
+            return true;
+        };
+
+        requiredFields.forEach((field) => {
+            field.addEventListener('input', () => validateField(field, false));
+            field.addEventListener('change', () => validateField(field, false));
+            field.addEventListener('blur', () => validateField(field));
+        });
+
+        const clearFieldStates = () => {
+            subscriptionForm.querySelectorAll('.is-invalid, .is-valid').forEach((field) => {
+                field.classList.remove('is-invalid', 'is-valid');
+            });
+        };
+
+        const setSubscriptionFormMode = (trigger) => {
+            const isEdit = trigger.dataset.subscriptionMode === 'edit';
+
+            clearFieldStates();
+            subscriptionForm.action = isEdit ? trigger.dataset.subscriptionAction : subscriptionForm.dataset.createAction;
+            modalTitle.textContent = isEdit ? subscriptionForm.dataset.titleEdit : subscriptionForm.dataset.titleCreate;
+            submitButton.textContent = isEdit ? subscriptionForm.dataset.submitEdit : subscriptionForm.dataset.submitCreate;
+            modeInput.value = isEdit ? 'edit' : 'create';
+            idInput.value = isEdit ? trigger.dataset.subscriptionId : '';
+
+            if (methodInput) {
+                methodInput.disabled = !isEdit;
+                methodInput.value = 'PUT';
+            }
+
+            nameInput.value = isEdit ? trigger.dataset.subscriptionName : '';
+            typeInput.value = isEdit ? trigger.dataset.subscriptionType : 'standard';
+            expiryInput.value = isEdit ? trigger.dataset.subscriptionExpiresAt : expiryInput.defaultValue;
+        };
+
+        document.querySelectorAll('[data-subscription-mode]').forEach((trigger) => {
+            trigger.addEventListener('click', () => setSubscriptionFormMode(trigger));
+        });
+
+        subscriptionForm.addEventListener('submit', (event) => {
+            const validationResults = requiredFields.map((field) => validateField(field));
+            const isValid = validationResults.every(Boolean);
+
+            if (!isValid) {
+                event.preventDefault();
+                requiredFields.find((field) => field.classList.contains('is-invalid'))?.focus();
+            }
+        });
+    }
 })();

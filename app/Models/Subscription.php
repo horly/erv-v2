@@ -13,8 +13,18 @@ class Subscription extends Model
     protected $fillable = [
         'name',
         'code',
+        'type',
         'status',
+        'company_limit',
+        'expires_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'expires_at' => 'date',
+        ];
+    }
 
     public function users(): HasMany
     {
