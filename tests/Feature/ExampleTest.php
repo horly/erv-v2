@@ -184,11 +184,266 @@ class ExampleTest extends TestCase
             'role' => User::ROLE_SUPERADMIN,
         ]);
 
+
         $response = $this->actingAs($superadmin)->get('/admin/users');
 
         $response->assertOk();
         $response->assertSee('Utilisateurs');
         $response->assertSee('superadmin-users@example.test');
+    }
+    public function test_users_page_exposes_subscription_counts(): void
+    {
+        $superadmin = User::create([
+            'name' => 'superadmin',
+            'email' => 'superadmin-counts@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        $subscription = Subscription::create([
+            'name' => 'Counted subscription',
+            'code' => 'COUNTED_SUBSCRIPTION',
+            'type' => 'standard',
+            'status' => 'active',
+            'company_limit' => 1,
+            'expires_at' => now()->addYear()->toDateString(),
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'counted-admin',
+            'email' => 'counted-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'counted-user',
+            'email' => 'counted-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Counted company',
+            'email' => 'counted-company@example.test',
+        ]);
+
+
+        $response = $this->actingAs($superadmin)->get('/admin/users');
+
+        $response->assertOk();
+        $response->assertSee('data-users="2"', false);
+        $response->assertSee('data-companies="1"', false);
+    }
+    public function test_superadmin_can_create_user_from_users_page(): void
+    {
+        $superadmin = User::create([
+            'name' => 'superadmin',
+            'email' => 'superadmin-create-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        $subscription = Subscription::create([
+            'name' => 'User subscription',
+            'code' => 'USER_SUBSCRIPTION',
+            'type' => 'standard',
+            'status' => 'active',
+            'company_limit' => 1,
+            'expires_at' => now()->addYear()->toDateString(),
+        ]);
+
+        $response = $this->actingAs($superadmin)->post('/admin/users', [
+            'name' => 'new user',
+            'email' => 'new-user@example.test',
+            'password' => 'StrongPass@123!',
+            'password_confirmation' => 'StrongPass@123!',
+            'role' => User::ROLE_USER,
+            'subscription_id' => $subscription->id,
+            'phone_number' => '+243000000000',
+            'grade' => 'Manager',
+            'address' => 'Kinshasa',
+        ]);
+
+        $response->assertRedirect(route('admin.users'));
+        $response->assertSessionHas('success');
+
+        $this->assertDatabaseHas('users', [
+            'name' => 'new user',
+            'email' => 'new-user@example.test',
+            'role' => User::ROLE_USER,
+            'subscription_id' => $subscription->id,
+            'phone_number' => '+243000000000',
+            'grade' => 'Manager',
+            'address' => 'Kinshasa',
+        ]);
+    }
+    public function test_admin_creation_rejects_invalid_email_and_missing_password(): void
+    {
+        $superadmin = User::create([
+            'name' => 'superadmin',
+            'email' => 'superadmin-invalid-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        $subscription = Subscription::create([
+            'name' => 'Admin validation subscription',
+            'code' => 'ADMIN_VALIDATION_SUBSCRIPTION',
+            'type' => 'standard',
+            'status' => 'active',
+            'company_limit' => 1,
+            'expires_at' => now()->addYear()->toDateString(),
+        ]);
+
+        $response = $this->actingAs($superadmin)->post('/admin/admins', [
+            'admin_name' => 'bad admin',
+            'admin_email' => 'bad@',
+            'password' => '',
+            'password_confirmation' => '',
+            'admin_subscription_id' => $subscription->id,
+        ]);
+
+        $response->assertSessionHasErrors(['admin_email', 'password']);
+        $this->assertDatabaseMissing('users', [
+            'email' => 'bad@',
+        ]);
+    }
+    public function test_users_page_shows_superadmin_then_latest_user(): void
+    {
+        $superadmin = User::create([
+            'name' => 'superadmin',
+            'email' => 'superadmin-order@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        $subscription = Subscription::create([
+            'name' => 'Order subscription',
+            'code' => 'ORDER_SUBSCRIPTION',
+            'type' => 'standard',
+            'status' => 'active',
+            'company_limit' => 1,
+            'expires_at' => now()->addYear()->toDateString(),
+        ]);
+
+        $oldUser = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'old-user',
+            'email' => 'old-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+            'created_at' => now()->subDay(),
+        ]);
+
+        $latestUser = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'latest-user',
+            'email' => 'latest-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+            'created_at' => now(),
+        ]);
+
+        $oldUser->forceFill(['created_at' => now()->subDay()])->save();
+        $latestUser->forceFill(['created_at' => now()])->save();
+
+        $response = $this->actingAs($superadmin)->get('/admin/users');
+
+        $response->assertOk();
+        $response->assertSeeInOrder(['superadmin-order@example.test', 'latest-user@example.test', 'old-user@example.test']);
+    }
+
+    public function test_superadmin_can_update_user_without_changing_password(): void
+    {
+        $superadmin = User::create([
+            'name' => 'superadmin',
+            'email' => 'superadmin-update-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        $subscription = Subscription::create([
+            'name' => 'Update subscription',
+            'code' => 'UPDATE_SUBSCRIPTION',
+            'type' => 'standard',
+            'status' => 'active',
+            'company_limit' => 1,
+            'expires_at' => now()->addYear()->toDateString(),
+        ]);
+
+        $account = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'editable-user',
+            'email' => 'editable-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $response = $this->actingAs($superadmin)->put('/admin/users/'.$account->id, [
+            'user_id' => $account->id,
+            'form_mode' => 'edit',
+            'name' => 'edited-user',
+            'email' => 'edited-user@example.test',
+            'password' => '',
+            'password_confirmation' => '',
+            'role' => User::ROLE_ADMIN,
+            'subscription_id' => $subscription->id,
+            'phone_number' => '+243111111111',
+            'grade' => 'Lead',
+            'address' => 'Gombe',
+        ]);
+
+        $response->assertRedirect(route('admin.users'));
+        $response->assertSessionHas('success');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $account->id,
+            'name' => 'edited-user',
+            'email' => 'edited-user@example.test',
+            'role' => User::ROLE_ADMIN,
+            'phone_number' => '+243111111111',
+            'grade' => 'Lead',
+            'address' => 'Gombe',
+        ]);
+    }
+
+    public function test_superadmin_can_delete_user(): void
+    {
+        $superadmin = User::create([
+            'name' => 'superadmin',
+            'email' => 'superadmin-delete-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        $subscription = Subscription::create([
+            'name' => 'Delete subscription',
+            'code' => 'DELETE_SUBSCRIPTION',
+            'type' => 'standard',
+            'status' => 'active',
+            'company_limit' => 1,
+            'expires_at' => now()->addYear()->toDateString(),
+        ]);
+
+        $account = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'delete-user',
+            'email' => 'delete-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $response = $this->actingAs($superadmin)->delete('/admin/users/'.$account->id);
+
+        $response->assertRedirect(route('admin.users'));
+        $response->assertSessionHas('success');
+        $response->assertSessionHas('toast_type', 'danger');
+        $this->assertDatabaseMissing('users', ['id' => $account->id]);
     }
     public function test_superadmin_login_redirects_to_admin_dashboard(): void
     {

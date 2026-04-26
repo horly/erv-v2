@@ -13,6 +13,9 @@
         $currentLocale = app()->getLocale();
         $initial = strtoupper(mb_substr($user->name, 0, 1));
         $totalUsers = $users->total();
+        $hasUserErrors = $errors->hasAny(['name', 'email', 'password', 'password_confirmation', 'role', 'subscription_id', 'phone_number', 'grade', 'address']);
+        $isEditingUser = old('form_mode') === 'edit' && old('user_id');
+        $userFormAction = $isEditingUser ? route('admin.users.update', old('user_id')) : route('admin.users.store');
     @endphp
 
     <div class="dashboard-shell main-shell" data-theme="light">
@@ -40,7 +43,7 @@
                     <i class="bi bi-people" aria-hidden="true"></i>
                     {{ __('admin.users') }}
                 </a>
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="{{ route('admin.companies') }}">
                     <i class="bi bi-buildings" aria-hidden="true"></i>
                     {{ __('admin.companies') }}
                 </a>
@@ -120,9 +123,20 @@
                 </div>
             </header>
 
+            
+            @if (session('success'))
+                <div class="flash-toast {{ session('toast_type') === 'danger' ? 'flash-toast-danger' : '' }}" role="status" aria-live="polite" data-autohide="15000">
+                    <span class="flash-icon"><i class="bi {{ session('toast_type') === 'danger' ? 'bi-trash3' : 'bi-check2-circle' }}" aria-hidden="true"></i></span>
+                    <span>{{ session('success') }}</span>
+                    <button type="button" class="flash-close" aria-label="{{ __('admin.close') }}">
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                    </button>
+                    <span class="flash-progress" aria-hidden="true"></span>
+                </div>
+            @endif
             <section class="dashboard-content subscriptions-page users-page">
                 <div class="subscription-actions">
-                    <button class="primary-action" type="button">
+                    <button class="primary-action" type="button" data-bs-toggle="modal" data-bs-target="#userModal" data-user-mode="create">
                         <i class="bi bi-person-plus" aria-hidden="true"></i>
                         {{ __('admin.new_user') }}
                     </button>
@@ -172,7 +186,20 @@
                                             default => __('admin.user_role'),
                                         };
                                     @endphp
-                                    <tr>
+                                    <tr class="{{ $account->isSuperadmin() ? '' : 'user-edit-row' }}"
+                                        @unless ($account->isSuperadmin())
+                                            data-user-mode="edit"
+                                            data-user-action="{{ route('admin.users.update', $account) }}"
+                                            data-user-id="{{ $account->id }}"
+                                            data-user-name="{{ $account->name }}"
+                                            data-user-email="{{ $account->email }}"
+                                            data-user-role="{{ $account->role }}"
+                                            data-user-subscription-id="{{ $account->subscription_id }}"
+                                            data-user-phone="{{ $account->phone_number }}"
+                                            data-user-grade="{{ $account->grade }}"
+                                            data-user-address="{{ $account->address }}"
+                                        @endunless
+                                    >
                                         <td>{{ $users->firstItem() + $loop->index }}</td>
                                         <td class="subscription-name">{{ $account->name }}</td>
                                         <td>{{ $account->email }}</td>
@@ -215,12 +242,41 @@
                                         <td>
                                             @if (! $account->isSuperadmin())
                                                 <div class="table-actions">
-                                                    <button type="button" class="table-button table-button-edit" aria-label="{{ __('admin.edit') }}">
+                                                    <button
+                                                        type="button"
+                                                        class="table-button table-button-edit"
+                                                        aria-label="{{ __('admin.edit') }}"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#userModal"
+                                                        data-user-mode="edit"
+                                                        data-user-action="{{ route('admin.users.update', $account) }}"
+                                                        data-user-id="{{ $account->id }}"
+                                                        data-user-name="{{ $account->name }}"
+                                                        data-user-email="{{ $account->email }}"
+                                                        data-user-role="{{ $account->role }}"
+                                                        data-user-subscription-id="{{ $account->subscription_id }}"
+                                                        data-user-phone="{{ $account->phone_number }}"
+                                                        data-user-grade="{{ $account->grade }}"
+                                                        data-user-address="{{ $account->address }}"
+                                                    >
                                                         <i class="bi bi-pencil" aria-hidden="true"></i>
                                                     </button>
-                                                    <button type="button" class="table-button table-button-delete" aria-label="{{ __('admin.delete') }}">
-                                                        <i class="bi bi-trash" aria-hidden="true"></i>
-                                                    </button>
+                                                    <form class="user-delete-form" method="POST" action="{{ route('admin.users.destroy', $account) }}">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button
+                                                            type="button"
+                                                            class="table-button table-button-delete"
+                                                            aria-label="{{ __('admin.delete') }}"
+                                                            data-delete-trigger
+                                                            data-delete-title="{{ __('admin.delete_user_title') }}"
+                                                            data-delete-text="{{ __('admin.delete_user_text', ['name' => $account->name]) }}"
+                                                            data-delete-confirm="{{ __('admin.delete_user_confirm') }}"
+                                                            data-delete-cancel="{{ __('admin.delete_user_cancel') }}"
+                                                        >
+                                                            <i class="bi bi-trash" aria-hidden="true"></i>
+                                                        </button>
+                                                    </form>
                                                 </div>
                                             @endif
                                         </td>
@@ -274,6 +330,112 @@
     </div>
 
 
+
+    <div class="modal fade subscription-modal user-modal" id="userModal" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content admin-form user-form" method="POST" action="{{ $userFormAction }}" data-create-action="{{ route('admin.users.store') }}" data-title-create="{{ __('admin.new_user') }}" data-title-edit="{{ __('admin.edit_user') }}" data-submit-create="{{ __('admin.create') }}" data-submit-edit="{{ __('admin.update') }}" novalidate>
+                @csrf
+                <input type="hidden" name="_method" id="userMethod" value="PUT" @disabled(! $isEditingUser)>
+                <input type="hidden" name="form_mode" id="userFormMode" value="{{ $isEditingUser ? 'edit' : 'create' }}">
+                <input type="hidden" name="user_id" id="userId" value="{{ old('user_id') }}">
+                <div class="modal-body">
+                    <button type="button" class="modal-close" data-bs-dismiss="modal" aria-label="{{ __('admin.close') }}">
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                    </button>
+                    <h2 id="userModalLabel">{{ $isEditingUser ? __('admin.edit_user') : __('admin.new_user') }}</h2>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="userName" class="form-label">{{ __('admin.name') }} *</label>
+                            <input id="userName" name="name" type="text" class="form-control @error('name') is-invalid @enderror" value="{{ old('name') }}" data-required-message="{{ __('admin.required_user_name') }}">
+                            @error('name')<div class="invalid-feedback">{{ $message }}</div>@else<div class="invalid-feedback">{{ __('admin.required_user_name') }}</div>@enderror
+                            <div class="valid-feedback">{{ __('admin.valid_user_name') }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="userEmail" class="form-label">{{ __('admin.email') }} *</label>
+                            <input id="userEmail" name="email" type="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" data-required-message="{{ __('admin.required_user_email') }}" data-email-message="{{ __('admin.invalid_user_email') }}">
+                            @error('email')<div class="invalid-feedback">{{ $message }}</div>@else<div class="invalid-feedback">{{ __('admin.required_user_email') }}</div>@enderror
+                            <div class="valid-feedback">{{ __('admin.valid_user_email') }}</div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <label for="userPassword" class="form-label" id="userPasswordLabel" data-create-label="{{ __('admin.password') }} *" data-edit-label="{{ __('admin.password_optional_edit') }}">{{ $isEditingUser ? __('admin.password_optional_edit') : __('admin.password').' *' }}</label>
+                        <div class="password-control">
+                            <input id="userPassword" name="password" type="password" class="form-control @error('password') is-invalid @enderror" data-required-message="{{ __('admin.required_admin_password') }}" data-password-rules-target="userPasswordRules">
+                            <button type="button" class="password-toggle" data-password-toggle="userPassword" aria-label="{{ __('admin.password_toggle') }}"><i class="bi bi-eye" aria-hidden="true"></i></button>
+                        </div>
+                        @error('password')<div class="invalid-feedback d-block">{{ $message }}</div>@else<div class="invalid-feedback">{{ __('admin.required_admin_password') }}</div>@enderror
+                        <div class="valid-feedback">{{ __('admin.valid_admin_password') }}</div>
+                        <div class="password-rules" id="userPasswordRules" aria-live="polite">
+                            <span class="password-rule" data-rule="length">{{ __('admin.password_rule_length') }}</span>
+                            <span class="password-rule" data-rule="case">{{ __('admin.password_rule_case') }}</span>
+                            <span class="password-rule" data-rule="alphanumeric">{{ __('admin.password_rule_alphanumeric') }}</span>
+                            <span class="password-rule" data-rule="special">{{ __('admin.password_rule_special') }}</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <label for="userPasswordConfirmation" class="form-label" id="userPasswordConfirmationLabel" data-create-label="{{ __('admin.password_confirmation') }} *" data-edit-label="{{ __('admin.password_confirmation_optional_edit') }}">{{ $isEditingUser ? __('admin.password_confirmation_optional_edit') : __('admin.password_confirmation').' *' }}</label>
+                        <div class="password-control">
+                            <input id="userPasswordConfirmation" name="password_confirmation" type="password" class="form-control @error('password_confirmation') is-invalid @enderror" data-required-message="{{ __('admin.required_admin_password_confirmation') }}" data-password-confirmation-for="userPassword" data-password-match-target="userPasswordMatch">
+                            <button type="button" class="password-toggle" data-password-toggle="userPasswordConfirmation" aria-label="{{ __('admin.password_toggle') }}"><i class="bi bi-eye" aria-hidden="true"></i></button>
+                        </div>
+                        @error('password_confirmation')<div class="invalid-feedback d-block">{{ $message }}</div>@else<div class="invalid-feedback">{{ __('admin.required_admin_password_confirmation') }}</div>@enderror
+                        <div class="valid-feedback">{{ __('admin.valid_admin_password_confirmation') }}</div>
+                        <div class="password-match-feedback" id="userPasswordMatch" data-valid-message="{{ __('admin.password_confirmation_match') }}" data-invalid-message="{{ __('admin.password_confirmation_mismatch') }}" data-empty-message="{{ __('admin.required_admin_password_confirmation') }}" aria-live="polite"></div>
+                    </div>
+
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <label for="userRole" class="form-label">{{ __('admin.role') }} *</label>
+                            <select id="userRole" name="role" class="form-select @error('role') is-invalid @enderror" data-required-message="{{ __('admin.required_user_role') }}">
+                                <option value="user" @selected(old('role', 'user') === 'user')>{{ __('admin.user_role') }}</option>
+                                <option value="admin" @selected(old('role') === 'admin')>{{ __('admin.admin_role') }}</option>
+                            </select>
+                            @error('role')<div class="invalid-feedback">{{ $message }}</div>@else<div class="invalid-feedback">{{ __('admin.required_user_role') }}</div>@enderror
+                            <div class="valid-feedback">{{ __('admin.valid_user_role') }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="userSubscription" class="form-label">{{ __('admin.subscription') }} *</label>
+                            <select id="userSubscription" name="subscription_id" class="form-select @error('subscription_id') is-invalid @enderror" data-required-message="{{ __('admin.required_user_subscription') }}">
+                                <option value="">{{ __('admin.choose_subscription') }}</option>
+                                @foreach ($subscriptionOptions as $subscriptionOption)
+                                    <option value="{{ $subscriptionOption->id }}" @selected((string) old('subscription_id') === (string) $subscriptionOption->id)>{{ $subscriptionOption->name }} - {{ __('admin.'.$subscriptionOption->type) }}</option>
+                                @endforeach
+                            </select>
+                            @error('subscription_id')<div class="invalid-feedback">{{ $message }}</div>@else<div class="invalid-feedback">{{ __('admin.required_user_subscription') }}</div>@enderror
+                            <div class="valid-feedback">{{ __('admin.valid_user_subscription') }}</div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <label for="userPhone" class="form-label">{{ __('admin.phone') }}</label>
+                            <input id="userPhone" name="phone_number" type="text" class="form-control @error('phone_number') is-invalid @enderror" value="{{ old('phone_number') }}">
+                            @error('phone_number')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="userGrade" class="form-label">{{ __('admin.grade') }}</label>
+                            <input id="userGrade" name="grade" type="text" class="form-control @error('grade') is-invalid @enderror" value="{{ old('grade') }}">
+                            @error('grade')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <label for="userAddress" class="form-label">{{ __('admin.address') }}</label>
+                        <input id="userAddress" name="address" type="text" class="form-control @error('address') is-invalid @enderror" value="{{ old('address') }}">
+                        @error('address')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="modal-cancel" data-bs-dismiss="modal">{{ __('admin.cancel') }}</button>
+                        <button type="submit" class="modal-submit" id="userSubmit">{{ $isEditingUser ? __('admin.update') : __('admin.create') }}</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
     <div class="modal fade subscription-modal details-modal" id="subscriptionDetailsModal" tabindex="-1" aria-labelledby="subscriptionDetailsModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -334,6 +496,13 @@
         </div>
     </div>
     <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    @if ($hasUserErrors)
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal')).show();
+            });
+        </script>
+    @endif
     <script>{!! file_get_contents(resource_path('js/main.js')) !!}</script>
 </body>
 </html>

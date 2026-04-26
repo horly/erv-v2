@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Company extends Model
 {
@@ -15,7 +16,14 @@ class Company extends Model
         'subscription_id',
         'created_by',
         'name',
+        'rccm',
+        'id_nat',
+        'nif',
+        'website',
+        'slogan',
+        'country',
         'email',
+        'logo',
         'phone_number',
         'address',
     ];
@@ -30,6 +38,16 @@ class Company extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+
+    public function phones(): HasMany
+    {
+        return $this->hasMany(CompanyPhone::class);
+    }
+
+    public function accounts(): HasMany
+    {
+        return $this->hasMany(CompanyAccount::class);
+    }
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class)

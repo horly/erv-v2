@@ -50,7 +50,7 @@
                     <i class="bi bi-people" aria-hidden="true"></i>
                     {{ __('admin.users') }}
                 </a>
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="{{ route('admin.companies') }}">
                     <i class="bi bi-buildings" aria-hidden="true"></i>
                     {{ __('admin.companies') }}
                 </a>

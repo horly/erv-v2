@@ -21,6 +21,12 @@ Route::prefix('admin')
         Route::get('/dashboard', 'dashboard')->name('dashboard');
         Route::get('/subscriptions', 'subscriptions')->name('subscriptions');
         Route::get('/users', 'users')->name('users');
+        Route::get('/companies', 'companies')->name('companies');
+        Route::get('/companies/create', 'createCompany')->name('companies.create');
+        Route::post('/companies', 'storeCompany')->name('companies.store');
+        Route::post('/users', 'storeUser')->name('users.store');
+        Route::put('/users/{account}', 'updateUser')->name('users.update');
+        Route::delete('/users/{account}', 'destroyUser')->name('users.destroy');
         Route::post('/admins', 'storeAdmin')->name('admins.store');
         Route::post('/subscriptions', 'storeSubscription')->name('subscriptions.store');
         Route::put('/subscriptions/{subscription}', 'updateSubscription')->name('subscriptions.update');

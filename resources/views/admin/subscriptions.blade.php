@@ -46,7 +46,7 @@
                     <i class="bi bi-people" aria-hidden="true"></i>
                     {{ __('admin.users') }}
                 </a>
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="{{ route('admin.companies') }}">
                     <i class="bi bi-buildings" aria-hidden="true"></i>
                     {{ __('admin.companies') }}
                 </a>
@@ -390,7 +390,7 @@
 
                     <div class="mb-4">
                         <label for="adminEmail" class="form-label">{{ __('admin.email') }} *</label>
-                        <input id="adminEmail" name="admin_email" type="email" class="form-control @error('admin_email') is-invalid @enderror" value="{{ old('admin_email') }}" data-required-message="{{ __('admin.required_admin_email') }}">
+                        <input id="adminEmail" name="admin_email" type="email" class="form-control @error('admin_email') is-invalid @enderror" value="{{ old('admin_email') }}" data-required-message="{{ __('admin.required_admin_email') }}" data-email-message="{{ __('admin.invalid_user_email') }}">
                         @error('admin_email')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @else
@@ -435,7 +435,7 @@
                             <div class="invalid-feedback">{{ __('admin.required_admin_password_confirmation') }}</div>
                         @enderror
                         <div class="valid-feedback">{{ __('admin.valid_admin_password_confirmation') }}</div>
-                        <div class="password-match-feedback" id="adminPasswordMatch" data-valid-message="{{ __('admin.password_confirmation_match') }}" data-invalid-message="{{ __('admin.password_confirmation_mismatch') }}" aria-live="polite"></div>
+                        <div class="password-match-feedback" id="adminPasswordMatch" data-valid-message="{{ __('admin.password_confirmation_match') }}" data-invalid-message="{{ __('admin.password_confirmation_mismatch') }}" data-empty-message="{{ __('admin.required_admin_password_confirmation') }}" aria-live="polite"></div>
                     </div>
 
                     <div class="mb-4">
