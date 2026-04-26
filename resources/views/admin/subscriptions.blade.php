@@ -14,6 +14,7 @@
         $initial = strtoupper(mb_substr($user->name, 0, 1));
         $totalSubscriptions = $subscriptions->total();
         $hasSubscriptionErrors = $errors->hasAny(['name', 'type', 'expires_at']);
+        $hasAdminErrors = $errors->hasAny(['admin_name', 'admin_email', 'password', 'password_confirmation', 'admin_subscription_id']);
         $isEditingSubscription = old('form_mode') === 'edit' && old('subscription_id');
         $subscriptionFormAction = $isEditingSubscription
             ? route('admin.subscriptions.update', old('subscription_id'))
@@ -41,7 +42,7 @@
                     <i class="bi bi-stack" aria-hidden="true"></i>
                     {{ __('admin.subscriptions') }}
                 </a>
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="{{ route('admin.users') }}">
                     <i class="bi bi-people" aria-hidden="true"></i>
                     {{ __('admin.users') }}
                 </a>
@@ -126,8 +127,8 @@
             </header>
 
             @if (session('success'))
-                <div class="flash-toast" role="status" aria-live="polite" data-autohide="15000">
-                    <span class="flash-icon"><i class="bi bi-check2-circle" aria-hidden="true"></i></span>
+                <div class="flash-toast {{ session('toast_type') === 'danger' ? 'flash-toast-danger' : '' }}" role="status" aria-live="polite" data-autohide="15000">
+                    <span class="flash-icon"><i class="bi {{ session('toast_type') === 'danger' ? 'bi-trash3' : 'bi-check2-circle' }}" aria-hidden="true"></i></span>
                     <span>{{ session('success') }}</span>
                     <button type="button" class="flash-close" aria-label="{{ __('admin.close') }}">
                         <i class="bi bi-x-lg" aria-hidden="true"></i>
@@ -148,7 +149,7 @@
                         <i class="bi bi-plus-lg" aria-hidden="true"></i>
                         {{ __('admin.new_subscription') }}
                     </button>
-                    <button class="secondary-action" type="button">
+                    <button class="secondary-action" type="button" data-bs-toggle="modal" data-bs-target="#adminModal">
                         <i class="bi bi-person-plus" aria-hidden="true"></i>
                         {{ __('admin.create_admin') }}
                     </button>
@@ -172,21 +173,21 @@
                         <table class="admin-table subscriptions-table" id="companyTable">
                             <thead>
                                 <tr>
-                                    <th>#</th>
-                                    <th>{{ __('admin.name') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></th>
-                                    <th>{{ __('admin.type') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></th>
-                                    <th>{{ __('admin.status') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></th>
-                                    <th>{{ __('admin.company_limit') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></th>
-                                    <th>{{ __('admin.users') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></th>
-                                    <th>{{ __('admin.companies') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></th>
-                                    <th>{{ __('admin.expiration') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="0" data-sort-type="number"># <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="1" data-sort-type="text">{{ __('admin.name') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="2" data-sort-type="text">{{ __('admin.type') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="3" data-sort-type="text">{{ __('admin.status') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="4" data-sort-type="text">{{ __('admin.company_limit') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="5" data-sort-type="number">{{ __('admin.users') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="6" data-sort-type="number">{{ __('admin.companies') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="7" data-sort-type="date">{{ __('admin.expiration') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th class="text-end">{{ __('admin.actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @forelse ($subscriptions as $subscription)
                                     @php
-                                        $isActive = $subscription->status === 'active';
+                                        $isActive = $subscription->isCurrentlyActive();
                                         $type = strtoupper($subscription->type ?? 'standard');
                                         $limit = match ($subscription->type ?? 'standard') {
                                             'business' => __('admin.unlimited'),
@@ -230,9 +231,22 @@
                                                 >
                                                     <i class="bi bi-pencil" aria-hidden="true"></i>
                                                 </button>
-                                                <button type="button" class="table-button table-button-delete" aria-label="{{ __('admin.delete') }}">
-                                                    <i class="bi bi-trash" aria-hidden="true"></i>
-                                                </button>
+                                                <form class="subscription-delete-form" method="POST" action="{{ route('admin.subscriptions.destroy', $subscription) }}">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button
+                                                        type="button"
+                                                        class="table-button table-button-delete"
+                                                        aria-label="{{ __('admin.delete') }}"
+                                                        data-delete-trigger
+                                                        data-delete-title="{{ __('admin.delete_subscription_title') }}"
+                                                        data-delete-text="{{ __('admin.delete_subscription_text', ['name' => $subscription->name]) }}"
+                                                        data-delete-confirm="{{ __('admin.delete_subscription_confirm') }}"
+                                                        data-delete-cancel="{{ __('admin.delete_subscription_cancel') }}"
+                                                    >
+                                                        <i class="bi bi-trash" aria-hidden="true"></i>
+                                                    </button>
+                                                </form>
                                             </div>
                                         </td>
                                     </tr>
@@ -241,6 +255,9 @@
                                         <td colspan="9">{{ __('admin.no_subscriptions') }}</td>
                                     </tr>
                                 @endforelse
+                                <tr class="empty-row search-empty-row" hidden>
+                                    <td colspan="9">{{ __('admin.no_results') }}</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -255,15 +272,27 @@
                         {{ __('admin.on') }}
                         <strong>{{ $totalSubscriptions }}</strong>
                     </span>
-                    @if ($subscriptions->hasPages())
-                        {{ $subscriptions->links() }}
-                    @else
-                        <div class="pagination-shell">
-                            <button type="button" disabled>{{ __('admin.previous') }}</button>
-                            <button type="button" class="active">1</button>
-                            <button type="button" disabled>{{ __('admin.next') }}</button>
-                        </div>
-                    @endif
+                    <nav class="pagination-shell" aria-label="{{ __('admin.pagination') }}">
+                        @if ($subscriptions->onFirstPage())
+                            <span class="disabled">{{ __('admin.previous') }}</span>
+                        @else
+                            <a href="{{ $subscriptions->previousPageUrl() }}">{{ __('admin.previous') }}</a>
+                        @endif
+
+                        @foreach ($subscriptions->getUrlRange(1, $subscriptions->lastPage()) as $page => $url)
+                            @if ($page === $subscriptions->currentPage())
+                                <span class="active" aria-current="page">{{ $page }}</span>
+                            @else
+                                <a href="{{ $url }}">{{ $page }}</a>
+                            @endif
+                        @endforeach
+
+                        @if ($subscriptions->hasMorePages())
+                            <a href="{{ $subscriptions->nextPageUrl() }}">{{ __('admin.next') }}</a>
+                        @else
+                            <span class="disabled">{{ __('admin.next') }}</span>
+                        @endif
+                    </nav>
                 </section>
             </section>
         </main>
@@ -287,6 +316,9 @@
                 <input type="hidden" name="form_mode" id="subscriptionFormMode" value="{{ $isEditingSubscription ? 'edit' : 'create' }}">
                 <input type="hidden" name="subscription_id" id="subscriptionId" value="{{ old('subscription_id') }}">
                 <div class="modal-body">
+                    <button type="button" class="modal-close" data-bs-dismiss="modal" aria-label="{{ __('admin.close') }}">
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                    </button>
                     <h2 id="subscriptionModalLabel">{{ $isEditingSubscription ? __('admin.edit') : __('admin.new_subscription') }}</h2>
 
                     <div class="mb-4">
@@ -335,12 +367,116 @@
         </div>
     </div>
 
+    <div class="modal fade subscription-modal admin-modal" id="adminModal" tabindex="-1" aria-labelledby="adminModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content admin-form" method="POST" action="{{ route('admin.admins.store') }}" novalidate>
+                @csrf
+                <div class="modal-body">
+                    <button type="button" class="modal-close" data-bs-dismiss="modal" aria-label="{{ __('admin.close') }}">
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                    </button>
+                    <h2 id="adminModalLabel">{{ __('admin.create_admin_title') }}</h2>
+
+                    <div class="mb-4">
+                        <label for="adminName" class="form-label">{{ __('admin.name') }} *</label>
+                        <input id="adminName" name="admin_name" type="text" class="form-control @error('admin_name') is-invalid @enderror" value="{{ old('admin_name') }}" data-required-message="{{ __('admin.required_admin_name') }}">
+                        @error('admin_name')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @else
+                            <div class="invalid-feedback">{{ __('admin.required_admin_name') }}</div>
+                        @enderror
+                        <div class="valid-feedback">{{ __('admin.valid_admin_name') }}</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="adminEmail" class="form-label">{{ __('admin.email') }} *</label>
+                        <input id="adminEmail" name="admin_email" type="email" class="form-control @error('admin_email') is-invalid @enderror" value="{{ old('admin_email') }}" data-required-message="{{ __('admin.required_admin_email') }}">
+                        @error('admin_email')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @else
+                            <div class="invalid-feedback">{{ __('admin.required_admin_email') }}</div>
+                        @enderror
+                        <div class="valid-feedback">{{ __('admin.valid_admin_email') }}</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="adminPassword" class="form-label">{{ __('admin.password') }} *</label>
+                        <div class="password-control">
+                            <input id="adminPassword" name="password" type="password" class="form-control @error('password') is-invalid @enderror" data-required-message="{{ __('admin.required_admin_password') }}" data-password-rules-target="adminPasswordRules">
+                            <button type="button" class="password-toggle" data-password-toggle="adminPassword" aria-label="{{ __('admin.password_toggle') }}">
+                                <i class="bi bi-eye" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                        @error('password')
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                        @else
+                            <div class="invalid-feedback">{{ __('admin.required_admin_password') }}</div>
+                        @enderror
+                        <div class="valid-feedback">{{ __('admin.valid_admin_password') }}</div>
+                        <div class="password-rules" id="adminPasswordRules" aria-live="polite">
+                            <span class="password-rule" data-rule="length">{{ __('admin.password_rule_length') }}</span>
+                            <span class="password-rule" data-rule="case">{{ __('admin.password_rule_case') }}</span>
+                            <span class="password-rule" data-rule="alphanumeric">{{ __('admin.password_rule_alphanumeric') }}</span>
+                            <span class="password-rule" data-rule="special">{{ __('admin.password_rule_special') }}</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="adminPasswordConfirmation" class="form-label">{{ __('admin.password_confirmation') }} *</label>
+                        <div class="password-control">
+                            <input id="adminPasswordConfirmation" name="password_confirmation" type="password" class="form-control @error('password_confirmation') is-invalid @enderror" data-required-message="{{ __('admin.required_admin_password_confirmation') }}" data-password-confirmation-for="adminPassword" data-password-match-target="adminPasswordMatch">
+                            <button type="button" class="password-toggle" data-password-toggle="adminPasswordConfirmation" aria-label="{{ __('admin.password_toggle') }}">
+                                <i class="bi bi-eye" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                        @error('password_confirmation')
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                        @else
+                            <div class="invalid-feedback">{{ __('admin.required_admin_password_confirmation') }}</div>
+                        @enderror
+                        <div class="valid-feedback">{{ __('admin.valid_admin_password_confirmation') }}</div>
+                        <div class="password-match-feedback" id="adminPasswordMatch" data-valid-message="{{ __('admin.password_confirmation_match') }}" data-invalid-message="{{ __('admin.password_confirmation_mismatch') }}" aria-live="polite"></div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="adminSubscription" class="form-label">{{ __('admin.subscription') }} *</label>
+                        <select id="adminSubscription" name="admin_subscription_id" class="form-select @error('admin_subscription_id') is-invalid @enderror" data-required-message="{{ __('admin.required_admin_subscription') }}">
+                            <option value="">{{ __('admin.choose_subscription') }}</option>
+                            @foreach ($subscriptionOptions as $subscriptionOption)
+                                <option value="{{ $subscriptionOption->id }}" @selected((string) old('admin_subscription_id') === (string) $subscriptionOption->id)>
+                                    {{ $subscriptionOption->name }} - {{ __('admin.'.$subscriptionOption->type) }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('admin_subscription_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @else
+                            <div class="invalid-feedback">{{ __('admin.required_admin_subscription') }}</div>
+                        @enderror
+                        <div class="valid-feedback">{{ __('admin.valid_admin_subscription') }}</div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="modal-cancel" data-bs-dismiss="modal">{{ __('admin.cancel') }}</button>
+                        <button type="submit" class="modal-submit">{{ __('admin.create') }}</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
     <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
     <script>{!! file_get_contents(resource_path('js/main.js')) !!}</script>
     @if ($hasSubscriptionErrors)
         <script>
             window.addEventListener('DOMContentLoaded', () => {
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('subscriptionModal')).show();
+            });
+        </script>
+    @endif
+    @if ($hasAdminErrors)
+        <script>
+            window.addEventListener('DOMContentLoaded', () => {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('adminModal')).show();
             });
         </script>
     @endif

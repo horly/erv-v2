@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\MainController;
 use Illuminate\Support\Facades\Route;
@@ -9,20 +10,22 @@ Route::controller(MainController::class)->group(function (): void {
 
     Route::middleware('auth')->group(function (): void {
         Route::get('/main', 'index')->name('main');
-        Route::get('/admin/dashboard', 'adminDashboard')
-            ->middleware('superadmin')
-            ->name('admin.dashboard');
-        Route::get('/admin/subscriptions', 'adminSubscriptions')
-            ->middleware('superadmin')
-            ->name('admin.subscriptions');
-        Route::post('/admin/subscriptions', 'storeSubscription')
-            ->middleware('superadmin')
-            ->name('admin.subscriptions.store');
-        Route::put('/admin/subscriptions/{subscription}', 'updateSubscription')
-            ->middleware('superadmin')
-            ->name('admin.subscriptions.update');
     });
 });
+
+Route::prefix('admin')
+    ->name('admin.')
+    ->middleware(['auth', 'superadmin'])
+    ->controller(AdminController::class)
+    ->group(function (): void {
+        Route::get('/dashboard', 'dashboard')->name('dashboard');
+        Route::get('/subscriptions', 'subscriptions')->name('subscriptions');
+        Route::get('/users', 'users')->name('users');
+        Route::post('/admins', 'storeAdmin')->name('admins.store');
+        Route::post('/subscriptions', 'storeSubscription')->name('subscriptions.store');
+        Route::put('/subscriptions/{subscription}', 'updateSubscription')->name('subscriptions.update');
+        Route::delete('/subscriptions/{subscription}', 'destroySubscription')->name('subscriptions.destroy');
+    });
 
 Route::controller(LanguageController::class)->group(function (): void {
     Route::get('/lang/{locale}', 'switch')->name('locale.switch');

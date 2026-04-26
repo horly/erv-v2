@@ -26,6 +26,24 @@ class Subscription extends Model
         ];
     }
 
+    public function isCurrentlyActive(): bool
+    {
+        if ($this->status !== 'active') {
+            return false;
+        }
+
+        return $this->expires_at === null
+            || $this->expires_at->isToday()
+            || $this->expires_at->isFuture();
+    }
+
+    public static function statusForExpiration(?string $expiresAt): string
+    {
+        return $expiresAt !== null && $expiresAt < now()->toDateString()
+            ? 'expired'
+            : 'active';
+    }
+
     public function users(): HasMany
     {
         return $this->hasMany(User::class);

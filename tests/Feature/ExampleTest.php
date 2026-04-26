@@ -151,6 +151,45 @@ class ExampleTest extends TestCase
         ]);
     }
 
+    public function test_expired_subscription_is_shown_as_expired(): void
+    {
+        $superadmin = User::create([
+            'name' => 'superadmin',
+            'email' => 'superadmin-expired@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        Subscription::create([
+            'name' => 'Expired subscription',
+            'code' => 'EXPIRED_SUBSCRIPTION',
+            'type' => 'standard',
+            'status' => 'active',
+            'company_limit' => 1,
+            'expires_at' => '2025-01-01',
+        ]);
+
+        $response = $this->actingAs($superadmin)->get('/admin/subscriptions');
+
+        $response->assertOk();
+        $response->assertSee('Expired subscription');
+        $response->assertSee('EXPIRÉ');
+    }
+    public function test_superadmin_can_open_users_page(): void
+    {
+        $superadmin = User::create([
+            'name' => 'superadmin',
+            'email' => 'superadmin-users@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        $response = $this->actingAs($superadmin)->get('/admin/users');
+
+        $response->assertOk();
+        $response->assertSee('Utilisateurs');
+        $response->assertSee('superadmin-users@example.test');
+    }
     public function test_superadmin_login_redirects_to_admin_dashboard(): void
     {
         $superadmin = User::create([

@@ -46,7 +46,7 @@
                     <i class="bi bi-stack" aria-hidden="true"></i>
                     {{ __('admin.subscriptions') }}
                 </a>
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="{{ route('admin.users') }}">
                     <i class="bi bi-people" aria-hidden="true"></i>
                     {{ __('admin.users') }}
                 </a>
