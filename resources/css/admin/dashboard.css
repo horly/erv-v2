@@ -1875,3 +1875,12 @@ a.primary-action:focus {
     color: #ffffff;
     text-decoration: none;
 }
+.breadcrumb-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.breadcrumb-link:hover {
+    color: var(--blue-600);
+    text-decoration: underline;
+}

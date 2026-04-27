@@ -109,7 +109,7 @@ class AdminController extends Controller
                 Rule::exists('users', 'id')->where(fn ($query) => $query->where('role', User::ROLE_ADMIN)),
             ],
             'name' => ['required', 'string', 'max:255'],
-            'country' => ['required', 'string', Rule::in(array_values(config('countries')))],
+            'country' => ['required', 'string', Rule::in(array_column(config('countries'), 'name_fr'))],
             'slogan' => ['nullable', 'string', 'max:255'],
             'rccm' => ['nullable', 'string', 'max:255'],
             'id_nat' => ['nullable', 'string', 'max:255'],

@@ -173,7 +173,7 @@ class ExampleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Expired subscription');
-        $response->assertSee('EXPIRÉ');
+        $response->assertSee(__('admin.expired'));
     }
     public function test_superadmin_can_open_users_page(): void
     {
@@ -461,5 +461,77 @@ class ExampleTest extends TestCase
 
         $response->assertRedirect(route('admin.dashboard'));
         $this->assertAuthenticatedAs($superadmin);
+    }
+    public function test_authenticated_user_visiting_login_is_redirected_to_main(): void
+    {
+        $user = User::create([
+            'name' => 'logged-user',
+            'email' => 'logged-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $response = $this->actingAs($user)->get('/login');
+
+        $response->assertRedirect(route('main'));
+    }
+    public function test_superadmin_can_open_company_create_page_with_companies_breadcrumb_link(): void
+    {
+        $superadmin = User::create([
+            'name' => 'superadmin',
+            'email' => 'superadmin-company-create@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        $response = $this->actingAs($superadmin)->get('/admin/companies/create');
+
+        $response->assertOk();
+        $response->assertSee('href="'.route('admin.companies').'"', false);
+    }
+    public function test_country_catalog_contains_phone_codes_and_vat_rates(): void
+    {
+        $countries = config('countries');
+
+        $this->assertGreaterThanOrEqual(190, count($countries));
+        $this->assertSame('Congo (RDC)', $countries['CD']['name']);
+        $this->assertSame('+243', $countries['CD']['phone_code']);
+        $this->assertSame(16.0, $countries['CD']['vat_rate']);
+        $this->assertSame(0.0, $countries['US']['vat_rate']);
+    }
+
+    public function test_company_create_country_select_shows_phone_code_and_vat_rate(): void
+    {
+        $superadmin = User::create([
+            'name' => 'superadmin',
+            'email' => 'superadmin-country-select@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        $response = $this->actingAs($superadmin)->get('/admin/companies/create');
+
+        $response->assertOk();
+        $response->assertSee('data-phone-code="+243"', false);
+        $response->assertSee('data-vat-rate="16"', false);
+        $response->assertSee('Congo (RDC) (+243 - TVA 16,00%)', false);
+    }
+    public function test_company_create_country_select_uses_english_country_names_when_locale_is_english(): void
+    {
+        $superadmin = User::create([
+            'name' => 'superadmin',
+            'email' => 'superadmin-country-select-en@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        $response = $this
+            ->withSession(['locale' => 'en'])
+            ->actingAs($superadmin)
+            ->get('/admin/companies/create');
+
+        $response->assertOk();
+        $response->assertSee('data-name-en="Congo (DRC)"', false);
+        $response->assertSee('Congo (DRC) (+243 - VAT 16,00%)', false);
     }
 }

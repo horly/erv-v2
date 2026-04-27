@@ -182,7 +182,13 @@
                                             </span>
                                         </td>
                                         <td>{{ $company->subscription?->name ?? '-' }}</td>
-                                        <td>{{ $company->country ?: 'Congo (RDC)' }}</td>
+                                                                                <td>
+                                            @php
+                                                $countryMeta = collect($countries)->first(fn ($country) => in_array($company->country, [$country['name_fr'], $country['name_en'], $country['iso']], true));
+                                                $countryDisplay = data_get($countryMeta, 'name_'.app()->getLocale(), $company->country ?: 'Congo (RDC)');
+                                            @endphp
+                                            {{ $countryDisplay }}
+                                        </td>
                                         <td>{{ $company->email ?: '-' }}</td>
                                         <td>
                                             <div class="table-actions">

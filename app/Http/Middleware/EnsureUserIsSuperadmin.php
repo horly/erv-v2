@@ -13,11 +13,8 @@ class EnsureUserIsSuperadmin
         $user = $request->user();
 
         if (! $user?->isSuperadmin()) {
-            $previousUrl = url()->previous();
-            $fallbackUrl = route('main');
-
             return redirect()
-                ->to($previousUrl !== $request->fullUrl() ? $previousUrl : $fallbackUrl)
+                ->route('main')
                 ->withErrors(['authorization' => __('auth.unauthorized')]);
         }
 

@@ -18,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
             SetLocale::class,
         ]);
 
+        $middleware->redirectUsersTo(fn () => route('main'));
+
         $middleware->alias([
             'superadmin' => EnsureUserIsSuperadmin::class,
         ]);

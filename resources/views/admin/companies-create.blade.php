@@ -35,7 +35,7 @@
             <header class="dashboard-topbar">
                 <div>
                     <h1>{{ __('admin.new_company') }}</h1>
-                    <p>{{ __('admin.breadcrumb_admin') }} / {{ __('admin.companies') }} / {{ __('admin.create') }}</p>
+                    <p>{{ __('admin.breadcrumb_admin') }} / <a class="breadcrumb-link" href="{{ route('admin.companies') }}">{{ __('admin.companies') }}</a> / {{ __('admin.create') }}</p>
                 </div>
                 <div class="header-actions">
                     <button class="icon-button" type="button" id="themeButton" aria-label="{{ __('auth.theme_dark') }}" title="{{ __('auth.theme_dark') }}"><i class="bi bi-brightness-high-fill" aria-hidden="true"></i></button>
@@ -106,7 +106,16 @@
                                 <select id="companyCountry" name="country" class="form-select @error('country') is-invalid @enderror" data-required-message="{{ __('admin.required_country') }}">
                                     <option value="">{{ __('admin.select_country') }}</option>
                                     @foreach ($countries as $country)
-                                        <option value="{{ $country }}" @selected(old('country', 'Congo (RDC)') === $country)>{{ $country }}</option>
+                                        @php($countryName = $country['name_'.app()->getLocale()] ?? $country['name_fr'])
+                                        <option
+                                            value="{{ $country['name_fr'] }}"
+                                            data-iso="{{ $country['iso'] }}"
+                                            data-name-fr="{{ $country['name_fr'] }}"
+                                            data-name-en="{{ $country['name_en'] }}"
+                                            data-phone-code="{{ $country['phone_code'] }}"
+                                            data-vat-rate="{{ $country['vat_rate'] }}"
+                                            @selected(old('country', 'Congo (RDC)') === $country['name_fr'])
+                                        >{{ $countryName }} ({{ $country['phone_code'] }} - {{ app()->getLocale() === 'en' ? 'VAT' : 'TVA' }} {{ number_format($country['vat_rate'], 2, ',', ' ') }}%)</option>
                                     @endforeach
                                 </select>
                                 @error('country')<div class="invalid-feedback">{{ $message }}</div>@else<div class="invalid-feedback">{{ __('admin.required_country') }}</div>@enderror
