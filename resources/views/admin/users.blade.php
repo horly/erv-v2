@@ -252,8 +252,18 @@
                                             </span>
                                         </td>
                                         <td>
-                                            @if (! $account->isSuperadmin())
-                                                <div class="table-actions">
+                                            <div class="table-actions">
+                                                <button
+                                                    type="button"
+                                                    class="table-button table-button-history"
+                                                    aria-label="{{ __('main.history') }}"
+                                                    data-login-history-trigger
+                                                    data-login-history-url="{{ route('admin.users.login-history', $account) }}"
+                                                    data-login-history-name="{{ $account->name }}"
+                                                >
+                                                    <i class="bi bi-clock-history" aria-hidden="true"></i>
+                                                </button>
+                                                @if (! $account->isSuperadmin())
                                                     <button
                                                         type="button"
                                                         class="table-button table-button-edit"
@@ -289,8 +299,8 @@
                                                             <i class="bi bi-trash" aria-hidden="true"></i>
                                                         </button>
                                                     </form>
-                                                </div>
-                                            @endif
+                                                @endif
+                                            </div>
                                         </td>
                                     </tr>
                                 @empty
@@ -374,7 +384,7 @@
                     <div class="mt-3">
                         <label for="userPassword" class="form-label" id="userPasswordLabel" data-create-label="{{ __('admin.password') }} *" data-edit-label="{{ __('admin.password_optional_edit') }}">{{ $isEditingUser ? __('admin.password_optional_edit') : __('admin.password').' *' }}</label>
                         <div class="password-control">
-                            <input id="userPassword" name="password" type="password" class="form-control @error('password') is-invalid @enderror" data-required-message="{{ __('admin.required_admin_password') }}" data-password-rules-target="userPasswordRules">
+                            <input id="userPassword" name="password" type="password" class="form-control @error('password') is-invalid @enderror" autocomplete="new-password" data-required-message="{{ __('admin.required_admin_password') }}" data-password-rules-target="userPasswordRules" data-password-optional="{{ $isEditingUser ? 'true' : 'false' }}">
                             <button type="button" class="password-toggle" data-password-toggle="userPassword" aria-label="{{ __('admin.password_toggle') }}"><i class="bi bi-eye" aria-hidden="true"></i></button>
                         </div>
                         @error('password')<div class="invalid-feedback d-block">{{ $message }}</div>@else<div class="invalid-feedback">{{ __('admin.required_admin_password') }}</div>@enderror
@@ -390,7 +400,7 @@
                     <div class="mt-3">
                         <label for="userPasswordConfirmation" class="form-label" id="userPasswordConfirmationLabel" data-create-label="{{ __('admin.password_confirmation') }} *" data-edit-label="{{ __('admin.password_confirmation_optional_edit') }}">{{ $isEditingUser ? __('admin.password_confirmation_optional_edit') : __('admin.password_confirmation').' *' }}</label>
                         <div class="password-control">
-                            <input id="userPasswordConfirmation" name="password_confirmation" type="password" class="form-control @error('password_confirmation') is-invalid @enderror" data-required-message="{{ __('admin.required_admin_password_confirmation') }}" data-password-confirmation-for="userPassword" data-password-match-target="userPasswordMatch">
+                            <input id="userPasswordConfirmation" name="password_confirmation" type="password" class="form-control @error('password_confirmation') is-invalid @enderror" autocomplete="new-password" data-required-message="{{ __('admin.required_admin_password_confirmation') }}" data-password-confirmation-for="userPassword" data-password-match-target="userPasswordMatch">
                             <button type="button" class="password-toggle" data-password-toggle="userPasswordConfirmation" aria-label="{{ __('admin.password_toggle') }}"><i class="bi bi-eye" aria-hidden="true"></i></button>
                         </div>
                         @error('password_confirmation')<div class="invalid-feedback d-block">{{ $message }}</div>@else<div class="invalid-feedback">{{ __('admin.required_admin_password_confirmation') }}</div>@enderror
@@ -446,6 +456,56 @@
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+    <div class="modal fade subscription-modal login-history-modal" id="loginHistoryModal" tabindex="-1" aria-labelledby="loginHistoryModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <button type="button" class="modal-close" data-bs-dismiss="modal" aria-label="{{ __('admin.close') }}">
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                    </button>
+                    <h2 id="loginHistoryModalLabel"><i class="bi bi-clock-history" aria-hidden="true"></i>{{ __('main.login_history') }}</h2>
+
+                    <div class="login-history-state" id="loginHistoryState">{{ __('main.loading_history') }}</div>
+
+                    <div class="login-history-table-wrap" id="loginHistoryTableWrap" hidden>
+                        <section class="table-tools modal-table-tools" aria-label="{{ __('admin.search_tools') }}">
+                            <label class="search-box">
+                                <i class="bi bi-search" aria-hidden="true"></i>
+                                <input type="search" id="loginHistorySearch" placeholder="{{ __('admin.search') }}" autocomplete="off">
+                            </label>
+                            <span class="row-count">
+                                <strong id="loginHistoryVisibleCount">0</strong>
+                                /
+                                <strong id="loginHistoryTotalCount">0</strong>
+                                {{ __('admin.rows') }}
+                            </span>
+                        </section>
+                        <div class="login-history-table-frame">
+                            <table class="login-history-table">
+                                <thead>
+                                    <tr>
+                                        <th><button class="table-sort" type="button" data-history-sort="date">{{ __('main.number') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th><button class="table-sort" type="button" data-history-sort="device">{{ __('main.device') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th><button class="table-sort" type="button" data-history-sort="ip">{{ __('main.ip_address') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th><button class="table-sort" type="button" data-history-sort="date">{{ __('main.date') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="loginHistoryBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="login-history-footer">
+                            <span id="loginHistoryCount"></span>
+                            <nav class="pagination-shell" id="loginHistoryPagination" aria-label="{{ __('admin.pagination') }}"></nav>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="modal-cancel" data-bs-dismiss="modal">{{ __('admin.close') }}</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <div class="modal fade subscription-modal details-modal" id="subscriptionDetailsModal" tabindex="-1" aria-labelledby="subscriptionDetailsModalLabel" aria-hidden="true">
@@ -516,5 +576,138 @@
         </script>
     @endif
     <script>{!! file_get_contents(resource_path('js/main.js')) !!}</script>
+    <script>
+        (() => {
+            const modalElement = document.getElementById('loginHistoryModal');
+            const modalTitle = document.getElementById('loginHistoryModalLabel');
+            const state = document.getElementById('loginHistoryState');
+            const tableWrap = document.getElementById('loginHistoryTableWrap');
+            const body = document.getElementById('loginHistoryBody');
+            const count = document.getElementById('loginHistoryCount');
+            const visibleCount = document.getElementById('loginHistoryVisibleCount');
+            const totalCount = document.getElementById('loginHistoryTotalCount');
+            const search = document.getElementById('loginHistorySearch');
+            const pagination = document.getElementById('loginHistoryPagination');
+            let currentUrl = '';
+            let currentName = '';
+            let currentSort = 'date';
+            let currentDirection = 'desc';
+
+            const escapeHtml = (value = '') => String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+
+            const loadHistory = async (url, page = 1) => {
+                currentUrl = url;
+                state.hidden = false;
+                state.textContent = @json(__('main.loading_history'));
+                tableWrap.hidden = false;
+                body.innerHTML = '';
+                pagination.innerHTML = '';
+
+                const params = new URLSearchParams({
+                    page,
+                    sort: currentSort,
+                    direction: currentDirection,
+                    search: search?.value || '',
+                });
+                const response = await fetch(`${url}?${params.toString()}`, {
+                    headers: { 'Accept': 'application/json' },
+                });
+                const payload = await response.json();
+
+                modalTitle.innerHTML = `<i class="bi bi-clock-history" aria-hidden="true"></i>${escapeHtml(@json(__('main.login_history_for', ['name' => '__NAME__'])).replace('__NAME__', currentName))}`;
+
+                if (!payload.data.length) {
+                    state.hidden = true;
+                    tableWrap.hidden = false;
+                    body.innerHTML = `<tr class="empty-row"><td colspan="4">${escapeHtml(@json(__('main.no_login_history')))}</td></tr>`;
+                    count.textContent = '';
+                    visibleCount.textContent = '0';
+                    totalCount.textContent = String(payload.meta.total);
+                    return;
+                }
+
+                payload.data.forEach((entry, index) => {
+                    const number = ((payload.meta.current_page - 1) * 5) + index + 1;
+                    body.insertAdjacentHTML('beforeend', `
+                        <tr>
+                            <td>${number}</td>
+                            <td>${escapeHtml(entry.device)}</td>
+                            <td>${escapeHtml(entry.ip)}</td>
+                            <td>${escapeHtml(entry.date)}</td>
+                        </tr>
+                    `);
+                });
+
+                state.hidden = true;
+                tableWrap.hidden = false;
+                count.textContent = `${@json(__('admin.showing'))} ${payload.meta.from} ${@json(__('admin.to'))} ${payload.meta.to} ${@json(__('admin.on'))} ${payload.meta.total}`;
+                visibleCount.textContent = String(payload.data.length);
+                totalCount.textContent = String(payload.meta.total);
+                pagination.hidden = payload.meta.total <= 5;
+
+                const pageButton = (label, targetPage, disabled = false, active = false) => {
+                    const tag = disabled || active ? 'span' : 'button';
+                    const attrs = tag === 'button' ? ` type="button" data-history-page="${targetPage}"` : '';
+                    return `<${tag}${attrs} class="${active ? 'active' : disabled ? 'disabled' : ''}">${label}</${tag}>`;
+                };
+
+                pagination.insertAdjacentHTML('beforeend', pageButton(@json(__('admin.previous')), payload.meta.current_page - 1, payload.meta.current_page === 1));
+
+                for (let pageNumber = 1; pageNumber <= payload.meta.last_page; pageNumber += 1) {
+                    pagination.insertAdjacentHTML('beforeend', pageButton(pageNumber, pageNumber, false, pageNumber === payload.meta.current_page));
+                }
+
+                pagination.insertAdjacentHTML('beforeend', pageButton(@json(__('admin.next')), payload.meta.current_page + 1, payload.meta.current_page === payload.meta.last_page));
+            };
+
+            pagination?.addEventListener('click', (event) => {
+                const button = event.target.closest('[data-history-page]');
+
+                if (!button) {
+                    return;
+                }
+
+                loadHistory(currentUrl, button.dataset.historyPage);
+            });
+
+            let searchTimer = null;
+            search?.addEventListener('input', () => {
+                window.clearTimeout(searchTimer);
+                searchTimer = window.setTimeout(() => loadHistory(currentUrl), 250);
+            });
+
+            modalElement?.querySelectorAll('[data-history-sort]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const nextSort = button.dataset.historySort;
+                    currentDirection = currentSort === nextSort && currentDirection === 'asc' ? 'desc' : 'asc';
+                    currentSort = nextSort;
+                    modalElement.querySelectorAll('[data-history-sort]').forEach((sortButton) => {
+                        sortButton.classList.remove('is-sorted-asc', 'is-sorted-desc');
+                    });
+                    button.classList.add(currentDirection === 'asc' ? 'is-sorted-asc' : 'is-sorted-desc');
+                    loadHistory(currentUrl);
+                });
+            });
+
+            document.querySelectorAll('[data-login-history-trigger]').forEach((trigger) => {
+                trigger.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    currentName = trigger.dataset.loginHistoryName || '';
+                    currentSort = 'date';
+                    currentDirection = 'desc';
+                    if (search) {
+                        search.value = '';
+                    }
+                    bootstrap.Modal.getOrCreateInstance(modalElement).show();
+                    loadHistory(trigger.dataset.loginHistoryUrl);
+                });
+            });
+        })();
+    </script>
 </body>
 </html>

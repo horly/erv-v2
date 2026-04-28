@@ -90,6 +90,10 @@ CREATE TABLE `company_site_user` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `company_site_id` bigint(20) unsigned NOT NULL,
   `user_id` bigint(20) unsigned NOT NULL,
+  `module_permissions` json DEFAULT NULL,
+  `can_create` tinyint(1) NOT NULL DEFAULT 0,
+  `can_update` tinyint(1) NOT NULL DEFAULT 0,
+  `can_delete` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -141,7 +145,7 @@ CREATE TABLE `company_user` (
   KEY `company_user_user_id_foreign` (`user_id`),
   CONSTRAINT `company_user_company_id_foreign` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
   CONSTRAINT `company_user_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `company_user` (`id`, `company_id`, `user_id`, `can_view`, `can_create`, `can_update`, `can_delete`, `created_at`, `updated_at`) VALUES ('1', '2', '4', '1', '0', '0', '0', '2026-04-25 21:08:54', '2026-04-25 21:49:13');
 INSERT INTO `company_user` (`id`, `company_id`, `user_id`, `can_view`, `can_create`, `can_update`, `can_delete`, `created_at`, `updated_at`) VALUES ('2', '3', '9', '1', '1', '1', '1', '2026-04-26 20:03:55', '2026-04-26 20:03:55');
@@ -207,6 +211,8 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('7', '2026_04_26_1
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('8', '2026_04_28_000001_create_company_sites_table', '4');
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('9', '2026_04_28_000002_add_status_and_user_assignments_to_company_sites', '5');
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('10', '2026_04_28_000003_update_pro_company_limit_to_two', '6');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('11', '2026_04_28_000004_add_permissions_to_company_site_user', '7');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('12', '2026_04_28_000005_create_user_login_histories_table', '8');
 
 DROP TABLE IF EXISTS `password_reset_tokens`;
 CREATE TABLE `password_reset_tokens` (
@@ -287,5 +293,20 @@ INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_a
 INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `remember_token`, `created_at`, `updated_at`) VALUES ('7', '11', 'user2', 'user2@erp.loc', NULL, '$2y$12$nNZrX0dxIw5/aWK9hwu3R.tS6MiMq0s2K0fbLIof8qv8WTPgHNsUK', NULL, NULL, NULL, 'user', NULL, NULL, NULL, NULL, '2026-04-26 17:24:39', '2026-04-26 17:24:39');
 INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `remember_token`, `created_at`, `updated_at`) VALUES ('9', '4', 'Test pro user', 'testprouser@erp.loc', NULL, '$2y$12$5p4d0ATu4vs6xnfAk0FGtujvCenJb8pr.4bjnrxW.q.khUl7QSfKO', NULL, NULL, NULL, 'admin', NULL, NULL, NULL, NULL, '2026-04-26 20:02:55', '2026-04-26 20:02:55');
 INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `remember_token`, `created_at`, `updated_at`) VALUES ('10', '2', 'userexad', 'userexad@erp.loc', NULL, '$2y$12$a3jdMF0gtwkzWn5.JDHNOOwl0oFsAybn7Lq57MmrfQyBIoY.mgGK6', NULL, NULL, NULL, 'user', NULL, NULL, NULL, NULL, '2026-04-28 14:25:23', '2026-04-28 14:25:23');
+
+DROP TABLE IF EXISTS `user_login_histories`;
+CREATE TABLE `user_login_histories` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL,
+  `device` varchar(255) DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` text DEFAULT NULL,
+  `logged_in_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `user_login_histories_user_id_logged_in_at_index` (`user_id`,`logged_in_at`),
+  CONSTRAINT `user_login_histories_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

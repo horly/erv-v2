@@ -818,6 +818,12 @@ a {
     color: var(--blue-600);
 }
 
+.table-button-history:hover {
+    border-color: rgba(14, 165, 233, .35);
+    background: #eff6ff;
+    color: #0284c7;
+}
+
 .count-link {
     display: inline-flex;
     min-width: 34px;
@@ -944,6 +950,95 @@ a {
 
 .user-modal .modal-dialog {
     max-width: 600px;
+}
+
+.login-history-modal .modal-dialog {
+    max-width: 880px;
+}
+
+.login-history-modal h2 {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    padding-right: 2.5rem;
+}
+
+.login-history-state {
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--soft);
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.login-history-table-wrap {
+    overflow-x: auto;
+}
+
+.login-history-table-frame {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+}
+
+.login-history-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.login-history-table th,
+.login-history-table td {
+    padding: .85rem 1rem;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink);
+    vertical-align: middle;
+}
+
+.login-history-table th {
+    background: var(--soft);
+    color: var(--muted);
+    font-weight: 800;
+    text-align: left;
+    text-transform: uppercase;
+    font-size: .78rem;
+    letter-spacing: .06em;
+}
+
+.login-history-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.login-history-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: .85rem;
+    color: #52677d;
+}
+
+.subscription-modal .table-responsive:has(.modal-table) {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+}
+
+.login-history-footer .pagination-shell {
+    flex-wrap: wrap;
+}
+
+.login-history-footer .pagination-shell button {
+    display: inline-flex;
+    min-width: 38px;
+    min-height: 34px;
+    align-items: center;
+    justify-content: center;
+    margin-left: -1px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--blue-600);
+    font: inherit;
+    font-weight: 700;
 }
 
 .company-users-modal .modal-dialog {

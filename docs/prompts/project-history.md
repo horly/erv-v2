@@ -1879,6 +1879,216 @@ Verification :
 - `php artisan view:clear` execute.
 - `php artisan test --filter=superadmin_can_open_admin_dashboard` passe.
 
+### 2026-04-28 - Gestion utilisateurs admin : sites et responsables
+
+Prompt utilisateur :
+
+```text
+enlève téléphone mets le nom du site affecté à l'utilisateur.
+Un admin peut etre resposable de toutes les sites des entreprises de l'abonnement car il a toutes les accès mais les utilisateurs normaux ne peuvent qu'etre affecté sur site et ne peuvent qu'etre responsable sur un seul site
+```
+
+Correction appliquee :
+
+- Suppression de la colonne telephone dans le tableau de gestion des utilisateurs cote admin.
+- Conservation de la colonne site avec le nom du site affecte pour les utilisateurs simples.
+- Affichage de `Tous les sites` et `Tous les acces` pour les comptes admin, car ils ont automatiquement acces a tous les sites et modules de l'abonnement.
+- Lors de la creation/modification d'un utilisateur admin, le site n'est plus obligatoire : l'admin est synchronise automatiquement sur tous les sites de l'abonnement avec toutes les permissions.
+- Les utilisateurs simples restent limites a un seul site d'affectation.
+- Ajout d'une validation serveur : un utilisateur simple ne peut etre responsable que d'un seul site, tandis qu'un admin peut etre responsable de plusieurs sites.
+- Ajout de la relation `responsibleSites` sur le modele `User`.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `app/Models/User.php`
+- `resources/views/main/users.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="managed_admin|responsible|managed_users"` passe.
+- `php artisan test --filter="admin_can_manage_subscription_users_with_site_permissions|user_management"` passe.
+- `php artisan test` passe avec 47 tests et 276 assertions.
+
+### 2026-04-28 - Colonne role dans la gestion utilisateurs admin
+
+Prompt utilisateur :
+
+```text
+ajoute également la colonne role avec ce style
+```
+
+Correction appliquee :
+
+- Ajout de la colonne `Role` dans le tableau `/main/users`.
+- Reutilisation du style standard des badges de role deja applique cote superadmin :
+  - `role-admin` pour Admin;
+  - `role-user` pour Utilisateur.
+- La colonne est triable et conserve le meme formatage que les autres tableaux.
+- Ajustement des colspans des lignes vides et de recherche.
+
+Fichiers modifies :
+
+- `resources/views/main/users.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="admin_can_manage_subscription_users_with_site_permissions|user_management"` passe.
+- `php artisan test` passe avec 47 tests et 276 assertions.
+
+### 2026-04-28 - Modal historique de connexion utilisateurs
+
+Prompt utilisateur :
+
+```text
+enleve le tiret sur l'action de l'admin.
+ajoute le button historique à coté de modifier et supprimer qui va ouvrir un modal permettant de voir l'historique de connexion des utilisateurs comme dans la deuxième image
+```
+
+Correction appliquee :
+
+- Suppression du tiret dans la colonne actions pour l'admin connecte.
+- Ajout d'un bouton `Historique` avec l'icone `bi-clock-history` sur chaque ligne utilisateur.
+- Pour l'admin connecte, seule l'action historique est disponible afin de conserver la protection contre l'auto-modification.
+- Ajout d'un modal d'historique de connexion avec tableau pagine :
+  - numero;
+  - device;
+  - IP;
+  - date.
+- Ajout d'un endpoint JSON pagine : `/main/users/{account}/login-history`.
+- Ajout d'une table persistante `user_login_histories`.
+- Enregistrement automatique de chaque connexion reussie via l'evenement Laravel `Login`.
+- Detection simple du navigateur et de la plateforme pour afficher un libelle du type `Edge on Windows`.
+- Mise a jour de l'export `database/exports/erp_database.sql`.
+
+Fichiers modifies :
+
+- `app/Models/UserLoginHistory.php`
+- `app/Models/User.php`
+- `app/Providers/AppServiceProvider.php`
+- `app/Http/Controllers/MainController.php`
+- `database/migrations/2026_04_28_000005_create_user_login_histories_table.php`
+- `database/exports/erp_database.sql`
+- `routes/web.php`
+- `resources/views/main/users.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan migrate` execute.
+- `php artisan test` passe avec 48 tests et 283 assertions.
+
+### 2026-04-28 - Historique de connexion cote superadmin
+
+Prompt utilisateur :
+
+```text
+pareil coté utilisateurs super admin ajoute aussi l'historique de connexion
+```
+
+Correction appliquee :
+
+- Ajout du bouton `Historique` dans le tableau global des utilisateurs cote superadmin.
+- Le bouton est disponible aussi sur la ligne du superadmin, meme si les actions modifier/supprimer restent bloquees.
+- Ajout d'un modal d'historique de connexion identique au cote admin :
+  - numero;
+  - device;
+  - IP;
+  - date;
+  - pagination par 5 lignes.
+- Ajout d'un endpoint JSON protege par le middleware superadmin : `/admin/users/{account}/login-history`.
+- Reutilisation de la table persistante `user_login_histories`.
+- Ajout du style du modal et du bouton historique dans la feuille superadmin.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/AdminController.php`
+- `routes/web.php`
+- `resources/views/admin/users.blade.php`
+- `resources/css/admin/dashboard.css`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="login_history|superadmin_can_open_users_page"` passe.
+- `php artisan test` passe avec 49 tests et 290 assertions.
+
+### 2026-04-28 - Standard tableaux dans les modals
+
+Prompt utilisateur :
+
+```text
+ne change pas le style de mes tableaux sur tous les modals fais toujours le meme style comme tu l'avais fais ce modal joint ajuste juste un truc, encercle mes tableaux border, suelement les tableaux qui s'affichent sur les modales et n'oublie jamais le tri, la recherche et la pagination
+```
+
+Correction appliquee :
+
+- Conservation du style existant des tableaux de modals, base sur le modal `Utilisateurs affectes`.
+- Ajout d'une bordure et d'un rayon autour des tableaux affiches dans les modals uniquement.
+- Suppression du style a bandes grises du tableau d'historique de connexion afin de revenir au rendu standard :
+  - header clair;
+  - lignes separees;
+  - table encadree;
+  - typographie coherente avec les autres modals.
+- Ajout de la recherche dans les modals d'historique de connexion.
+- Ajout du tri dans les modals d'historique de connexion.
+- Conservation de la pagination par 5 lignes.
+- Les endpoints d'historique acceptent maintenant `search`, `sort`, `direction` et `page`.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `app/Http/Controllers/AdminController.php`
+- `resources/views/main/users.blade.php`
+- `resources/views/admin/users.blade.php`
+- `resources/css/main.css`
+- `resources/css/admin/dashboard.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="login_history"` passe.
+- `php artisan test` passe avec 49 tests et 290 assertions.
+
+### 2026-04-28 - Ajustement bordure et etat vide des tableaux de modals
+
+Prompt utilisateur :
+
+```text
+le border seulement syr le tableau. la pagination ne s'afficche que si les element depassent 5
+et si il n'ya aucun element à affiche le tableau mais indique qu'il y a aucun element proprement
+```
+
+Correction appliquee :
+
+- La bordure arrondie encadre maintenant uniquement le tableau, pas la barre de recherche ni le pied de pagination.
+- La pagination des historiques de connexion est masquee quand le total est inferieur ou egal a 5 elements.
+- En absence d'historique, le tableau reste visible avec une ligne vide propre indiquant qu'aucune connexion n'est enregistree.
+- Le compteur de lignes reste affiche dans l'entete du modal.
+
+Fichiers modifies :
+
+- `resources/views/main/users.blade.php`
+- `resources/views/admin/users.blade.php`
+- `resources/css/main.css`
+- `resources/css/admin/dashboard.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="login_history"` passe.
+- `php artisan test` passe avec 49 tests et 290 assertions.
+
 ### 2026-04-28 - Largeur modal site a 700px
 
 Prompt utilisateur :
@@ -1900,6 +2110,247 @@ Fichiers modifies :
 Verification :
 
 - `php artisan test --filter=site_form_validation` passe.
+
+### 2026-04-28 - Gestion des utilisateurs cote admin avec sites et permissions
+
+Prompt utilisateur :
+
+```text
+Gestion des utilisateurs (Admin) – Navigation, affectation et permissions
+
+Ajouter "Gestion des utilisateurs" dans le dropdown, entre Profil et Deconnexion.
+L'admin doit pouvoir ajouter, modifier, supprimer des utilisateurs.
+L'admin affecte un site, pas un abonnement.
+Apres selection du site, afficher les modules disponibles et permettre de cocher les permissions Ajouter, Modifier, Supprimer par utilisateur.
+```
+
+Correction appliquee :
+
+- Ajout des routes `main.users`, `main.users.store`, `main.users.update`, `main.users.destroy`.
+- Ajout du lien `Gestion des utilisateurs` dans les dropdowns admin du main, des entreprises et des sites.
+- Creation de la page `main/users.blade.php` avec tableau recherche/tri/pagination, bouton `Nouvel utilisateur`, modal creation/modification et suppression avec le style existant.
+- L'admin gere uniquement les utilisateurs de son abonnement.
+- Le formulaire admin affecte un utilisateur a un site, pas a un abonnement.
+- Les modules du site selectionne sont affiches dynamiquement dans le modal.
+- Ajout de permissions par module :
+  - acces au module;
+  - ajouter;
+  - modifier;
+  - supprimer.
+- Extension du pivot `company_site_user` avec :
+  - `module_permissions` JSON;
+  - `can_create`;
+  - `can_update`;
+  - `can_delete`.
+- Synchronisation automatique de l'affectation site et de l'affectation entreprise correspondante.
+- Mise a jour de `database/exports/erp_database.sql` avec la nouvelle migration et les nouvelles colonnes.
+
+Fichiers modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `app/Models/User.php`
+- `app/Models/CompanySite.php`
+- `database/migrations/2026_04_28_000004_add_permissions_to_company_site_user.php`
+- `database/exports/erp_database.sql`
+- `resources/views/main/users.blade.php`
+- `resources/views/main/main.blade.php`
+- `resources/views/main/company-sites.blade.php`
+- `resources/views/main/company-form.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `lang/fr/admin.php`
+- `lang/en/admin.php`
+- `lang/fr/validation.php`
+- `lang/en/validation.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test` passe : 43 tests, 249 assertions.
+
+### 2026-04-28 - Correction colonne module_permissions manquante
+
+Prompt utilisateur :
+
+```text
+j'ai cette erreur
+SQLSTATE[42S22]: Column not found: 1054 Unknown column 'company_site_user.module_permissions'
+```
+
+Diagnostic :
+
+- La migration `2026_04_28_000004_add_permissions_to_company_site_user` etait encore en attente sur la base locale.
+- Le modele Eloquent lisait deja `company_site_user.module_permissions`, ce qui provoquait l'erreur SQL.
+
+Correction appliquee :
+
+- Execution de `php artisan migrate` pour ajouter les colonnes du pivot `company_site_user`.
+- Suppression du chargement eager-load inutile de `users` dans la page des sites d'entreprise, car cette page n'utilise pas ces donnees.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan migrate:status` confirme que la migration est `Ran`.
+- `php artisan test --filter="company_sites|manage_subscription_users"` passe.
+
+### 2026-04-28 - Permissions automatiques pour les utilisateurs admin
+
+Prompt utilisateur :
+
+```text
+un utilisateur avec le role admin a automatiquement toutes les permissions dans les modules disponibles du site.
+Donc lorsque je selectionne le role admin toutes les permissions s'actives et se coches avec pas de possibilités de modifications et quand par exemple je remets en user la possibilité de cocher les permissions s'actives
+```
+
+Correction appliquee :
+
+- Dans le modal de gestion des utilisateurs cote admin :
+  - selection du role `admin` coche automatiquement tous les modules du site;
+  - toutes les permissions `Ajouter`, `Modifier`, `Supprimer` sont cochees;
+  - les cases sont desactivees pour empecher la modification manuelle;
+  - le retour au role `user` reactive les cases pour une gestion flexible.
+- Cote serveur, les permissions admin sont normalisees avant validation :
+  - tous les modules du site sont selectionnes;
+  - toutes les permissions par module sont forcees a `true`.
+- Ajout d'un test garantissant qu'un utilisateur cree avec le role `admin` recoit toutes les permissions du site, meme sans envoyer les cases depuis le formulaire.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/users.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="manage_subscription_users|managed_admin_user"` passe.
+
+### 2026-04-28 - Protection edition compte admin connecte
+
+Prompt utilisateur :
+
+```text
+l'admin connecté dans la session encous ne doit pas pouvoir modifier ses propres informations ici.
+Le mot de passe et la confirmation du mot de passe ne doivent pas etre sur une meme ligne
+```
+
+Correction appliquee :
+
+- Suppression des actions de modification et suppression sur la ligne de l'admin connecte.
+- Suppression des attributs `data-user-*` sur la ligne de l'admin connecte afin qu'elle ne puisse pas ouvrir le modal par clic sur la ligne.
+- Protection serveur : une requete directe `PUT /main/users/{admin-connecte}` redirige sans modifier le compte.
+- Le champ mot de passe et le champ confirmation du mot de passe occupent chacun une ligne complete dans le modal.
+- Ajout d'un test de non-regression pour empecher la modification du compte connecte depuis cette page.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/users.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="manage_subscription_users|cannot_update_self|managed_admin_user"` passe.
+- `php artisan test` passe : 45 tests, 263 assertions.
+
+### 2026-04-28 - Succession des champs mot de passe utilisateur
+
+Prompt utilisateur :
+
+```text
+il y a un probleme ici par rapport à la succession.
+analyse les autres formulaires d'utilisateurs que tu travaillé
+```
+
+Correction appliquee :
+
+- Alignement du modal de gestion utilisateurs admin sur le formulaire superadmin :
+  - champ mot de passe;
+  - regles du mot de passe;
+  - champ confirmation;
+  - feedback de correspondance.
+- Mise a jour du JavaScript commun pour changer aussi le label de confirmation en mode edition.
+- Ajout de `autocomplete="new-password"` sur les champs mot de passe et confirmation pour eviter l'auto-remplissage navigateur.
+- Ajout de `data-password-optional` au rendu initial pour respecter le mode edition meme apres retour de validation serveur.
+- Application du meme durcissement autocomplete/data optionnel au formulaire superadmin des utilisateurs.
+
+Fichiers modifies :
+
+- `resources/js/main.js`
+- `resources/views/main/users.blade.php`
+- `resources/views/admin/users.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="manage_subscription_users|superadmin_can_open_users_page"` passe.
+- `php artisan test` passe : 45 tests, 267 assertions.
+
+### 2026-04-28 - Ordre liste utilisateurs admin
+
+Prompt utilisateur :
+
+```text
+le premier utilisateur doit toujours etre l'admin connecté dans la session en cours et le deuxième, c'est l'utilisateurs ajouté en dernier
+```
+
+Correction appliquee :
+
+- Modification du tri de `/main/users` :
+  - l'admin connecte est toujours affiche en premiere ligne;
+  - les autres utilisateurs sont tries par `id` descendant pour afficher l'utilisateur ajoute en dernier juste apres.
+- Utilisation de `id DESC` plutot que `created_at DESC`, car plusieurs utilisateurs peuvent etre crees dans la meme seconde et rendre l'ordre instable.
+- Ajout d'un test de non-regression sur l'ordre d'affichage.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="user_management_lists|manage_subscription_users|cannot_update_self"` passe.
+- `php artisan test` passe : 46 tests, 270 assertions.
+- `php artisan test` passe : 44 tests, 259 assertions.
+
+### 2026-04-28 - Renforcement UI permissions admin
+
+Prompt utilisateur :
+
+```text
+ça ne fonctionne pas
+```
+
+Correction appliquee :
+
+- Renforcement du JavaScript du modal `Gestion des utilisateurs`.
+- Suppression de la dependance a `CSS.escape` dans la lecture des permissions existantes.
+- Ajout d'une fonction dediee qui force l'etat admin apres :
+  - changement de role;
+  - changement de site;
+  - ouverture du modal en creation ou modification;
+  - rendu initial.
+- Pour le role `admin`, tous les modules et toutes les permissions sont coches et verrouilles.
+- Pour le role `user`, les cases redeviennent modifiables.
+
+Fichiers modifies :
+
+- `resources/views/main/users.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="manage_subscription_users|managed_admin_user"` passe.
 
 ### 2026-04-28 - Validation du formulaire site dans le modal
 

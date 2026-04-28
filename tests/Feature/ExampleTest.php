@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\CompanySite;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Models\UserLoginHistory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -57,6 +58,7 @@ class ExampleTest extends TestCase
         $response->assertSee(route('main.companies.create'), false);
         $response->assertSee(route('main.companies.edit', Company::first()), false);
         $response->assertSee(route('main.companies.sites', Company::first()), false);
+        $response->assertSee(route('main.users'), false);
         $response->assertSee(__('main.profile'), false);
         $response->assertSee(__('main.users'), false);
     }
@@ -284,6 +286,495 @@ class ExampleTest extends TestCase
                 'status' => CompanySite::STATUS_ACTIVE,
             ])
             ->assertSessionHasErrors(['site']);
+    }
+
+    public function test_normal_user_can_only_be_responsible_for_one_site_while_admin_can_handle_many(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Responsible Rules',
+            'code' => 'RESPONSIBLE_RULES',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'responsible admin',
+            'email' => 'responsible-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $normalUser = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'responsible user',
+            'email' => 'responsible-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Responsible Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'responsible-company@example.test',
+        ]);
+
+        CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $normalUser->id,
+            'name' => 'First User Site',
+            'type' => CompanySite::TYPE_PRODUCTION,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $this->actingAs($admin)
+            ->from(route('main.companies.sites', $company))
+            ->post(route('main.companies.sites.store', $company), [
+                'name' => 'Second User Site',
+                'type' => CompanySite::TYPE_OFFICE,
+                'responsible_id' => $normalUser->id,
+                'modules' => [CompanySite::MODULE_ACCOUNTING],
+                'currency' => 'CDF',
+                'status' => CompanySite::STATUS_ACTIVE,
+            ])
+            ->assertSessionHasErrors(['responsible_id']);
+
+        $this->actingAs($admin)
+            ->post(route('main.companies.sites.store', $company), [
+                'name' => 'Second Admin Site',
+                'type' => CompanySite::TYPE_OFFICE,
+                'responsible_id' => $admin->id,
+                'modules' => [CompanySite::MODULE_ACCOUNTING],
+                'currency' => 'CDF',
+                'status' => CompanySite::STATUS_ACTIVE,
+            ])
+            ->assertRedirect(route('main.companies.sites', $company));
+    }
+
+    public function test_admin_can_manage_subscription_users_with_site_permissions(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Managed Users',
+            'code' => 'MANAGED_USERS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'manager admin',
+            'email' => 'manager-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Managed Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'managed-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Managed Site',
+            'type' => CompanySite::TYPE_PRODUCTION,
+            'modules' => [CompanySite::MODULE_ACCOUNTING, CompanySite::MODULE_HUMAN_RESOURCES],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('main.users'));
+
+        $response->assertOk();
+        $response->assertSee(__('main.users'), false);
+        $response->assertSee(__('admin.new_user'), false);
+        $response->assertSee('Managed Site - Managed Company', false);
+        $response->assertSee('modulePermissionsBody', false);
+        $response->assertSee('bi-clock-history', false);
+        $response->assertSee(route('main.users.login-history', $admin), false);
+        $response->assertDontSee('data-user-action="'.route('main.users.update', $admin).'"', false);
+        $response->assertSee('autocomplete="new-password" data-required-message="'.__('admin.required_admin_password').'" data-password-rules-target="userPasswordRules"', false);
+        $response->assertSee('id="userPasswordRules"', false);
+        $response->assertSee('id="userPasswordConfirmation"', false);
+        $this->assertLessThan(
+            strpos($response->getContent(), 'id="userPasswordConfirmation"'),
+            strpos($response->getContent(), 'id="userPasswordRules"'),
+        );
+
+        $this->actingAs($admin)
+            ->post(route('main.users.store'), [
+                'name' => 'Managed User',
+                'email' => 'managed-user@example.test',
+                'password' => 'StrongPass@123',
+                'password_confirmation' => 'StrongPass@123',
+                'role' => User::ROLE_USER,
+                'site_id' => $site->id,
+                'modules' => [CompanySite::MODULE_ACCOUNTING],
+                'module_permissions' => [
+                    CompanySite::MODULE_ACCOUNTING => [
+                        'can_create' => '1',
+                        'can_update' => '1',
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('main.users'));
+
+        $account = User::where('email', 'managed-user@example.test')->firstOrFail();
+
+        $this->assertDatabaseHas('company_site_user', [
+            'company_site_id' => $site->id,
+            'user_id' => $account->id,
+            'can_create' => true,
+            'can_update' => true,
+            'can_delete' => false,
+        ]);
+
+        $this->assertDatabaseHas('company_user', [
+            'company_id' => $company->id,
+            'user_id' => $account->id,
+            'can_view' => true,
+            'can_create' => true,
+            'can_update' => true,
+            'can_delete' => false,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('main.users.update', $account), [
+                'form_mode' => 'edit',
+                'user_id' => $account->id,
+                'name' => 'Managed User Updated',
+                'email' => 'managed-user@example.test',
+                'password' => '',
+                'password_confirmation' => '',
+                'role' => User::ROLE_USER,
+                'site_id' => $site->id,
+                'modules' => [CompanySite::MODULE_HUMAN_RESOURCES],
+                'module_permissions' => [
+                    CompanySite::MODULE_HUMAN_RESOURCES => [
+                        'can_delete' => '1',
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('main.users'));
+
+        $this->assertDatabaseHas('company_site_user', [
+            'company_site_id' => $site->id,
+            'user_id' => $account->id,
+            'can_create' => false,
+            'can_update' => false,
+            'can_delete' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('main.users.destroy', $account))
+            ->assertRedirect(route('main.users'));
+
+        $this->assertDatabaseMissing('users', ['id' => $account->id]);
+    }
+
+    public function test_admin_cannot_update_self_from_managed_users_page(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Self Protection',
+            'code' => 'SELF_PROTECTION',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'self admin',
+            'email' => 'self-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Self Protection Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'self-protection-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Self Protection Site',
+            'type' => CompanySite::TYPE_PRODUCTION,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('main.users.update', $admin), [
+                'form_mode' => 'edit',
+                'user_id' => $admin->id,
+                'name' => 'Changed Self Admin',
+                'email' => 'changed-self-admin@example.test',
+                'role' => User::ROLE_USER,
+                'site_id' => $site->id,
+                'modules' => [CompanySite::MODULE_ACCOUNTING],
+            ])
+            ->assertRedirect(route('main'));
+
+        $this->assertDatabaseHas('users', [
+            'id' => $admin->id,
+            'name' => 'self admin',
+            'email' => 'self-admin@example.test',
+            'role' => User::ROLE_ADMIN,
+        ]);
+    }
+
+    public function test_admin_user_management_lists_current_admin_first_then_latest_user(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Ordered Users',
+            'code' => 'ORDERED_USERS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'current admin',
+            'email' => 'current-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+            'created_at' => now()->subDays(5),
+            'updated_at' => now()->subDays(5),
+        ]);
+
+        User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'old user',
+            'email' => 'old-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+            'created_at' => now()->subDays(3),
+            'updated_at' => now()->subDays(3),
+        ]);
+
+        User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'latest user',
+            'email' => 'latest-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Ordered Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'ordered-company@example.test',
+        ]);
+
+        CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Ordered Site',
+            'type' => CompanySite::TYPE_PRODUCTION,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('main.users'));
+        $content = $response->getContent();
+
+        $response->assertOk();
+        $this->assertLessThan(strpos($content, 'latest user'), strpos($content, 'current admin'));
+        $this->assertLessThan(strpos($content, 'old user'), strpos($content, 'latest user'));
+    }
+
+    public function test_admin_can_view_paginated_user_login_history(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Login History',
+            'code' => 'LOGIN_HISTORY',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'history admin',
+            'email' => 'history-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $account = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'history user',
+            'email' => 'history-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        foreach (range(1, 6) as $index) {
+            UserLoginHistory::create([
+                'user_id' => $account->id,
+                'device' => 'Edge on Windows',
+                'ip_address' => '196.250.72.'.$index,
+                'user_agent' => 'Mozilla/5.0 Edg/147.0.0.0 Windows',
+                'logged_in_at' => now()->subMinutes($index),
+            ]);
+        }
+
+        $response = $this->actingAs($admin)
+            ->getJson(route('main.users.login-history', ['account' => $account, 'page' => 2]));
+
+        $response->assertOk()
+            ->assertJsonPath('meta.current_page', 2)
+            ->assertJsonPath('meta.total', 6)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.device', 'Edge on Windows');
+    }
+
+    public function test_superadmin_can_view_paginated_user_login_history(): void
+    {
+        $superadmin = User::create([
+            'name' => 'history superadmin',
+            'email' => 'history-superadmin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        $account = User::create([
+            'name' => 'global history user',
+            'email' => 'global-history-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        foreach (range(1, 6) as $index) {
+            UserLoginHistory::create([
+                'user_id' => $account->id,
+                'device' => 'Edge on Windows',
+                'ip_address' => '196.250.88.'.$index,
+                'user_agent' => 'Mozilla/5.0 Edg/147.0.0.0 Windows',
+                'logged_in_at' => now()->subMinutes($index),
+            ]);
+        }
+
+        $response = $this->actingAs($superadmin)
+            ->getJson(route('admin.users.login-history', ['account' => $account, 'page' => 2]));
+
+        $response->assertOk()
+            ->assertJsonPath('meta.current_page', 2)
+            ->assertJsonPath('meta.total', 6)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.device', 'Edge on Windows');
+    }
+
+    public function test_managed_admin_user_receives_all_site_module_permissions(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Managed Admin Users',
+            'code' => 'MANAGED_ADMIN_USERS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'root admin',
+            'email' => 'root-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Admin Permission Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'admin-permission-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Admin Permission Site',
+            'type' => CompanySite::TYPE_PRODUCTION,
+            'modules' => [CompanySite::MODULE_ACCOUNTING, CompanySite::MODULE_HUMAN_RESOURCES],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $secondCompany = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Second Admin Permission Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'second-admin-permission-company@example.test',
+        ]);
+
+        $secondSite = CompanySite::create([
+            'company_id' => $secondCompany->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Second Admin Permission Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ARCHIVING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('main.users.store'), [
+                'name' => 'Managed Admin',
+                'email' => 'managed-admin@example.test',
+                'password' => 'StrongPass@123',
+                'password_confirmation' => 'StrongPass@123',
+                'role' => User::ROLE_ADMIN,
+            ])
+            ->assertRedirect(route('main.users'));
+
+        $account = User::where('email', 'managed-admin@example.test')->firstOrFail();
+        $this->assertCount(2, $account->sites()->get());
+
+        $assignedSite = $account->sites()->whereKey($site->id)->firstOrFail();
+        $permissions = json_decode($assignedSite->pivot->module_permissions, true);
+
+        $this->assertSame([
+            CompanySite::MODULE_ACCOUNTING,
+            CompanySite::MODULE_HUMAN_RESOURCES,
+        ], array_keys($permissions));
+        $this->assertTrue($permissions[CompanySite::MODULE_ACCOUNTING]['can_create']);
+        $this->assertTrue($permissions[CompanySite::MODULE_ACCOUNTING]['can_update']);
+        $this->assertTrue($permissions[CompanySite::MODULE_ACCOUNTING]['can_delete']);
+        $this->assertTrue($permissions[CompanySite::MODULE_HUMAN_RESOURCES]['can_create']);
+        $this->assertTrue($permissions[CompanySite::MODULE_HUMAN_RESOURCES]['can_update']);
+        $this->assertTrue($permissions[CompanySite::MODULE_HUMAN_RESOURCES]['can_delete']);
+
+        $this->assertDatabaseHas('company_site_user', [
+            'company_site_id' => $site->id,
+            'user_id' => $account->id,
+            'can_create' => true,
+            'can_update' => true,
+            'can_delete' => true,
+        ]);
+
+        $this->assertDatabaseHas('company_site_user', [
+            'company_site_id' => $secondSite->id,
+            'user_id' => $account->id,
+            'can_create' => true,
+            'can_update' => true,
+            'can_delete' => true,
+        ]);
     }
 
     public function test_user_without_assigned_site_sees_pending_access_page(): void
@@ -662,6 +1153,8 @@ class ExampleTest extends TestCase
         $response->assertOk();
         $response->assertSee('Utilisateurs');
         $response->assertSee('superadmin-users@example.test');
+        $response->assertSee('bi-clock-history', false);
+        $response->assertSee(route('admin.users.login-history', $superadmin), false);
     }
     public function test_users_page_exposes_subscription_counts(): void
     {

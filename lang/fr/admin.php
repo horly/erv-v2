@@ -125,6 +125,7 @@ return [
     'required_user_name' => 'Le nom de l’utilisateur est obligatoire.',
     'valid_user_name' => 'Nom renseigné correctement.',
     'required_user_email' => 'L’email de l’utilisateur est obligatoire.',
+    'invalid_user_email' => 'Veuillez saisir une adresse email valide.',
     'valid_user_email' => 'Email renseigné correctement.',
     'required_user_role' => 'Veuillez choisir un rôle.',
     'valid_user_role' => 'Rôle sélectionné correctement.',

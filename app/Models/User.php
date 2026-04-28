@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -79,7 +80,18 @@ class User extends Authenticatable
     public function sites(): BelongsToMany
     {
         return $this->belongsToMany(CompanySite::class, 'company_site_user')
+            ->withPivot(['module_permissions', 'can_create', 'can_update', 'can_delete'])
             ->withTimestamps();
+    }
+
+    public function responsibleSites(): HasMany
+    {
+        return $this->hasMany(CompanySite::class, 'responsible_id');
+    }
+
+    public function loginHistories(): HasMany
+    {
+        return $this->hasMany(UserLoginHistory::class);
     }
 
     public function isAdmin(): bool

@@ -71,7 +71,7 @@
                             {{ __('main.profile') }}
                         </a>
                         @if ($user->isAdmin())
-                            <a href="#" class="profile-link">
+                            <a href="{{ route('main.users') }}" class="profile-link">
                                 <i class="bi bi-people" aria-hidden="true"></i>
                                 {{ __('main.users') }}
                             </a>

@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Support\CurrencyCatalog;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -188,6 +189,48 @@ class AdminController extends Controller
                 ->get(['id', 'name', 'type']),
         ]);
     }
+
+    public function userLoginHistory(Request $request, User $account): JsonResponse
+    {
+        $search = trim((string) $request->query('search', ''));
+        $sort = (string) $request->query('sort', 'date');
+        $direction = $request->query('direction') === 'asc' ? 'asc' : 'desc';
+        $sortColumn = match ($sort) {
+            'device' => 'device',
+            'ip' => 'ip_address',
+            default => 'logged_in_at',
+        };
+
+        $histories = $account->loginHistories()
+            ->when($search !== '', fn ($query) => $query->where(function ($searchQuery) use ($search): void {
+                $searchQuery->where('device', 'like', "%{$search}%")
+                    ->orWhere('ip_address', 'like', "%{$search}%")
+                    ->orWhere('logged_in_at', 'like', "%{$search}%");
+            }))
+            ->orderBy($sortColumn, $direction)
+            ->paginate(5)
+            ->withQueryString();
+
+        return response()->json([
+            'user' => [
+                'name' => $account->name,
+                'email' => $account->email,
+            ],
+            'data' => $histories->getCollection()->map(fn ($history) => [
+                'device' => $history->device ?: __('main.unknown_device'),
+                'ip' => $history->ip_address ?: '-',
+                'date' => $history->logged_in_at?->format('Y-m-d H:i:s') ?? '-',
+            ])->values(),
+            'meta' => [
+                'current_page' => $histories->currentPage(),
+                'last_page' => $histories->lastPage(),
+                'from' => $histories->firstItem(),
+                'to' => $histories->lastItem(),
+                'total' => $histories->total(),
+            ],
+        ]);
+    }
+
     public function subscriptions(): View
     {
         return view('admin.subscriptions', [

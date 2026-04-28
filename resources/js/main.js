@@ -357,6 +357,9 @@
             if (passwordLabel) {
                 passwordLabel.textContent = isEdit ? passwordLabel.dataset.editLabel : passwordLabel.dataset.createLabel;
             }
+            if (passwordConfirmationLabel) {
+                passwordConfirmationLabel.textContent = isEdit ? passwordConfirmationLabel.dataset.editLabel : passwordConfirmationLabel.dataset.createLabel;
+            }
             passwordInput.value = '';
             passwordConfirmationInput.value = '';
             nameInput.value = isEdit ? trigger.dataset.userName : '';

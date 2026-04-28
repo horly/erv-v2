@@ -61,6 +61,7 @@ class CompanySite extends Model
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'company_site_user')
+            ->withPivot(['module_permissions', 'can_create', 'can_update', 'can_delete'])
             ->withTimestamps();
     }
 

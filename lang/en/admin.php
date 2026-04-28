@@ -125,6 +125,7 @@ return [
     'required_user_name' => 'The user name is required.',
     'valid_user_name' => 'Name entered correctly.',
     'required_user_email' => 'The user email is required.',
+    'invalid_user_email' => 'Please enter a valid email address.',
     'valid_user_email' => 'Email entered correctly.',
     'required_user_role' => 'Please choose a role.',
     'valid_user_role' => 'Role selected correctly.',

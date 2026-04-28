@@ -19,6 +19,11 @@ Route::controller(MainController::class)->group(function (): void {
         Route::post('/main/companies/{company}/sites', 'storeCompanySite')->name('main.companies.sites.store');
         Route::put('/main/companies/{company}/sites/{site}', 'updateCompanySite')->name('main.companies.sites.update');
         Route::delete('/main/companies/{company}/sites/{site}', 'destroyCompanySite')->name('main.companies.sites.destroy');
+        Route::get('/main/users', 'users')->name('main.users');
+        Route::post('/main/users', 'storeUser')->name('main.users.store');
+        Route::get('/main/users/{account}/login-history', 'userLoginHistory')->name('main.users.login-history');
+        Route::put('/main/users/{account}', 'updateUser')->name('main.users.update');
+        Route::delete('/main/users/{account}', 'destroyUser')->name('main.users.destroy');
     });
 });
 
@@ -30,6 +35,7 @@ Route::prefix('admin')
         Route::get('/dashboard', 'dashboard')->name('dashboard');
         Route::get('/subscriptions', 'subscriptions')->name('subscriptions');
         Route::get('/users', 'users')->name('users');
+        Route::get('/users/{account}/login-history', 'userLoginHistory')->name('users.login-history');
         Route::get('/companies', 'companies')->name('companies');
         Route::get('/companies/create', 'createCompany')->name('companies.create');
         Route::post('/companies', 'storeCompany')->name('companies.store');

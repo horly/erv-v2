@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\CurrencyCatalog;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rules\Password;
 
 class MainController extends Controller
 {
@@ -72,17 +74,183 @@ class MainController extends Controller
             'user' => $user,
             'company' => $company,
             'sites' => $company->sites()
-                ->with(['responsible', 'users'])
+                ->with('responsible')
                 ->latest()
                 ->paginate(5)
                 ->withQueryString(),
-            'responsibles' => $this->siteAssignableUsers($company),
+            'responsibles' => $this->siteResponsibleOptions($company),
             'siteTypes' => CompanySite::types(),
             'siteModules' => CompanySite::modules(),
             'moduleLabels' => $this->siteModuleLabels(),
             'typeLabels' => $this->siteTypeLabels(),
             'planRules' => $this->sitePlanRules($company),
             'currencies' => CurrencyCatalog::sorted(),
+        ]);
+    }
+
+    public function users(): View|RedirectResponse
+    {
+        $user = Auth::user();
+
+        if (! $user->isAdmin() || ! $user->subscription_id) {
+            return redirect()->route('main');
+        }
+
+        $siteOptions = CompanySite::query()
+            ->with('company')
+            ->whereHas('company', fn ($query) => $query->where('subscription_id', $user->subscription_id))
+            ->orderBy('name')
+            ->get();
+
+        return view('main.users', [
+            'user' => $user,
+            'users' => User::query()
+                ->with(['sites.company'])
+                ->where('subscription_id', $user->subscription_id)
+                ->whereIn('role', [User::ROLE_ADMIN, User::ROLE_USER])
+                ->orderByRaw('case when id = ? then 0 else 1 end', [$user->id])
+                ->orderByDesc('id')
+                ->paginate(5)
+                ->withQueryString(),
+            'siteOptions' => $siteOptions,
+            'moduleLabels' => $this->siteModuleLabels(),
+        ]);
+    }
+
+    public function storeUser(Request $request): RedirectResponse
+    {
+        $admin = Auth::user();
+
+        if (! $admin->isAdmin() || ! $admin->subscription_id) {
+            return redirect()->route('main');
+        }
+
+        $isManagedAdmin = $request->input('role') === User::ROLE_ADMIN;
+        $site = $isManagedAdmin ? null : $this->validatedAssignableSite($request, $admin);
+        $validated = $request->validate($this->managedUserRules($site));
+
+        if ($site) {
+            $this->ensureUserModulesMatchSite($validated['modules'], $site);
+        }
+
+        DB::transaction(function () use ($validated, $admin, $site): void {
+            $account = User::create($this->managedUserPayload($validated, $admin));
+
+            if ($account->isAdmin()) {
+                $this->syncManagedAdminSites($account, $admin);
+
+                return;
+            }
+
+            $this->syncManagedUserSite($account, $site, $validated);
+        });
+
+        return redirect()
+            ->route('main.users')
+            ->with('success', __('admin.user_saved'));
+    }
+
+    public function updateUser(Request $request, User $account): RedirectResponse
+    {
+        $admin = Auth::user();
+
+        if (! $admin->isAdmin() || ! $admin->subscription_id || ! $this->canManageSubscriptionUser($admin, $account) || $admin->is($account)) {
+            return redirect()->route('main');
+        }
+
+        $isManagedAdmin = $request->input('role') === User::ROLE_ADMIN;
+        $site = $isManagedAdmin ? null : $this->validatedAssignableSite($request, $admin);
+        $validated = $request->validate($this->managedUserRules($site, $account));
+
+        if ($site) {
+            $this->ensureUserModulesMatchSite($validated['modules'], $site);
+        }
+
+        DB::transaction(function () use ($validated, $admin, $site, $account): void {
+            $payload = $this->managedUserPayload($validated, $admin);
+
+            if (blank($payload['password'] ?? null)) {
+                unset($payload['password']);
+            }
+
+            $account->update($payload);
+
+            if ($account->isAdmin()) {
+                $this->syncManagedAdminSites($account, $admin);
+
+                return;
+            }
+
+            $this->syncManagedUserSite($account, $site, $validated);
+        });
+
+        return redirect()
+            ->route('main.users')
+            ->with('success', __('admin.user_updated'));
+    }
+
+    public function destroyUser(User $account): RedirectResponse
+    {
+        $admin = Auth::user();
+
+        if (! $admin->isAdmin() || ! $admin->subscription_id || ! $this->canManageSubscriptionUser($admin, $account) || $admin->is($account)) {
+            return redirect()
+                ->route('main.users')
+                ->withErrors(['authorization' => __('auth.unauthorized')]);
+        }
+
+        $account->delete();
+
+        return redirect()
+            ->route('main.users')
+            ->with('success', __('admin.user_deleted'))
+            ->with('toast_type', 'danger');
+    }
+
+    public function userLoginHistory(Request $request, User $account): JsonResponse|RedirectResponse
+    {
+        $admin = Auth::user();
+
+        if (! $admin->isAdmin() || ! $admin->subscription_id || ! $this->canManageSubscriptionUser($admin, $account)) {
+            return redirect()->route('main');
+        }
+
+        $search = trim((string) $request->query('search', ''));
+        $sort = (string) $request->query('sort', 'date');
+        $direction = $request->query('direction') === 'asc' ? 'asc' : 'desc';
+        $sortColumn = match ($sort) {
+            'device' => 'device',
+            'ip' => 'ip_address',
+            default => 'logged_in_at',
+        };
+
+        $histories = $account->loginHistories()
+            ->when($search !== '', fn ($query) => $query->where(function ($searchQuery) use ($search): void {
+                $searchQuery->where('device', 'like', "%{$search}%")
+                    ->orWhere('ip_address', 'like', "%{$search}%")
+                    ->orWhere('logged_in_at', 'like', "%{$search}%");
+            }))
+            ->orderBy($sortColumn, $direction)
+            ->paginate(5)
+            ->withQueryString();
+
+        return response()->json([
+            'user' => [
+                'name' => $account->name,
+                'email' => $account->email,
+            ],
+            'data' => $histories->getCollection()->map(fn ($history) => [
+                'device' => $history->device ?: __('main.unknown_device'),
+                'ip' => $history->ip_address ?: '-',
+                'date' => $history->logged_in_at?->format('Y-m-d H:i:s') ?? '-',
+            ])->values(),
+            'meta' => [
+                'current_page' => $histories->currentPage(),
+                'last_page' => $histories->lastPage(),
+                'from' => $histories->firstItem(),
+                'to' => $histories->lastItem(),
+                'total' => $histories->total(),
+            ],
         ]);
     }
 
@@ -124,7 +292,7 @@ class MainController extends Controller
 
         $company->load('subscription');
         $rules = $this->sitePlanRules($company);
-        $validated = $request->validate($this->siteRules($company));
+        $validated = $request->validate($this->siteRules($company, $site));
         $this->ensureSiteModulesMatchPlan($validated['modules'], $rules);
 
         DB::transaction(function () use ($site, $validated): void {
@@ -278,9 +446,167 @@ class MainController extends Controller
             && $company->subscription_id === $user->subscription_id;
     }
 
-    private function siteRules(Company $company): array
+    private function canManageSubscriptionUser(User&Authenticatable $admin, User $account): bool
     {
-        $userIds = $this->siteAssignableUsers($company)->pluck('id')->all();
+        return ! $account->isSuperadmin()
+            && $account->subscription_id !== null
+            && $account->subscription_id === $admin->subscription_id;
+    }
+
+    private function validatedAssignableSite(Request $request, User&Authenticatable $admin): CompanySite
+    {
+        $siteId = $request->input('site_id');
+
+        $site = CompanySite::query()
+            ->with('company')
+            ->whereKey($siteId)
+            ->whereHas('company', fn ($query) => $query->where('subscription_id', $admin->subscription_id))
+            ->first();
+
+        if (! $site) {
+            throw ValidationException::withMessages(['site_id' => __('main.required_user_site')]);
+        }
+
+        return $site;
+    }
+
+    private function managedUserRules(?CompanySite $site = null, ?User $account = null): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'.($account ? ','.$account->id : '')],
+            'password' => [
+                $account ? 'nullable' : 'required',
+                'confirmed',
+                Password::min(12)->mixedCase()->letters()->numbers()->symbols(),
+            ],
+            'role' => ['required', Rule::in([User::ROLE_ADMIN, User::ROLE_USER])],
+            'phone_number' => ['nullable', 'string', 'max:50'],
+            'grade' => ['nullable', 'string', 'max:255'],
+            'address' => ['nullable', 'string'],
+            'site_id' => array_filter([$site ? 'required' : 'nullable', 'integer', $site ? Rule::in([$site->id]) : null]),
+            'modules' => [$site ? 'required' : 'nullable', 'array', $site ? 'min:1' : 'min:0'],
+            'modules.*' => ['required', 'string', Rule::in($site?->modules ?? CompanySite::modules())],
+            'module_permissions' => ['nullable', 'array'],
+            'module_permissions.*.can_create' => ['nullable', 'boolean'],
+            'module_permissions.*.can_update' => ['nullable', 'boolean'],
+            'module_permissions.*.can_delete' => ['nullable', 'boolean'],
+            'form_mode' => ['nullable', Rule::in(['create', 'edit'])],
+            'user_id' => ['nullable', 'integer'],
+        ];
+    }
+
+    private function managedUserPayload(array $validated, User&Authenticatable $admin): array
+    {
+        return [
+            'subscription_id' => $admin->subscription_id,
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => $validated['password'] ?? null,
+            'role' => $validated['role'],
+            'phone_number' => $validated['phone_number'] ?? null,
+            'grade' => $validated['grade'] ?? null,
+            'address' => $validated['address'] ?? null,
+        ];
+    }
+
+    private function ensureUserModulesMatchSite(array $modules, CompanySite $site): void
+    {
+        if (array_diff(array_unique($modules), $site->modules ?? []) !== []) {
+            throw ValidationException::withMessages(['modules' => __('main.module_not_allowed_for_site')]);
+        }
+    }
+
+    private function syncManagedUserSite(User $account, CompanySite $site, array $validated): void
+    {
+        $modulePermissions = $this->modulePermissionPayload(
+            $validated['modules'],
+            $validated['module_permissions'] ?? [],
+        );
+
+        $canCreate = collect($modulePermissions)->contains(fn ($permissions) => $permissions['can_create']);
+        $canUpdate = collect($modulePermissions)->contains(fn ($permissions) => $permissions['can_update']);
+        $canDelete = collect($modulePermissions)->contains(fn ($permissions) => $permissions['can_delete']);
+
+        $sitePivot = [
+            'module_permissions' => json_encode($modulePermissions),
+            'can_create' => $canCreate,
+            'can_update' => $canUpdate,
+            'can_delete' => $canDelete,
+        ];
+
+        $companyPivot = [
+            'can_view' => true,
+            'can_create' => $canCreate,
+            'can_update' => $canUpdate,
+            'can_delete' => $canDelete,
+        ];
+
+        $account->sites()->sync([$site->id => $sitePivot]);
+        $account->companies()->sync([$site->company_id => $companyPivot]);
+    }
+
+    private function syncManagedAdminSites(User $account, User&Authenticatable $admin): void
+    {
+        $sites = CompanySite::query()
+            ->with('company:id,subscription_id')
+            ->whereHas('company', fn ($query) => $query->where('subscription_id', $admin->subscription_id))
+            ->get();
+
+        $sitePivots = [];
+        $companyPivots = [];
+
+        foreach ($sites as $site) {
+            $modules = array_values($site->modules ?? []);
+            $permissions = [];
+
+            foreach ($modules as $module) {
+                $permissions[$module] = [
+                    'can_create' => true,
+                    'can_update' => true,
+                    'can_delete' => true,
+                ];
+            }
+
+            $sitePivots[$site->id] = [
+                'module_permissions' => json_encode($permissions),
+                'can_create' => true,
+                'can_update' => true,
+                'can_delete' => true,
+            ];
+
+            $companyPivots[$site->company_id] = [
+                'can_view' => true,
+                'can_create' => true,
+                'can_update' => true,
+                'can_delete' => true,
+            ];
+        }
+
+        $account->sites()->sync($sitePivots);
+        $account->companies()->sync($companyPivots);
+    }
+
+    private function modulePermissionPayload(array $modules, array $permissions): array
+    {
+        $payload = [];
+
+        foreach (array_unique($modules) as $module) {
+            $modulePermissions = $permissions[$module] ?? [];
+
+            $payload[$module] = [
+                'can_create' => (bool) ($modulePermissions['can_create'] ?? false),
+                'can_update' => (bool) ($modulePermissions['can_update'] ?? false),
+                'can_delete' => (bool) ($modulePermissions['can_delete'] ?? false),
+            ];
+        }
+
+        return $payload;
+    }
+
+    private function siteRules(Company $company, ?CompanySite $site = null): array
+    {
+        $userIds = $this->siteAssignableUsers($company, $site)->pluck('id')->all();
 
         return [
             'name' => ['required', 'string', 'max:255'],
@@ -320,7 +646,25 @@ class MainController extends Controller
         $site->users()->sync([$validated['responsible_id']]);
     }
 
-    private function siteAssignableUsers(Company $company)
+    private function siteAssignableUsers(Company $company, ?CompanySite $site = null)
+    {
+        return User::query()
+            ->where('subscription_id', $company->subscription_id)
+            ->whereIn('role', [User::ROLE_ADMIN, User::ROLE_USER])
+            ->where(function ($query) use ($site): void {
+                $query->where('role', User::ROLE_ADMIN)
+                    ->orWhereDoesntHave('responsibleSites');
+
+                if ($site) {
+                    $query->orWhereHas('responsibleSites', fn ($siteQuery) => $siteQuery->whereKey($site->id));
+                }
+            })
+            ->orderByRaw("case when role = 'admin' then 0 else 1 end")
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'role']);
+    }
+
+    private function siteResponsibleOptions(Company $company)
     {
         return User::query()
             ->where('subscription_id', $company->subscription_id)
