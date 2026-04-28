@@ -12,10 +12,6 @@
     @php
         $currentLocale = app()->getLocale();
         $initial = strtoupper(mb_substr($user->name, 0, 1));
-        $totalRoles = max(array_sum($roleCounts), 1);
-        $adminPercent = round(($roleCounts['admin'] / $totalRoles) * 100);
-        $superadminPercent = round(($roleCounts['superadmin'] / $totalRoles) * 100);
-        $userPercent = max(0, 100 - $adminPercent - $superadminPercent);
         $kpis = [
             ['label' => __('admin.subscriptions'), 'value' => $stats['subscriptions'], 'icon' => 'bi-stack', 'tone' => 'blue', 'trend' => '+100%'],
             ['label' => __('admin.users'), 'value' => $stats['users'], 'icon' => 'bi-people', 'tone' => 'violet', 'trend' => '+100%'],
@@ -36,6 +32,18 @@
                     <small>{{ __('admin.console') }}</small>
                 </span>
             </a>
+
+            <button
+                class="sidebar-toggle"
+                type="button"
+                id="sidebarToggle"
+                aria-label="{{ __('admin.collapse_sidebar') }}"
+                title="{{ __('admin.collapse_sidebar') }}"
+                data-label-collapse="{{ __('admin.collapse_sidebar') }}"
+                data-label-expand="{{ __('admin.expand_sidebar') }}"
+            >
+                <i class="bi bi-chevron-left" aria-hidden="true"></i>
+            </button>
 
             <nav class="sidebar-nav" aria-label="{{ __('admin.superadmin_navigation') }}">
                 <a class="nav-link active" href="{{ route('admin.dashboard') }}">
@@ -132,9 +140,9 @@
 
             <section class="dashboard-content">
                 <div class="period-tabs" aria-label="{{ __('admin.period') }}">
-                    <button type="button">{{ __('admin.week') }}</button>
-                    <button type="button" class="active">{{ __('admin.month') }}</button>
-                    <button type="button">{{ __('admin.year') }}</button>
+                    <button type="button" data-dashboard-period="week">{{ __('admin.week') }}</button>
+                    <button type="button" class="active" data-dashboard-period="month">{{ __('admin.month') }}</button>
+                    <button type="button" data-dashboard-period="year">{{ __('admin.year') }}</button>
                 </div>
 
                 <section class="kpi-grid" aria-label="{{ __('admin.indicators') }}">
@@ -158,71 +166,74 @@
                 <section class="dashboard-grid">
                     <article class="dashboard-panel panel-wide">
                         <h2>{{ __('admin.subscriptions_evolution') }}</h2>
-                        <div class="line-chart" aria-label="{{ __('admin.monthly_evolution') }}">
-                            <svg viewBox="0 0 760 260" role="img" aria-hidden="true">
-                                <g class="grid-lines">
-                                    <line x1="40" y1="30" x2="735" y2="30" />
-                                    <line x1="40" y1="85" x2="735" y2="85" />
-                                    <line x1="40" y1="140" x2="735" y2="140" />
-                                    <line x1="40" y1="195" x2="735" y2="195" />
-                                    <line x1="40" y1="250" x2="735" y2="250" />
-                                </g>
-                                <line class="axis" x1="40" y1="30" x2="40" y2="250" />
-                                <line class="axis" x1="40" y1="250" x2="735" y2="250" />
-                                <path class="area-blue" d="M40 250 C210 250 390 250 565 250 C625 247 675 202 735 72 L735 250 Z" />
-                                <path class="area-violet" d="M40 250 C220 250 410 250 575 250 C635 248 680 214 735 126 L735 250 Z" />
-                                <path class="line-blue" d="M40 250 C210 250 390 250 565 250 C625 247 675 202 735 72" />
-                                <path class="line-violet" d="M40 250 C220 250 410 250 575 250 C635 248 680 214 735 126" />
-                            </svg>
-                            <div class="chart-labels y-labels">
-                                <span>16</span><span>12</span><span>8</span><span>4</span><span>0</span>
-                            </div>
-                            <div class="chart-labels x-labels">
-                                <span>Nov 2025</span><span>Dec 2025</span><span>Jan 2026</span><span>Feb 2026</span><span>Mar 2026</span><span>Apr 2026</span>
-                            </div>
-                            <div class="chart-legend">
-                                <span><i class="legend-blue"></i> {{ __('admin.subscriptions') }}</span>
-                                <span><i class="legend-violet"></i> {{ __('admin.users') }}</span>
-                            </div>
-                        </div>
+                        <div class="apex-chart" id="subscriptionsEvolutionChart" aria-label="{{ __('admin.monthly_evolution') }}"></div>
                     </article>
 
                     <article class="dashboard-panel">
                         <h2>{{ __('admin.roles_distribution') }}</h2>
-                        <div class="donut-wrap">
-                            <div class="role-donut" style="--admin: {{ $adminPercent }}%; --superadmin: {{ $superadminPercent }}%; --user: {{ $userPercent }}%;"></div>
-                            <div class="chart-legend role-legend">
-                                <span><i class="legend-blue"></i> {{ __('admin.admin_role') }}</span>
-                                <span><i class="legend-rose"></i> {{ __('admin.superadmin_role') }}</span>
-                                <span><i class="legend-violet"></i> {{ __('admin.user_role') }}</span>
-                            </div>
-                        </div>
+                        <div class="apex-chart donut-chart" id="rolesDistributionChart" aria-label="{{ __('admin.roles_distribution') }}"></div>
                     </article>
 
                     <article class="dashboard-panel panel-wide">
                         <h2>{{ __('admin.users_by_company') }}</h2>
-                        <div class="bar-chart">
-                            <span class="bar-label">EXAD SARL</span>
-                            <div class="bar-track">
-                                <span style="width: 67%"></span>
-                            </div>
-                            <span class="bar-value">{{ $stats['users'] }}</span>
-                        </div>
+                        <div class="apex-chart" id="usersByCompanyChart" aria-label="{{ __('admin.users_by_company') }}"></div>
                     </article>
 
                     <article class="dashboard-panel">
                         <h2>{{ __('admin.global_activity') }}</h2>
-                        <div class="activity-chart">
-                            <svg viewBox="0 0 330 190" aria-hidden="true">
-                                <g class="grid-lines">
-                                    <line x1="30" y1="20" x2="315" y2="20" />
-                                    <line x1="30" y1="75" x2="315" y2="75" />
-                                    <line x1="30" y1="130" x2="315" y2="130" />
-                                </g>
-                                <line class="axis" x1="30" y1="20" x2="30" y2="170" />
-                                <path class="line-blue" d="M30 170 C110 170 190 170 245 168 C278 166 298 96 315 45" />
-                                <circle cx="315" cy="45" r="4" />
-                            </svg>
+                        <div class="apex-chart compact-chart" id="globalActivityChart" aria-label="{{ __('admin.global_activity') }}"></div>
+                    </article>
+
+                    <article class="dashboard-panel panel-wide">
+                        <h2>{{ __('admin.top_companies') }}</h2>
+                        <div class="top-company-list">
+                            @forelse ($topCompanies as $company)
+                                <div class="top-company-row">
+                                    <span class="rank-badge">{{ $loop->iteration }}</span>
+                                    @if ($company['logo_url'])
+                                        <span class="company-logo"><img src="{{ $company['logo_url'] }}" alt="{{ $company['name'] }}"></span>
+                                    @else
+                                        <span class="company-logo placeholder-logo" aria-hidden="true">{{ $company['initial'] }}</span>
+                                    @endif
+                                    <div class="top-company-main">
+                                        <strong>{{ $company['name'] }}</strong>
+                                        <span>
+                                            <i class="bi bi-people" aria-hidden="true"></i> {{ $company['users_count'] }}
+                                            <i class="bi bi-geo-alt ms-2" aria-hidden="true"></i> {{ $company['sites_count'] }}
+                                        </span>
+                                    </div>
+                                    <span class="status-pill is-active"><i class="bi bi-circle-fill" aria-hidden="true"></i>{{ __('admin.up_to_date') }}</span>
+                                </div>
+                            @empty
+                                <p class="empty-panel">{{ __('admin.no_companies') }}</p>
+                            @endforelse
+                        </div>
+                    </article>
+
+                    <article class="dashboard-panel">
+                        <h2>{{ __('admin.recent_activity') }}</h2>
+                        <div class="activity-list">
+                            @forelse ($recentActivities as $activity)
+                                <div class="activity-item">
+                                    @php
+                                        $activityIcon = [
+                                            'user' => 'bi-person-plus',
+                                            'site' => 'bi-geo-alt',
+                                            'subscription' => 'bi-stack',
+                                        ][$activity['type']] ?? 'bi-circle';
+                                    @endphp
+                                    <span class="activity-icon activity-{{ $activity['tone'] }}" aria-hidden="true">
+                                        <i class="bi {{ $activityIcon }}"></i>
+                                    </span>
+                                    <div>
+                                        <strong>{{ $activity['title'] }}</strong>
+                                        <span>{{ $activity['subject'] }}</span>
+                                        <em>{{ $activity['time'] }}</em>
+                                    </div>
+                                </div>
+                            @empty
+                                <p class="empty-panel">{{ __('admin.no_results') }}</p>
+                            @endforelse
                         </div>
                     </article>
                 </section>
@@ -230,7 +241,11 @@
         </main>
     </div>
 
+    <script type="application/json" id="dashboardChartData">@json($chartData)</script>
     <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script>{!! file_get_contents(resource_path('js/main.js')) !!}</script>
+    <!-- resources/js/admin/dashboard.js -->
+    <script>{!! file_get_contents(resource_path('js/admin/dashboard.js')) !!}</script>
 </body>
 </html>

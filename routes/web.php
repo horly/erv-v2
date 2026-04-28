@@ -24,6 +24,9 @@ Route::prefix('admin')
         Route::get('/companies', 'companies')->name('companies');
         Route::get('/companies/create', 'createCompany')->name('companies.create');
         Route::post('/companies', 'storeCompany')->name('companies.store');
+        Route::get('/companies/{company}/edit', 'editCompany')->name('companies.edit');
+        Route::put('/companies/{company}', 'updateCompany')->name('companies.update');
+        Route::delete('/companies/{company}', 'destroyCompany')->name('companies.destroy');
         Route::post('/users', 'storeUser')->name('users.store');
         Route::put('/users/{account}', 'updateUser')->name('users.update');
         Route::delete('/users/{account}', 'destroyUser')->name('users.destroy');

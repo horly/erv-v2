@@ -13,7 +13,6 @@
         $currentLocale = app()->getLocale();
         $initial = strtoupper(mb_substr($user->name, 0, 1));
         $totalCompanies = $companies->total();
-        $defaultLogo = asset('img/logo/exad-1200x1200.jpg');
     @endphp
 
     <div class="dashboard-shell main-shell" data-theme="light">
@@ -27,6 +26,18 @@
                     <small>{{ __('admin.console') }}</small>
                 </span>
             </a>
+
+            <button
+                class="sidebar-toggle"
+                type="button"
+                id="sidebarToggle"
+                aria-label="{{ __('admin.collapse_sidebar') }}"
+                title="{{ __('admin.collapse_sidebar') }}"
+                data-label-collapse="{{ __('admin.collapse_sidebar') }}"
+                data-label-expand="{{ __('admin.expand_sidebar') }}"
+            >
+                <i class="bi bi-chevron-left" aria-hidden="true"></i>
+            </button>
 
             <nav class="sidebar-nav" aria-label="{{ __('admin.superadmin_navigation') }}">
                 <a class="nav-link" href="{{ route('admin.dashboard') }}">
@@ -121,10 +132,10 @@
                 </div>
             </header>
 
-            @if (session('success'))
-                <div class="flash-toast {{ session('toast_type') === 'danger' ? 'flash-toast-danger' : '' }}" role="status" aria-live="polite" data-autohide="15000">
+            @if (session('success') || $errors->any())
+                <div class="flash-toast {{ session('toast_type') === 'danger' || $errors->any() ? 'flash-toast-danger' : '' }}" role="status" aria-live="polite" data-autohide="15000">
                     <span class="flash-icon"><i class="bi {{ session('toast_type') === 'danger' ? 'bi-trash3' : 'bi-check2-circle' }}" aria-hidden="true"></i></span>
-                    <span>{{ session('success') }}</span>
+                    <span>{{ session('success') ?: $errors->first() }}</span>
                     <button type="button" class="flash-close" aria-label="{{ __('admin.close') }}">
                         <i class="bi bi-x-lg" aria-hidden="true"></i>
                     </button>
@@ -158,8 +169,9 @@
                                     <th><button class="table-sort" type="button" data-sort-index="0" data-sort-type="number"># <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="1" data-sort-type="text">{{ __('admin.name') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="2" data-sort-type="text">{{ __('admin.subscription') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    <th><button class="table-sort" type="button" data-sort-index="3" data-sort-type="text">{{ __('admin.country') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    <th><button class="table-sort" type="button" data-sort-index="4" data-sort-type="text">{{ __('admin.email') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="3" data-sort-type="number">{{ __('admin.sites') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="4" data-sort-type="text">{{ __('admin.country') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="5" data-sort-type="text">{{ __('admin.email') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th class="text-end">{{ __('admin.actions') }}</th>
                                 </tr>
                             </thead>
@@ -169,20 +181,21 @@
                                         <td>{{ $companies->firstItem() + $loop->index }}</td>
                                         <td>
                                             <span class="company-cell">
-                                                @php
-                                                    $logo = $company->logo;
-                                                    $logoUrl = $logo
-                                                        ? (str_starts_with($logo, 'http') ? $logo : asset('storage/'.$logo))
-                                                        : $defaultLogo;
-                                                @endphp
-                                                <span class="company-logo">
-                                                    <img src="{{ $logoUrl }}" alt="{{ $company->name }}">
-                                                </span>
+                                                @if ($company->logo_url)
+                                                    <span class="company-logo">
+                                                        <img src="{{ $company->logo_url }}" alt="{{ $company->name }}">
+                                                    </span>
+                                                @else
+                                                    <span class="company-logo placeholder-logo" aria-hidden="true">
+                                                        <i class="bi bi-building" aria-hidden="true"></i>
+                                                    </span>
+                                                @endif
                                                 <span class="linked-subscription">{{ $company->name }}</span>
                                             </span>
                                         </td>
                                         <td>{{ $company->subscription?->name ?? '-' }}</td>
-                                                                                <td>
+                                        <td>{{ $company->sites_count }}</td>
+                                        <td>
                                             @php
                                                 $countryMeta = collect($countries)->first(fn ($country) => in_array($company->country, [$country['name_fr'], $country['name_en'], $country['iso']], true));
                                                 $countryDisplay = data_get($countryMeta, 'name_'.app()->getLocale(), $company->country ?: 'Congo (RDC)');
@@ -192,22 +205,41 @@
                                         <td>{{ $company->email ?: '-' }}</td>
                                         <td>
                                             <div class="table-actions">
-                                                <button type="button" class="table-button table-button-edit" aria-label="{{ __('admin.edit') }}">
+                                                <a href="{{ route('admin.companies.edit', $company) }}" class="table-button table-button-edit" aria-label="{{ __('admin.edit') }}">
                                                     <i class="bi bi-pencil" aria-hidden="true"></i>
-                                                </button>
-                                                <button type="button" class="table-button table-button-delete" aria-label="{{ __('admin.delete') }}">
-                                                    <i class="bi bi-trash" aria-hidden="true"></i>
-                                                </button>
+                                                </a>
+                                                @if ($company->sites_count === 0)
+                                                    <form method="POST" action="{{ route('admin.companies.destroy', $company) }}">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button
+                                                            type="button"
+                                                            class="table-button table-button-delete"
+                                                            aria-label="{{ __('admin.delete') }}"
+                                                            data-delete-trigger
+                                                            data-delete-title="{{ __('admin.delete_company_title') }}"
+                                                            data-delete-text="{{ __('admin.delete_company_text', ['name' => $company->name]) }}"
+                                                            data-delete-confirm="{{ __('admin.delete_company_confirm') }}"
+                                                            data-delete-cancel="{{ __('admin.delete_company_cancel') }}"
+                                                        >
+                                                            <i class="bi bi-trash" aria-hidden="true"></i>
+                                                        </button>
+                                                    </form>
+                                                @else
+                                                    <button type="button" class="table-button table-button-delete" aria-label="{{ __('admin.company_has_sites') }}" title="{{ __('admin.company_has_sites') }}" disabled>
+                                                        <i class="bi bi-trash" aria-hidden="true"></i>
+                                                    </button>
+                                                @endif
                                             </div>
                                         </td>
                                     </tr>
                                 @empty
                                     <tr class="empty-row">
-                                        <td colspan="6">{{ __('admin.no_companies') }}</td>
+                                        <td colspan="7">{{ __('admin.no_companies') }}</td>
                                     </tr>
                                 @endforelse
                                 <tr class="empty-row search-empty-row" hidden>
-                                    <td colspan="6">{{ __('admin.no_results') }}</td>
+                                    <td colspan="7">{{ __('admin.no_results') }}</td>
                                 </tr>
                             </tbody>
                         </table>

@@ -33,6 +33,18 @@
                 </span>
             </a>
 
+            <button
+                class="sidebar-toggle"
+                type="button"
+                id="sidebarToggle"
+                aria-label="{{ __('admin.collapse_sidebar') }}"
+                title="{{ __('admin.collapse_sidebar') }}"
+                data-label-collapse="{{ __('admin.collapse_sidebar') }}"
+                data-label-expand="{{ __('admin.expand_sidebar') }}"
+            >
+                <i class="bi bi-chevron-left" aria-hidden="true"></i>
+            </button>
+
             <nav class="sidebar-nav" aria-label="{{ __('admin.superadmin_navigation') }}">
                 <a class="nav-link" href="{{ route('admin.dashboard') }}">
                     <i class="bi bi-speedometer2" aria-hidden="true"></i>

@@ -8,6 +8,9 @@
             const passwordToggle = document.getElementById('passwordToggle');
             const form = document.querySelector('.needs-validation');
             const storageKey = 'exad-theme';
+            const submitLoadingLabel = document.documentElement.lang?.toLowerCase().startsWith('en')
+                ? 'Processing...'
+                : 'Traitement...';
 
             const applyTheme = (theme) => {
                 const darkMode = theme === 'dark';
@@ -58,13 +61,63 @@
                 }
             });
 
+            const setFormSubmitting = (submitter = form.querySelector('button[type="submit"], input[type="submit"]')) => {
+                if (form.dataset.submitting === 'true') {
+                    return;
+                }
+
+                form.dataset.submitting = 'true';
+                form.classList.add('is-submitting');
+
+                form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach((control) => {
+                    control.dataset.originalDisabled = control.disabled ? 'true' : 'false';
+                    control.disabled = true;
+                    control.setAttribute('aria-disabled', 'true');
+                });
+
+                if (submitter?.tagName === 'BUTTON') {
+                    submitter.dataset.submitLoading = 'true';
+                    submitter.dataset.originalHtml = submitter.innerHTML;
+                    submitter.setAttribute('aria-busy', 'true');
+                    submitter.innerHTML = `<span class="submit-spinner" aria-hidden="true"></span><span>${submitLoadingLabel}</span>`;
+                }
+            };
+
+            const resetFormSubmitting = () => {
+                delete form.dataset.submitting;
+                form.classList.remove('is-submitting');
+
+                form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach((control) => {
+                    if (control.dataset.originalDisabled === 'false') {
+                        control.disabled = false;
+                    }
+
+                    control.removeAttribute('aria-disabled');
+                    control.removeAttribute('aria-busy');
+
+                    if (control.dataset.originalHtml) {
+                        control.innerHTML = control.dataset.originalHtml;
+                    }
+
+                    delete control.dataset.submitLoading;
+                    delete control.dataset.originalDisabled;
+                    delete control.dataset.originalHtml;
+                });
+            };
+
             form.addEventListener('submit', (event) => {
                 if (!form.checkValidity()) {
                     event.preventDefault();
                     event.stopPropagation();
+                    resetFormSubmitting();
+                } else if (form.dataset.submitting === 'true') {
+                    event.preventDefault();
+                } else {
+                    setFormSubmitting(event.submitter);
                 }
 
                 form.classList.add('was-validated');
             });
-        })();
 
+            window.addEventListener('pageshow', resetFormSubmitting);
+        })();

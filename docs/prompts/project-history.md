@@ -1052,3 +1052,1042 @@ Verification :
 
 - Ajout de tests pour l'affichage anglais du select pays.
 - `php artisan test` passe avec `22 passed` et `73 assertions`.
+
+### 2026-04-28 - Creation du fichier .env depuis .env.example
+
+Prompt utilisateur :
+
+```text
+crée un fichier .env et rempli le data par rapport à .env.example
+```
+
+Actions realisees :
+
+- Verification que le fichier `.env` n'existait pas encore dans le nouveau repertoire local `d:\App\Codex\erv-v2`.
+- Creation du fichier `.env` par copie de `.env.example`.
+- Generation d'une cle `APP_KEY` locale valide et ajout dans `.env`.
+
+Probleme rencontre :
+
+- La commande `php artisan key:generate` a echoue avec l'erreur :
+
+```text
+Class "Locale" not found
+```
+
+- L'erreur vient de `config/countries.php` et indique probablement que l'extension PHP `intl` n'est pas activee sur cette machine.
+
+Correction appliquee :
+
+- Generation manuelle d'une cle Laravel compatible au format `base64`.
+- Remplacement de `APP_KEY=` dans `.env` par la cle generee.
+
+Decision securite :
+
+- `.env.example` n'a pas ete modifie avec la valeur de `APP_KEY`, car cette cle est un secret local.
+- La regle reste : synchroniser `.env.example` avec `.env` uniquement pour les cles et valeurs non sensibles.
+
+### 2026-04-28 - Rappel de mise a jour systematique de l'historique
+
+Prompt utilisateur :
+
+```text
+n'oublie pas de toujours mettre à jour l'historique des prompts
+```
+
+Decision :
+
+- A chaque session ou modification importante, mettre a jour `docs/prompts/project-history.md`.
+- Documenter les prompts utilisateur importants, les decisions, les fichiers modifies, les problemes rencontres et les prochaines taches.
+- Continuer a ne jamais inscrire de secrets dans ce fichier, notamment les valeurs reelles de `.env`, mots de passe, tokens, cles API ou `APP_KEY`.
+
+### 2026-04-28 - Import de la base de donnees depuis database/exports
+
+Prompt utilisateur :
+
+```text
+dans le repertoir database/exports/erp_database.sql 
+importe cette pase de données
+```
+
+Actions realisees :
+
+- Verification de l'existence du fichier `database/exports/erp_database.sql`.
+- Verification de la configuration MySQL dans `.env` :
+  - `DB_CONNECTION=mysql`
+  - `DB_HOST=127.0.0.1`
+  - `DB_PORT=3306`
+  - `DB_DATABASE=erp_database`
+  - `DB_USERNAME=root`
+- Lecture de l'en-tete du fichier SQL pour confirmer qu'il contient `CREATE DATABASE` et `USE erp_database`.
+- Tentative d'import avec `scripts/import-database.ps1`.
+
+Probleme rencontre :
+
+- Le script d'import a echoue car la commande `mysql` n'etait pas disponible dans le `PATH` Windows.
+
+Correction appliquee :
+
+- Utilisation directe de l'executable MySQL/XAMPP :
+
+```powershell
+C:\xampp\mysql\bin\mysql.exe
+```
+
+- Import effectue avec succes depuis `database/exports/erp_database.sql`.
+
+Verification :
+
+- La base `erp_database` contient les tables principales :
+  - `users`
+  - `subscriptions`
+  - `companies`
+  - `company_phones`
+  - `company_accounts`
+  - `company_user`
+  - tables Laravel de cache, jobs, sessions et migrations.
+- Comptages verifies apres import :
+  - `users` : 6
+  - `companies` : 2
+  - `subscriptions` : 8
+
+Note pour la suite :
+
+- Pour faciliter les prochains imports, soit ajouter `C:\xampp\mysql\bin` au `PATH`, soit adapter `scripts/import-database.ps1` pour detecter automatiquement `C:\xampp\mysql\bin\mysql.exe` lorsque `mysql` n'est pas disponible.
+
+### 2026-04-28 - Diagnostic erreur Class "Locale" not found
+
+Prompt utilisateur :
+
+```text
+j'ai cette erreur pourquoi ?
+```
+
+Erreur observee :
+
+```text
+In countries.php line 240:
+Class "Locale" not found
+```
+
+Diagnostic :
+
+- L'erreur vient de `config/countries.php`, ligne 240.
+- Le fichier utilise `Locale::getDisplayRegion(...)` pour trouver le nom anglais d'un pays.
+- La classe PHP `Locale` est fournie par l'extension PHP `intl`.
+- Sur cette machine, `php -m` ne montre pas l'extension `intl`.
+- Le PHP CLI utilise le fichier de configuration `C:\xampp\php\php.ini`.
+
+Cause :
+
+- L'extension `intl` n'est pas activee dans le PHP de XAMPP utilise par la commande `php artisan serve`.
+
+Correction recommandee :
+
+- Activer `extension=intl` dans `C:\xampp\php\php.ini`.
+- Redemarrer le terminal, puis relancer `php artisan serve`.
+- Alternative code possible : rendre `config/countries.php` tolerant si `Locale` est absente, avec un fallback vers le nom francais.
+
+### 2026-04-28 - Correction code de l'erreur Locale absente
+
+Prompt utilisateur :
+
+```text
+j'ai toujours l'erreur, regarde l'historique de mes prompts peut etre que ça va t'aider
+```
+
+Diagnostic confirme :
+
+- L'historique montrait que l'erreur `Class "Locale" not found` etait deja apparue pendant la generation de `.env`.
+- Verification de PHP :
+  - `php --ini` charge `C:\xampp\php\php.ini`.
+  - `php -m` ne liste toujours pas `intl`.
+  - `C:\xampp\php\php.ini` contient encore `;extension=intl`, donc l'extension reste commentee.
+
+Correction appliquee :
+
+- Modification de `config/countries.php`.
+- La ligne utilisant `Locale::getDisplayRegion(...)` est maintenant protegee par `class_exists(Locale::class)`.
+- Si l'extension `intl` est absente, le code utilise un fallback vers le nom francais du pays au lieu de bloquer Laravel.
+
+Verification :
+
+- `php artisan --version` fonctionne et retourne `Laravel Framework 12.58.0`.
+- `php artisan route:list --except-vendor` fonctionne.
+- `php artisan test --filter=country` passe avec `3 passed` et `13 assertions`.
+
+Note :
+
+- Activer `intl` dans XAMPP reste recommande pour de meilleurs noms de pays anglais automatiques.
+- Mais l'application ne depend plus obligatoirement de cette extension pour demarrer.
+
+### 2026-04-28 - Correction UTF-8 du champ pays dans le formulaire entreprise
+
+Prompt utilisateur :
+
+```text
+Sur la page /admin/compagnies/create 
+sur le formulaire dans le champs pays le text n'est pas formaté en UTF-8
+```
+
+Probleme observe :
+
+- Dans le champ `Pays` du formulaire `admin/companies/create`, certains noms de pays accentues etaient affiches sous forme corrompue, par exemple `CÃ...te d'Ivoire`.
+- Le probleme ne venait pas de Blade ni du navigateur : le fichier source `config/countries.php` contenait deja des textes mal encodes.
+
+Correction appliquee :
+
+- Remplacement des noms de pays francais corrompus dans `config/countries.php` par de vraies chaines UTF-8.
+- Exemples corriges :
+  - `Côte d'Ivoire`
+  - `Algérie`
+  - `Bénin`
+  - `Équateur`
+  - `Égypte`
+  - `Guinée équatoriale`
+  - `Îles Marshall`
+  - `États-Unis`
+- Ajout d'une verification de non-regression dans `tests/Feature/ExampleTest.php` :
+  - le catalogue doit contenir `Côte d'Ivoire`;
+  - le formulaire doit afficher `Côte d'Ivoire (+225 - TVA 18,00%)`;
+  - le formulaire ne doit pas contenir la sequence corrompue `CÃ`.
+
+Verification :
+
+- Recherche confirmee : plus aucune sequence `Ã`, `Â` ou `â` dans `config/countries.php`.
+- `php artisan test --filter=country` passe avec `3 passed` et `16 assertions`.
+
+### 2026-04-28 - Standard loading pour tous les formulaires
+
+Prompt utilisateur :
+
+```text
+Je souhaite uniformiser le comportement de tous les formulaires existants et futurs de mon application.
+
+Pour chaque formulaire de création ou de modification, par exemple les pages create et edit, lorsqu’un utilisateur clique sur le bouton d’enregistrement, de création, de mise à jour ou de soumission, il faut afficher automatiquement un état de chargement.
+
+Le bouton doit afficher un loading, être temporairement désactivé pour éviter les doubles soumissions, puis revenir à son état normal une fois l’action terminée ou en cas d’erreur.
+
+Ce même modèle doit être appliqué à tous les formulaires existants et devra également servir de standard pour tous les nouveaux formulaires que je créerai par la suite, afin de garder une interface cohérente dans toute l’application
+```
+
+Decision :
+
+- Mettre en place un comportement JavaScript global plutot que de traiter chaque formulaire un par un.
+- Tous les formulaires qui chargent `resources/js/main.js` ou `resources/js/auth/login.js` ont maintenant automatiquement un etat de soumission.
+- Le standard peut etre desactive sur un formulaire precis avec l'attribut `data-no-submit-loading`.
+- Un texte personnalise peut etre defini sur un bouton avec `data-loading-label`.
+
+Comportement ajoute :
+
+- Au submit valide :
+  - le formulaire recoit la classe `is-submitting`;
+  - les boutons de soumission du formulaire sont desactives;
+  - le bouton declencheur recoit `aria-busy="true"`;
+  - le bouton affiche un spinner et le libelle `Traitement...` en francais ou `Processing...` en anglais.
+- Si la validation JavaScript bloque le formulaire, le bouton revient immediatement a son etat normal.
+- Lors d'un retour navigateur via cache (`pageshow`), les boutons sont reinitialises.
+- Les suppressions avec confirmation sont aussi protegees contre les doubles clics apres confirmation.
+
+Fichiers modifies :
+
+- `resources/js/main.js`
+- `resources/js/auth/login.js`
+- `resources/css/admin/dashboard.css`
+- `resources/css/auth/login.css`
+
+Verification :
+
+- `php artisan test` passe avec `22 passed` et `76 assertions`.
+
+### 2026-04-28 - Placeholder par defaut pour logos entreprise absents
+
+Prompt utilisateur :
+
+```text
+Lors de la création d’une entreprise, l’ajout du logo est déjà optionnel.
+
+Actuellement, lorsqu’une entreprise est enregistrée sans logo, cela provoque un bug d’affichage de l’image dans la liste ou les vues concernées.
+
+Je souhaite donc mettre en place une gestion par défaut :
+
+si une entreprise n’a pas de logo,
+alors afficher automatiquement une icône par défaut ou une image placeholder à la place du logo,
+afin d’éviter toute erreur d’affichage et de garder une interface propre et cohérente.
+
+Ce comportement doit être appliqué partout où le logo de l’entreprise est affiché.
+```
+
+Decision :
+
+- Ne plus afficher une balise `<img>` quand aucun logo exploitable n'existe.
+- Centraliser la resolution du logo dans le modele `Company` via l'attribut `logo_url`.
+- Considerer comme logo absent :
+  - une valeur `logo` vide ou nulle;
+  - un chemin local qui ne correspond a aucun fichier dans le disque public;
+  - tout chemin local casse ou supprime.
+
+Modifications appliquees :
+
+- Ajout de `getLogoUrlAttribute()` dans `app/Models/Company.php`.
+- Mise a jour de `resources/views/admin/companies.blade.php` :
+  - si `logo_url` existe, afficher l'image;
+  - sinon afficher une icone Bootstrap `bi-building` dans un bloc `placeholder-logo`.
+- Amelioration du style `.placeholder-logo` dans `resources/css/admin/dashboard.css`.
+- Ajout d'un test de non-regression dans `tests/Feature/ExampleTest.php`.
+
+Verification :
+
+- Le test `companies_page_uses_placeholder_when_logo_is_missing` passe.
+- `php artisan test` passe avec `23 passed` et `81 assertions`.
+
+### 2026-04-28 - Diagnostic logos entreprise presents en base mais non affiches
+
+Prompt utilisateur :
+
+```text
+dans ma base de donnée j'ai 2 entreprises qui ont un logo mais ne s'affiche toujours pas
+```
+
+Diagnostic :
+
+- La table `companies` contient deux chemins de logo :
+  - `Test Entreprise` : `company-logos/iiW6TXFrFR73wEWiSWgGlWRpdsX5RuHnAq4DeFrG.jpg`
+  - `EXAD` : `company-logos/sJkem1sKETkIF88RE0z25XXFex4UONOUApjQ0flC.jpg`
+- Le fichier du logo `EXAD` existe bien dans `storage/app/public/company-logos`.
+- Le fichier du logo `Test Entreprise` n'existe pas dans `storage/app/public/company-logos`.
+- Le lien public `public/storage` etait absent, donc les images stockees dans `storage/app/public` ne pouvaient pas etre servies par le navigateur.
+
+Correction appliquee :
+
+- Execution de la commande Laravel :
+
+```powershell
+php artisan storage:link
+```
+
+- Creation du lien `public/storage` vers `storage/app/public`.
+- Verification que le fichier `public/storage/company-logos/sJkem1sKETkIF88RE0z25XXFex4UONOUApjQ0flC.jpg` est maintenant accessible cote filesystem.
+
+Resultat attendu :
+
+- Le logo `EXAD` doit maintenant s'afficher apres actualisation de la page.
+- `Test Entreprise` continue d'afficher le placeholder, car le chemin existe en base mais le fichier image correspondant est absent du disque.
+
+Note pour les clones futurs :
+
+- Apres un `git clone`, executer `php artisan storage:link` pour rendre les fichiers publics accessibles.
+- Les fichiers uploads dans `storage/app/public` doivent etre copies/exportes avec la base si l'on veut conserver les logos sur une autre machine.
+
+Verification :
+
+- `php artisan test --filter=companies_page_uses_placeholder_when_logo_is_missing` passe.
+
+### 2026-04-28 - Correction APP_URL pour affichage des logos publics
+
+Prompt utilisateur :
+
+```text
+ça ne marche toujoues pas le dernier entreprise EXAD que je viens d'ajouter j'ai changé le logo mais il y a un bug d'affichage et rien n'a changé
+```
+
+Diagnostic :
+
+- Le fichier logo EXAD existe bien dans `storage/app/public/company-logos`.
+- Le lien `public/storage` existe bien apres `php artisan storage:link`.
+- L'URL directe `http://127.0.0.1:8000/storage/company-logos/...jpg` retourne bien `200`.
+- La configuration Laravel generait cependant les URLs de fichiers publics avec `http://localhost/storage`, car `APP_URL=http://localhost`.
+- Comme l'application tourne avec `php artisan serve` sur `http://127.0.0.1:8000`, l'image etait demandee sur le mauvais host/port.
+
+Correction appliquee :
+
+- Modification de `.env` :
+
+```text
+APP_URL=http://127.0.0.1:8000
+```
+
+- Synchronisation de `.env.example` avec la meme valeur non sensible.
+- Vidage du cache Laravel :
+
+```powershell
+php artisan optimize:clear
+```
+
+Verification :
+
+- `php artisan config:show app.url` retourne `http://127.0.0.1:8000`.
+- `php artisan config:show filesystems.disks.public.url` retourne `http://127.0.0.1:8000/storage`.
+- `php artisan test --filter=companies_page_uses_placeholder_when_logo_is_missing` passe.
+
+Action conseillee cote navigateur :
+
+- Actualiser la page avec `Ctrl + F5`.
+- Si le serveur Laravel etait deja lance avant la modification, l'arreter puis relancer `php artisan serve`.
+
+### 2026-04-28 - Export/import des fichiers publics uploades
+
+Prompt utilisateur :
+
+```text
+ça marche pour EXAD mais pas pour test entreprise qui a aussi un logo. 
+test entreprise je l'avais enregistré dans une autre machine peut etre git n'a pas importé les fichiers se trouvant dans public
+```
+
+Diagnostic :
+
+- Confirmation : Git n'importe pas les fichiers uploades de `storage/app/public`.
+- `storage/app/public/.gitignore` ignore tous les fichiers sauf `.gitignore`.
+- La base de donnees conserve seulement le chemin du logo, par exemple `company-logos/iiW6TXFrFR73wEWiSWgGlWRpdsX5RuHnAq4DeFrG.jpg`.
+- Si le fichier image correspondant n'existe pas dans `storage/app/public/company-logos`, le logo ne peut pas s'afficher meme si la base contient une valeur.
+- Sur cette machine, seul le fichier du logo EXAD existe dans `storage/app/public/company-logos`.
+- Le logo de `Test Entreprise` doit etre recupere depuis l'autre machine ou reuploade.
+
+Correction / amelioration appliquee :
+
+- Ajout du script `scripts/export-public-storage.ps1` pour creer une archive :
+
+```text
+database/exports/public-storage.zip
+```
+
+- Ajout du script `scripts/import-public-storage.ps1` pour restaurer les fichiers publics uploades dans `storage/app/public`.
+- Mise a jour de `database/exports/README.md` avec les commandes d'export/import des fichiers publics.
+
+Commandes utiles :
+
+Depuis la machine qui contient tous les logos :
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\export-public-storage.ps1
+```
+
+Sur l'autre machine apres recuperation de `database/exports/public-storage.zip` :
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\import-public-storage.ps1
+php artisan storage:link
+```
+
+Verification :
+
+- L'archive `database/exports/public-storage.zip` a ete generee.
+- Elle contient actuellement le logo EXAD seulement, car le fichier du logo `Test Entreprise` est absent de cette machine.
+- `php artisan test --filter=companies_page_uses_placeholder_when_logo_is_missing` passe.
+
+### 2026-04-28 - Select mondial des devises pour les comptes bancaires entreprise
+
+Prompt utilisateur :
+
+```text
+lors de l'ajout du numéro de compte dans l'entreprise. Je préfère que ça soit un select avec toutes les devises du monde comme tu l'as fais avec les pays. 
+Affiche le nom de la devise, et l'iso code
+```
+
+Decision :
+
+- Remplacer le champ texte libre `Devise` par un select alimente par un catalogue de devises.
+- Enregistrer en base le code ISO 4217 de la devise, par exemple `CDF`, `USD`, `EUR`.
+- Afficher dans le formulaire le nom de la devise suivi du code ISO, par exemple `Franc congolais (CDF)`.
+- Garder le comportement bilingue FR/EN comme pour les pays.
+
+Modifications appliquees :
+
+- Ajout de `config/currencies.php`.
+- Chaque devise contient :
+  - code ISO 4217 comme cle;
+  - `name_fr`;
+  - `name_en`.
+- Modification de `AdminController@createCompany` pour passer `currencies` a la vue.
+- Modification de la validation `accounts.*.currency` pour accepter uniquement les codes presents dans `config('currencies')`.
+- Modification de `resources/views/admin/companies-create.blade.php` :
+  - les lignes de compte existantes utilisent maintenant un `<select>`;
+  - le template des lignes ajoutees dynamiquement utilise aussi le meme `<select>`.
+- Modification de `resources/js/main.js` pour reinitialiser aussi les `<select>` quand la derniere ligne dynamique est videe.
+
+Verification :
+
+- Ajout de tests pour verifier :
+  - l'affichage francais `Franc congolais (CDF)`, `Dollar américain (USD)`, `Euro (EUR)`;
+  - l'affichage anglais `Congolese franc (CDF)`, `United States dollar (USD)`;
+  - l'enregistrement d'une entreprise avec compte bancaire en devise `CDF`.
+- `php artisan test --filter=currency` passe avec `3 passed` et `10 assertions`.
+- `php artisan test` passe avec `26 passed` et `91 assertions`.
+
+### 2026-04-28 - Symboles monetaires et standard d'affichage des devises
+
+Prompt utilisateur :
+
+```text
+ajoute également les symboles nommétaire sur la devise si possibles et je souhaites que les noms de la devise s'affiche en ordre alphabetique. 
+Enregistre le comportement car nous allons l'appliquer partout où l'on mettra la devise.
+```
+
+Decision :
+
+- Le code ISO 4217 reste la valeur enregistree en base, par exemple `CDF`, `USD`, `EUR`.
+- L'affichage utilisateur standard devient :
+
+```text
+Nom de la devise (CODE ISO - symbole)
+```
+
+- Exemples :
+  - `Franc congolais (CDF - FC)`
+  - `Dollar américain (USD - $)`
+  - `Euro (EUR - €)`
+- Quand un symbole n'est pas connu, le catalogue peut utiliser le code ISO comme fallback.
+- Les devises doivent etre triees alphabetiquement par nom affiche, selon la langue active.
+- Ce comportement doit etre reutilise partout ou une devise sera affichee ou selectionnee.
+
+Modifications appliquees :
+
+- Ajout de `symbol` aux devises dans `config/currencies.php`.
+- Ajout de `app/Support/CurrencyCatalog.php` pour centraliser le comportement :
+  - `CurrencyCatalog::all()`
+  - `CurrencyCatalog::sorted()`
+  - `CurrencyCatalog::label()`
+- `AdminController@createCompany` utilise maintenant `CurrencyCatalog::sorted()` pour fournir les devises deja triees a la vue.
+- La validation serveur continue d'utiliser les codes ISO connus via `CurrencyCatalog::all()`.
+- Le formulaire `admin/companies/create` affiche maintenant les options sous la forme `Nom (ISO - symbole)`.
+
+Verification :
+
+- Les tests devises verifient maintenant les symboles et l'ordre alphabetique.
+- `php artisan test --filter=currency` passe avec `3 passed` et `12 assertions`.
+- `php artisan test` passe avec `26 passed` et `93 assertions`.
+
+### 2026-04-28 - Edition/suppression entreprise et base des sites de production
+
+Prompt utilisateur :
+
+```text
+pour la modification de l'entreprise, lorsque l'utilisateur clique sur l'icone de modification, il est redirigé vers le meme formulaire de création. Mais cette fois-ci c'est pour mettre à jour les elements de l'entreprise. 
+Les entreprises ont des sites de production. 
+voici les champs pour le site de production : 
+- Nom (chaine de caractère obligatoire)
+- Type (Production, Entrepot, Bureau, Boutique, archive, autres) champs obligatoire
+- code (chaine de caractère non obligatoire)
+- responsable (selectionner tous les admin appartenant à l'abonnement de l'utilisateur connecté) 
+- ville (non obligatoire) 
+- téléphone (non obligatoire) 
+- adresse (non obligatoire)
+- modules (obligatoires; voici les modules : Comptabilité (facturation); Ressources Humaines, Archivage, GED (Gestion de courrier))
+- email (non obligatoite)
+- la devise de gestion gestion du site (obligatoire) 
+
+Pour la suppression de l'entreprise. tu sais déjà comment faire en suivant le design que je t'avais dit de faire pour toutes les suppressions. 
+Mais seul les entreprises ne poussedant pas de site seront supprimable 
+
+Pour l'interface de site de production de crée pas encore, dans un premier temps fais d'abord la base de données. 
+
+Dans la liste d'entreprises crée aussi une rubrique pour afficher le nombre de sites que l'entreprise a
+```
+
+Decisions :
+
+- Reutiliser le formulaire `admin/companies/create` pour la creation et la modification d'entreprise.
+- Ajouter les routes REST minimales pour les entreprises :
+  - `GET /admin/companies/{company}/edit`
+  - `PUT /admin/companies/{company}`
+  - `DELETE /admin/companies/{company}`
+- Ne pas creer l'interface de gestion des sites pour l'instant.
+- Creer seulement la base de donnees et le modele des sites.
+- Bloquer la suppression d'une entreprise qui possede au moins un site.
+- Afficher le nombre de sites dans la liste des entreprises.
+
+Base de donnees ajoutee :
+
+- Migration `database/migrations/2026_04_28_000001_create_company_sites_table.php`.
+- Table `company_sites` avec :
+  - `company_id`
+  - `responsible_id`
+  - `name`
+  - `type`
+  - `code`
+  - `city`
+  - `phone`
+  - `email`
+  - `address`
+  - `modules` en JSON
+  - `currency`
+- Types prevus :
+  - `production`
+  - `warehouse`
+  - `office`
+  - `shop`
+  - `archive`
+  - `other`
+- Modules prevus :
+  - `accounting`
+  - `human_resources`
+  - `archiving`
+  - `document_management`
+
+Modifications appliquees :
+
+- Ajout du modele `app/Models/CompanySite.php`.
+- Ajout de la relation `Company::sites()`.
+- `AdminController` :
+  - chargement de `sites_count` dans la liste des entreprises;
+  - ajout de `editCompany`;
+  - ajout de `updateCompany`;
+  - ajout de `destroyCompany`;
+  - factorisation des regles de validation entreprise;
+  - suppression impossible si l'entreprise possede des sites.
+- `resources/views/admin/companies.blade.php` :
+  - nouvelle colonne `Sites`;
+  - bouton modifier redirige vers le formulaire d'edition;
+  - bouton supprimer avec confirmation;
+  - bouton supprimer desactive si `sites_count > 0`.
+- `resources/views/admin/companies-create.blade.php` :
+  - formulaire reutilisable pour creation et modification;
+  - pre-remplissage des champs entreprise;
+  - pre-remplissage des telephones et comptes bancaires;
+  - preview du logo existant en modification;
+  - methode `PUT` en mode edition.
+- Traductions FR/EN ajoutees pour :
+  - edition entreprise;
+  - suppression entreprise;
+  - message d'impossibilite de suppression avec sites.
+
+Verification :
+
+- Migration locale executee avec succes :
+
+```powershell
+php artisan migrate --force
+```
+
+- `php artisan route:list --except-vendor` affiche les nouvelles routes entreprise.
+- `php artisan test --filter=company` passe avec `10 passed` et `41 assertions`.
+- `php artisan test` passe avec `31 passed` et `115 assertions`.
+
+### 2026-04-28 - Dashboard admin avec graphiques ApexCharts et donnees reelles
+
+Prompt utilisateur :
+
+```text
+Sur base des images joins. 
+Mets à jours le tableau de bord admin avec des shart réels ApexCharts par exemple, crée un fichier js isolé uniquement pour cette page. 
+recupère les informations réels de ma base de données pour le graphique
+```
+
+Decision :
+
+- Remplacer les faux graphiques SVG statiques du dashboard par des graphiques ApexCharts.
+- Garder un fichier JavaScript isole uniquement pour cette page :
+
+```text
+resources/js/admin/dashboard.js
+```
+
+- Calculer toutes les donnees dans `AdminController@dashboard` depuis la base de donnees.
+- Exposer les donnees a la vue via un bloc JSON `dashboardChartData`.
+
+Donnees reelles ajoutees :
+
+- KPI :
+  - abonnements;
+  - utilisateurs;
+  - administrateurs;
+  - entreprises;
+  - sites.
+- Graphique evolution mensuelle :
+  - abonnements crees;
+  - utilisateurs crees.
+- Graphique repartition des roles :
+  - admin;
+  - superadmin;
+  - user.
+- Graphique utilisateurs par entreprise :
+  - donnees issues de `companies` avec `users_count`.
+- Graphique activite globale annuelle :
+  - abonnements;
+  - entreprises;
+  - utilisateurs.
+- Top entreprises :
+  - classement selon nombre de sites puis nombre d'utilisateurs.
+- Activite recente :
+  - nouveaux utilisateurs;
+  - nouveaux abonnements;
+  - nouveaux sites.
+
+Modifications appliquees :
+
+- `AdminController@dashboard` prepare maintenant `chartData`, `topCompanies` et `recentActivities`.
+- `resources/views/admin/dashboard.blade.php` contient les conteneurs ApexCharts :
+  - `subscriptionsEvolutionChart`;
+  - `rolesDistributionChart`;
+  - `usersByCompanyChart`;
+  - `globalActivityChart`.
+- Ajout de `resources/js/admin/dashboard.js`.
+- La vue charge ApexCharts depuis CDN puis le JS isole du dashboard.
+- `resources/css/admin/dashboard.css` contient les styles des nouveaux blocs :
+  - charts Apex;
+  - top entreprises;
+  - activite recente.
+- Traductions FR/EN ajoutees :
+  - `top_companies`;
+  - `recent_activity`;
+  - `recent_new_user`;
+  - `recent_new_subscription`;
+  - `recent_new_site`.
+
+Verification :
+
+- Le test `superadmin_can_open_admin_dashboard` verifie maintenant :
+  - le JSON `dashboardChartData`;
+  - les conteneurs ApexCharts;
+  - la presence du JS dedie.
+- `php artisan test --filter=superadmin_can_open_admin_dashboard` passe.
+- `php artisan test` passe avec `31 passed` et `122 assertions`.
+
+### 2026-04-28 - Periode par defaut du dashboard sur l'annee
+
+Prompt utilisateur :
+
+```text
+par défut ça doit etre l'année
+```
+
+Modification appliquee :
+
+- Dans `resources/views/admin/dashboard.blade.php`, le bouton actif du selecteur de periode est maintenant `Année` au lieu de `Mois`.
+
+Verification :
+
+- `php artisan test --filter=superadmin_can_open_admin_dashboard` passe.
+
+### 2026-04-28 - Rectification periode dashboard et bascule Semaine/Mois/Annee
+
+Prompt utilisateur :
+
+```text
+- première image quand je clique sur semaine 
+- deuxième image quand je clique sur mois
+- troisième image quand je clique sur années
+
+rectification lorsque je charge la page c'est le mois qui est séléctionné
+```
+
+Correction appliquee :
+
+- Le bouton actif par defaut est revenu sur `Mois`.
+- Les boutons `Semaine`, `Mois` et `Année` possedent maintenant `data-dashboard-period`.
+- `AdminController@dashboard` fournit maintenant les donnees du graphique d'evolution pour trois periodes :
+  - `week`;
+  - `month`;
+  - `year`.
+- `resources/js/admin/dashboard.js` met a jour le graphique ApexCharts au clic sur une periode :
+  - series abonnements;
+  - series utilisateurs;
+  - labels de l'axe X.
+
+Verification :
+
+- Le test dashboard verifie que `Mois` est actif par defaut et que les periodes sont exposees au JS.
+- `php artisan test --filter=superadmin_can_open_admin_dashboard` passe.
+- `php artisan test` passe avec `31 passed` et `126 assertions`.
+
+### 2026-04-28 - Correction visuelle des icones d'activite recente
+
+Prompt utilisateur :
+
+```text
+les icones ne s'affiche pas correctement.
+Prends l'exemple du deuxième image. 
+et lorsque tu vas rectifié reduit légèrement taille de texte
+```
+
+Correction appliquee :
+
+- Ajustement CSS de la timeline `Activité récente`.
+- Les icones sont maintenant centrees dans leur cercle.
+- Les cercles d'icone sont legerement reduits.
+- La ligne verticale est realignee au centre des icones.
+- Le titre et le sujet de l'activite s'affichent sur la meme ligne, comme dans la reference.
+- La taille du texte de l'activite recente est legerement reduite.
+
+Fichier modifie :
+
+- `resources/css/admin/dashboard.css`
+
+Verification :
+
+- `php artisan test --filter=superadmin_can_open_admin_dashboard` passe.
+
+### 2026-04-28 - Remplacement des icones activite recente par SVG inline
+
+Prompt utilisateur :
+
+```text
+ça ne marche toujours pas si possible utilise meme fontawesome pour les icones
+```
+
+Diagnostic :
+
+- Font Awesome n'est pas present localement dans `public/vendor`.
+- Le probleme venait du rendu des icones Bootstrap Icons dans les cercles de la timeline : elles etaient decalees et debordaient visuellement.
+
+Correction appliquee :
+
+- Remplacement des icones Bootstrap Icons uniquement dans la section `Activité récente` par des SVG inline.
+- Chaque type d'activite a son icone SVG :
+  - utilisateur;
+  - site;
+  - abonnement.
+- Les SVG sont centres via `.activity-icon svg` dans `resources/css/admin/dashboard.css`.
+- Cette solution evite une dependance CDN supplementaire et garantit un alignement stable.
+
+Fichiers modifies :
+
+- `resources/views/admin/dashboard.blade.php`
+- `resources/css/admin/dashboard.css`
+
+Verification :
+
+- `php artisan test --filter=superadmin_can_open_admin_dashboard` passe.
+
+### 2026-04-28 - Correction definitive icones activite recente
+
+Prompt utilisateur :
+
+```text
+ça ne fonctionne toujours pas les icones sont toujours en desordres
+```
+
+Correction appliquee :
+
+- Abandon des bibliotheques d'icones pour la timeline `Activité récente`.
+- Remplacement des icones par des symboles typographiques simples et centres :
+  - utilisateur : `+`
+  - site : `⌖`
+  - abonnement : `◆`
+- Utilisation de `display: grid` et `place-items: center` sur `.activity-icon`.
+- Suppression du rendu SVG complexe pour eviter tout decalage de viewBox, police ou alignement.
+- Vidage du cache des vues Laravel avec `php artisan view:clear`.
+
+Fichiers modifies :
+
+- `resources/views/admin/dashboard.blade.php`
+- `resources/css/admin/dashboard.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=superadmin_can_open_admin_dashboard` passe.
+
+### 2026-04-28 - Sidebar tablette pleine hauteur
+
+Prompt utilisateur :
+
+```text
+dans l'affichage tablette je souhaite que la side barre prenne toutes la pagejusqu'en bas
+```
+
+Correction appliquee :
+
+- Ajout de `align-items: stretch` sur `.dashboard-shell` pour permettre aux colonnes de s'etirer sur toute la hauteur du contenu.
+- En affichage tablette (`max-width: 1180px`), la sidebar compacte n'est plus limitee a `height: 100vh`.
+- La sidebar tablette utilise maintenant :
+  - `position: static`;
+  - `height: auto`;
+  - `min-height: 100vh`;
+  - `min-height: 100dvh`.
+- Le fond bleu de la sidebar descend maintenant jusqu'en bas de la page lorsque le contenu principal est plus long que l'ecran.
+
+Fichiers modifies :
+
+- `resources/css/admin/dashboard.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=admin` passe.
+- `php artisan test` passe avec 31 tests et 126 assertions.
+
+### 2026-04-28 - Mise a jour export SQL de la base
+
+Prompt utilisateur :
+
+```text
+met à jour également le fichier erp_database.sql
+```
+
+Correction appliquee :
+
+- Ajout d'un script reutilisable `scripts/export-database.php`.
+- Le script lit la configuration MySQL depuis `.env`.
+- Le script exporte :
+  - les tables de la base;
+  - les instructions `DROP TABLE IF EXISTS`;
+  - les `CREATE TABLE`;
+  - les donnees avec des `INSERT INTO`;
+  - les contraintes avec `FOREIGN_KEY_CHECKS`.
+- Regeneration du fichier `database/exports/erp_database.sql` depuis la base locale `erp_database`.
+
+Fichiers modifies :
+
+- `scripts/export-database.php`
+- `database/exports/erp_database.sql`
+- `docs/prompts/project-history.md`
+
+Procedure a reutiliser :
+
+```bash
+php scripts/export-database.php
+```
+
+Verification :
+
+- `php scripts/export-database.php` execute.
+- `php -l scripts/export-database.php` passe.
+
+### 2026-04-28 - Sidebar admin reductible
+
+Prompt utilisateur :
+
+```text
+Sur le side barre enleve les lignes verticales en arrière plan en suite rajoute un icone qui me permet de reduire la side barre quand je clique sur l'icone la side barre se reduit, juste les icones qui s'affiches pour tableau de bord, abonnement, etc... et coté EXAD ERP juste le logo qui s'affiche
+```
+
+Correction appliquee :
+
+- Suppression du motif de lignes verticales en arriere-plan de la sidebar admin.
+- Ajout d'un bouton de reduction de sidebar dans les vues admin existantes :
+  - tableau de bord;
+  - abonnements;
+  - utilisateurs;
+  - entreprises;
+  - creation/modification entreprise.
+- Ajout du mode compact `.sidebar-collapsed` :
+  - largeur reduite a 86 px;
+  - seul le logo EXAD reste visible;
+  - seuls les icones des menus restent visibles;
+  - le footer garde uniquement son icone.
+- Ajout d'une persistance via `localStorage` avec la cle `exad-sidebar-collapsed`.
+- Ajout des libelles FR/EN pour l'accessibilite du bouton :
+  - `collapse_sidebar`;
+  - `expand_sidebar`.
+
+Fichiers modifies :
+
+- `resources/views/admin/dashboard.blade.php`
+- `resources/views/admin/subscriptions.blade.php`
+- `resources/views/admin/users.blade.php`
+- `resources/views/admin/companies.blade.php`
+- `resources/views/admin/companies-create.blade.php`
+- `resources/css/admin/dashboard.css`
+- `resources/js/main.js`
+- `lang/fr/admin.php`
+- `lang/en/admin.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=admin` passe.
+- `php artisan test` passe avec 31 tests et 126 assertions.
+
+### 2026-04-28 - Sidebar admin compacte sur tablette
+
+Prompt utilisateur :
+
+```text
+avec des écran un peu plus petite je souhaite que tu affiche la side barre toujours à coté et non en haut à partir de l'affichage tablette tu reduit la side barre et tu laisse seulement les icones
+```
+
+Correction appliquee :
+
+- Modification du breakpoint responsive admin a `max-width: 1180px`.
+- La sidebar ne passe plus au-dessus du contenu sur les ecrans intermediaires.
+- A partir du format tablette, la mise en page reste en deux colonnes :
+  - sidebar compacte a gauche avec `86px`;
+  - contenu principal a droite.
+- En format tablette, la sidebar est automatiquement reduite :
+  - seul le logo EXAD reste visible;
+  - seuls les icones des menus restent visibles;
+  - le bouton manuel de reduction est masque car le mode compact est force.
+- Le JavaScript detecte le breakpoint avec `matchMedia('(max-width: 1180px)')` et force l'etat compact sur tablette.
+- Sur desktop, le comportement manuel precedent reste conserve avec persistance `localStorage`.
+
+Fichiers modifies :
+
+- `resources/css/admin/dashboard.css`
+- `resources/js/main.js`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=admin` passe.
+- `php artisan test` passe avec 31 tests et 126 assertions.
+
+### 2026-04-28 - Icônes activité récente conformes à la référence
+
+Prompt utilisateur :
+
+```text
+J'ai besoin de meme icones comme dans la deuxième image stp
+```
+
+Correction appliquee :
+
+- Remplacement des pictogrammes CSS simplifiés par les icônes Bootstrap Icons locales.
+- Utilisation des icônes suivantes dans la timeline `Activité récente` :
+  - `bi-person-plus` pour les nouveaux utilisateurs;
+  - `bi-geo-alt` pour les nouveaux sites;
+  - `bi-stack` pour les nouveaux abonnements.
+- Conservation du cercle coloré et de l'alignement centré.
+- Le CSS cible uniquement `.activity-icon > i` pour eviter que les styles du texte de la timeline ne perturbent les icones.
+- Vidage du cache des vues Laravel avec `php artisan view:clear`.
+
+Fichiers modifies :
+
+- `resources/views/admin/dashboard.blade.php`
+- `resources/css/admin/dashboard.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=superadmin_can_open_admin_dashboard` passe.
+
+### 2026-04-28 - Correction robuste des icones activite recente
+
+Prompt utilisateur :
+
+```text
+Rien ne fonctionne toujours
+```
+
+Diagnostic :
+
+- Les symboles typographiques utilises pour la timeline etaient sensibles a l'encodage du fichier et pouvaient apparaitre sous forme de caracteres casses.
+- Le rendu dependait encore du contenu texte de l'icone, ce qui n'etait pas assez fiable pour cette section.
+
+Correction appliquee :
+
+- Suppression de l'attribut `data-activity-symbol` dans la vue du tableau de bord.
+- Ajout d'une classe de type d'activite sur chaque icone :
+  - `activity-type-user`;
+  - `activity-type-site`;
+  - `activity-type-subscription`.
+- Dessin des pictogrammes uniquement en CSS avec `::before` et `::after`.
+- Aucune dependance a Bootstrap Icons, Font Awesome, SVG inline ou caracteres Unicode pour ces icones.
+- Conservation du style de la reference : cercle colore, pictogramme blanc centre, texte plus compact.
+- Vidage du cache des vues Laravel avec `php artisan view:clear`.
+
+Fichiers modifies :
+
+- `resources/views/admin/dashboard.blade.php`
+- `resources/css/admin/dashboard.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=superadmin_can_open_admin_dashboard` passe.

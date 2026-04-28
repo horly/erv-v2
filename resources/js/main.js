@@ -6,6 +6,7 @@
     const languageButton = document.getElementById('languageButton');
     const profileMenu = document.querySelector('.profile-menu');
     const profileButton = document.getElementById('profileButton');
+    const sidebarToggle = document.getElementById('sidebarToggle');
     const searchInput = document.getElementById('companySearch');
     const table = document.getElementById('companyTable');
     const visibleCount = document.getElementById('visibleCount');
@@ -14,6 +15,11 @@
     const userForm = document.querySelector('.user-form');
     const adminForms = document.querySelectorAll('.admin-form');
     const storageKey = 'exad-theme';
+    const sidebarStorageKey = 'exad-sidebar-collapsed';
+    const sidebarCompactQuery = window.matchMedia('(max-width: 1180px)');
+    const submitLoadingLabel = document.documentElement.lang?.toLowerCase().startsWith('en')
+        ? 'Processing...'
+        : 'Traitement...';
 
     const applyTheme = (theme) => {
         const darkMode = theme === 'dark';
@@ -40,6 +46,44 @@
     };
 
     applyTheme(localStorage.getItem(storageKey) || root.dataset.theme || 'light');
+
+    const getSidebarCollapsed = () => sidebarCompactQuery.matches || localStorage.getItem(sidebarStorageKey) === 'true';
+
+    const applySidebarState = (collapsed) => {
+        shell?.classList.toggle('sidebar-collapsed', collapsed);
+        sidebarToggle?.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+
+        if (sidebarToggle) {
+            const label = collapsed
+                ? sidebarToggle.dataset.labelExpand
+                : sidebarToggle.dataset.labelCollapse;
+            const icon = sidebarToggle.querySelector('i');
+
+            sidebarToggle.setAttribute('aria-label', label);
+            sidebarToggle.setAttribute('title', label);
+
+            if (icon) {
+                icon.className = collapsed ? 'bi bi-chevron-right' : 'bi bi-chevron-left';
+            }
+        }
+    };
+
+    applySidebarState(getSidebarCollapsed());
+
+    sidebarCompactQuery.addEventListener('change', () => {
+        applySidebarState(getSidebarCollapsed());
+    });
+
+    sidebarToggle?.addEventListener('click', () => {
+        if (sidebarCompactQuery.matches) {
+            applySidebarState(true);
+            return;
+        }
+
+        const collapsed = !shell?.classList.contains('sidebar-collapsed');
+        localStorage.setItem(sidebarStorageKey, collapsed ? 'true' : 'false');
+        applySidebarState(collapsed);
+    });
 
     themeButton?.addEventListener('click', () => {
         const nextTheme = root.dataset.theme === 'dark' ? 'light' : 'dark';
@@ -391,8 +435,8 @@
             if (list && list.querySelectorAll('.dynamic-row').length > 1) {
                 row.remove();
             } else if (row) {
-                row.querySelectorAll('input').forEach((input) => {
-                    input.value = '';
+                row.querySelectorAll('input, select, textarea').forEach((field) => {
+                    field.value = '';
                 });
             }
         });
@@ -560,6 +604,89 @@
         initPasswordValidation(form);
     });
 
+    const submitControlSelector = 'button[type="submit"], input[type="submit"], button[data-delete-trigger]';
+    const getSubmitControls = (form) => Array.from(form.querySelectorAll(submitControlSelector));
+
+    const setFormSubmitting = (form, submitter = null) => {
+        if (form.dataset.submitting === 'true') {
+            return;
+        }
+
+        const submitControls = getSubmitControls(form);
+        const activeSubmitter = submitter?.matches?.(submitControlSelector)
+            ? submitter
+            : submitControls[0];
+
+        form.dataset.submitting = 'true';
+        form.classList.add('is-submitting');
+
+        submitControls.forEach((control) => {
+            control.dataset.originalDisabled = control.disabled ? 'true' : 'false';
+            control.disabled = true;
+            control.setAttribute('aria-disabled', 'true');
+        });
+
+        if (activeSubmitter) {
+            activeSubmitter.dataset.submitLoading = 'true';
+            activeSubmitter.setAttribute('aria-busy', 'true');
+
+            if (activeSubmitter.tagName === 'BUTTON') {
+                activeSubmitter.dataset.originalHtml = activeSubmitter.innerHTML;
+                activeSubmitter.innerHTML = `<span class="submit-spinner" aria-hidden="true"></span><span>${escapeHtml(activeSubmitter.dataset.loadingLabel || submitLoadingLabel)}</span>`;
+            } else {
+                activeSubmitter.dataset.originalValue = activeSubmitter.value;
+                activeSubmitter.value = activeSubmitter.dataset.loadingLabel || submitLoadingLabel;
+            }
+        }
+    };
+
+    const resetFormSubmitting = (form) => {
+        delete form.dataset.submitting;
+        form.classList.remove('is-submitting');
+
+        getSubmitControls(form).forEach((control) => {
+            if (control.dataset.originalDisabled === 'false') {
+                control.disabled = false;
+            }
+
+            control.removeAttribute('aria-disabled');
+            control.removeAttribute('aria-busy');
+
+            if (control.dataset.originalHtml) {
+                control.innerHTML = control.dataset.originalHtml;
+            }
+
+            if (control.dataset.originalValue) {
+                control.value = control.dataset.originalValue;
+            }
+
+            delete control.dataset.submitLoading;
+            delete control.dataset.originalDisabled;
+            delete control.dataset.originalHtml;
+            delete control.dataset.originalValue;
+        });
+    };
+
+    document.querySelectorAll('form:not([data-no-submit-loading])').forEach((form) => {
+        form.addEventListener('submit', (event) => {
+            if (event.defaultPrevented) {
+                resetFormSubmitting(form);
+                return;
+            }
+
+            if (form.dataset.submitting === 'true') {
+                event.preventDefault();
+                return;
+            }
+
+            setFormSubmitting(form, event.submitter);
+        });
+    });
+
+    window.addEventListener('pageshow', () => {
+        document.querySelectorAll('form[data-submitting="true"]').forEach(resetFormSubmitting);
+    });
+
     document.querySelectorAll('[data-subscription-detail]').forEach((trigger) => {
         trigger.addEventListener('click', () => {
             const modal = document.getElementById('subscriptionDetailsModal');
@@ -637,6 +764,7 @@
             });
 
             if (confirmed) {
+                setFormSubmitting(form, trigger);
                 form.submit();
             }
         });

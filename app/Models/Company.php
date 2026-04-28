@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class Company extends Model
 {
@@ -28,6 +30,21 @@ class Company extends Model
         'address',
     ];
 
+    public function getLogoUrlAttribute(): ?string
+    {
+        if (blank($this->logo)) {
+            return null;
+        }
+
+        if (Str::startsWith($this->logo, ['http://', 'https://'])) {
+            return $this->logo;
+        }
+
+        return Storage::disk('public')->exists($this->logo)
+            ? Storage::disk('public')->url($this->logo)
+            : null;
+    }
+
     public function subscription(): BelongsTo
     {
         return $this->belongsTo(Subscription::class);
@@ -48,6 +65,12 @@ class Company extends Model
     {
         return $this->hasMany(CompanyAccount::class);
     }
+
+    public function sites(): HasMany
+    {
+        return $this->hasMany(CompanySite::class);
+    }
+
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class)
