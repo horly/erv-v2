@@ -356,6 +356,24 @@
             padding-top: 3rem;
         }
 
+        .login-logo-card {
+            display: none;
+            width: 96px;
+            height: 96px;
+            place-items: center;
+            margin: 0 auto 1.6rem;
+            overflow: hidden;
+            padding: 11px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 18px 38px rgba(15, 23, 42, .08);
+        }
+
+        [data-theme="dark"] .login-logo-card {
+            background: #ffffff;
+        }
+
         .access-badge {
             display: inline-flex;
             gap: .38rem;
@@ -605,7 +623,10 @@
                 grid-template-columns: 1fr;
             }
 
-            .brand-side,
+            .brand-side {
+                display: none;
+            }
+
             .form-side {
                 min-height: auto;
             }
@@ -619,8 +640,14 @@
             }
 
             .form-side {
+                min-height: 100vh;
+                min-height: 100dvh;
                 padding-top: 6rem;
                 padding-bottom: 5rem;
+            }
+
+            .login-logo-card {
+                display: grid;
             }
 
             .page-footer {
@@ -630,29 +657,6 @@
         }
 
         @media (max-width: 575.98px) {
-            .brand-side {
-                padding: 1.3rem;
-            }
-
-            .logo-card {
-                width: 92px;
-                height: 92px;
-                padding: 10px;
-            }
-
-            .brand-copy {
-                padding: 0 0 2rem;
-            }
-
-            .feature-item {
-                grid-template-columns: 40px minmax(0, 1fr);
-            }
-
-            .feature-icon {
-                width: 40px;
-                height: 40px;
-            }
-
             .form-side {
                 padding: 5.2rem 1.15rem 2rem;
             }

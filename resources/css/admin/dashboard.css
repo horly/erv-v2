@@ -818,6 +818,27 @@ a {
     color: var(--blue-600);
 }
 
+.count-link {
+    display: inline-flex;
+    min-width: 34px;
+    min-height: 34px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 .65rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--blue-600);
+    font: inherit;
+    font-weight: 800;
+}
+
+.count-link:hover {
+    border-color: rgba(37, 99, 235, .28);
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
 .table-button-edit:hover {
     border-color: rgba(37, 99, 235, .35);
     background: #eff6ff;
@@ -925,6 +946,10 @@ a {
     max-width: 600px;
 }
 
+.company-users-modal .modal-dialog {
+    max-width: 880px;
+}
+
 .subscription-modal .modal-content {
     border: 0;
     border-radius: 22px;
@@ -935,6 +960,15 @@ a {
 .subscription-modal .modal-body {
     position: relative;
     padding: 2.35rem;
+}
+
+.modal-table th,
+.modal-table td {
+    padding: .85rem 1rem;
+}
+
+.modal-table-tools {
+    margin-bottom: 1rem;
 }
 
 .modal-close {

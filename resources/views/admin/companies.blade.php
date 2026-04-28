@@ -170,8 +170,9 @@
                                     <th><button class="table-sort" type="button" data-sort-index="1" data-sort-type="text">{{ __('admin.name') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="2" data-sort-type="text">{{ __('admin.subscription') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="3" data-sort-type="number">{{ __('admin.sites') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    <th><button class="table-sort" type="button" data-sort-index="4" data-sort-type="text">{{ __('admin.country') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    <th><button class="table-sort" type="button" data-sort-index="5" data-sort-type="text">{{ __('admin.email') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="4" data-sort-type="number">{{ __('admin.users') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="5" data-sort-type="text">{{ __('admin.country') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="6" data-sort-type="text">{{ __('admin.email') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th class="text-end">{{ __('admin.actions') }}</th>
                                 </tr>
                             </thead>
@@ -195,6 +196,17 @@
                                         </td>
                                         <td>{{ $company->subscription?->name ?? '-' }}</td>
                                         <td>{{ $company->sites_count }}</td>
+                                        <td>
+                                            <button
+                                                type="button"
+                                                class="count-link"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#companyUsersModal-{{ $company->id }}"
+                                                aria-label="{{ __('admin.company_users_title', ['name' => $company->name]) }}"
+                                            >
+                                                {{ $company->users_count }}
+                                            </button>
+                                        </td>
                                         <td>
                                             @php
                                                 $countryMeta = collect($countries)->first(fn ($country) => in_array($company->country, [$country['name_fr'], $country['name_en'], $country['iso']], true));
@@ -235,11 +247,11 @@
                                     </tr>
                                 @empty
                                     <tr class="empty-row">
-                                        <td colspan="7">{{ __('admin.no_companies') }}</td>
+                                        <td colspan="8">{{ __('admin.no_companies') }}</td>
                                     </tr>
                                 @endforelse
                                 <tr class="empty-row search-empty-row" hidden>
-                                    <td colspan="7">{{ __('admin.no_results') }}</td>
+                                    <td colspan="8">{{ __('admin.no_results') }}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -282,6 +294,76 @@
             </section>
         </main>
     </div>
+
+    @foreach ($companies as $company)
+        <div class="modal fade subscription-modal company-users-modal" id="companyUsersModal-{{ $company->id }}" tabindex="-1" aria-labelledby="companyUsersModalLabel-{{ $company->id }}" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-body">
+                        <button type="button" class="modal-close" data-bs-dismiss="modal" aria-label="{{ __('admin.close') }}">
+                            <i class="bi bi-x-lg" aria-hidden="true"></i>
+                        </button>
+                        <h2 id="companyUsersModalLabel-{{ $company->id }}">{{ __('admin.company_users_title', ['name' => $company->name]) }}</h2>
+
+                        <div data-datatable>
+                            <section class="table-tools modal-table-tools" aria-label="{{ __('admin.search_tools') }}">
+                                <label class="search-box">
+                                    <i class="bi bi-search" aria-hidden="true"></i>
+                                    <input type="search" placeholder="{{ __('admin.search') }}" autocomplete="off" data-datatable-search>
+                                </label>
+                                <span class="row-count">
+                                    <strong data-datatable-visible-count>{{ $company->users->count() }}</strong>
+                                    /
+                                    <strong>{{ $company->users->count() }}</strong>
+                                    {{ __('admin.rows') }}
+                                </span>
+                            </section>
+
+                            <div class="table-responsive">
+                                <table class="admin-table modal-table" data-datatable-table>
+                                    <thead>
+                                        <tr>
+                                            <th><button class="table-sort" type="button" data-sort-index="0" data-sort-type="text">{{ __('admin.name') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-sort-index="1" data-sort-type="text">{{ __('admin.email') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-sort-index="2" data-sort-type="text">{{ __('admin.role') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-sort-index="3" data-sort-type="text">{{ __('admin.phone') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-sort-index="4" data-sort-type="text">{{ __('admin.grade') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse ($company->users as $companyUser)
+                                            <tr>
+                                                <td>{{ $companyUser->name }}</td>
+                                                <td>{{ $companyUser->email }}</td>
+                                                <td>
+                                                    <span class="status-pill role-{{ $companyUser->role }}">
+                                                        {{ __('admin.'.$companyUser->role.'_role') }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ $companyUser->phone_number ?: '-' }}</td>
+                                                <td>{{ $companyUser->grade ?: '-' }}</td>
+                                            </tr>
+                                        @empty
+                                            <tr class="empty-row">
+                                                <td colspan="5">{{ __('admin.no_company_users') }}</td>
+                                            </tr>
+                                        @endforelse
+                                        <tr class="empty-row search-empty-row" hidden>
+                                            <td colspan="5">{{ __('admin.no_results') }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="modal-actions">
+                            <button type="button" class="modal-cancel" data-bs-dismiss="modal">{{ __('admin.close') }}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endforeach
 
     <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
     <script>{!! file_get_contents(resource_path('js/main.js')) !!}</script>

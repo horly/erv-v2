@@ -10,6 +10,15 @@ Route::controller(MainController::class)->group(function (): void {
 
     Route::middleware('auth')->group(function (): void {
         Route::get('/main', 'index')->name('main');
+        Route::get('/main/companies/create', 'createCompany')->name('main.companies.create');
+        Route::post('/main/companies', 'storeCompany')->name('main.companies.store');
+        Route::get('/main/companies/{company}/edit', 'editCompany')->name('main.companies.edit');
+        Route::put('/main/companies/{company}', 'updateCompany')->name('main.companies.update');
+        Route::delete('/main/companies/{company}', 'destroyCompany')->name('main.companies.destroy');
+        Route::get('/main/companies/{company}/sites', 'companySites')->name('main.companies.sites');
+        Route::post('/main/companies/{company}/sites', 'storeCompanySite')->name('main.companies.sites.store');
+        Route::put('/main/companies/{company}/sites/{site}', 'updateCompanySite')->name('main.companies.sites.update');
+        Route::delete('/main/companies/{company}/sites/{site}', 'destroyCompanySite')->name('main.companies.sites.destroy');
     });
 });
 

@@ -186,8 +186,14 @@
                         <div class="dynamic-list" data-phone-list>
                             @foreach ($oldPhones as $index => $phone)
                                 <div class="dynamic-row">
-                                    <input name="phones[{{ $index }}][label]" type="text" class="form-control" value="{{ $phone['label'] ?? '' }}" placeholder="{{ __('admin.label') }}">
-                                    <input name="phones[{{ $index }}][phone_number]" type="text" class="form-control" value="{{ $phone['phone_number'] ?? '' }}" placeholder="{{ __('admin.phone') }}">
+                                    <div>
+                                        <input name="phones[{{ $index }}][label]" type="text" class="form-control @error('phones.'.$index.'.label') is-invalid @enderror" value="{{ $phone['label'] ?? '' }}" placeholder="{{ __('admin.label') }} *">
+                                        @error('phones.'.$index.'.label')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                    </div>
+                                    <div>
+                                        <input name="phones[{{ $index }}][phone_number]" type="text" class="form-control @error('phones.'.$index.'.phone_number') is-invalid @enderror" value="{{ $phone['phone_number'] ?? '' }}" placeholder="{{ __('admin.phone') }} *">
+                                        @error('phones.'.$index.'.phone_number')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                    </div>
                                     <button type="button" class="table-button table-button-delete" data-remove-row aria-label="{{ __('admin.delete') }}"><i class="bi bi-trash" aria-hidden="true"></i></button>
                                 </div>
                             @endforeach
@@ -199,16 +205,25 @@
                         <div class="dynamic-list" data-account-list>
                             @foreach ($oldAccounts as $index => $account)
                                 <div class="dynamic-row dynamic-row-accounts">
-                                    <input name="accounts[{{ $index }}][bank_name]" type="text" class="form-control" value="{{ $account['bank_name'] ?? '' }}" placeholder="{{ __('admin.bank_name') }}">
-                                    <input name="accounts[{{ $index }}][account_number]" type="text" class="form-control" value="{{ $account['account_number'] ?? '' }}" placeholder="{{ __('admin.account_number') }}">
-                                    <select name="accounts[{{ $index }}][currency]" class="form-select" aria-label="{{ __('admin.currency') }}">
-                                        <option value="">{{ __('admin.currency') }}</option>
-                                        @foreach ($currencies as $code => $currency)
-                                            <option value="{{ $code }}" @selected(($account['currency'] ?? '') === $code)>
-                                                {{ $currencyLabel($code, $currency) }}
-                                            </option>
-                                        @endforeach
-                                    </select>
+                                    <div>
+                                        <input name="accounts[{{ $index }}][bank_name]" type="text" class="form-control @error('accounts.'.$index.'.bank_name') is-invalid @enderror" value="{{ $account['bank_name'] ?? '' }}" placeholder="{{ __('admin.bank_name') }}">
+                                        @error('accounts.'.$index.'.bank_name')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                    </div>
+                                    <div>
+                                        <input name="accounts[{{ $index }}][account_number]" type="text" class="form-control @error('accounts.'.$index.'.account_number') is-invalid @enderror" value="{{ $account['account_number'] ?? '' }}" placeholder="{{ __('admin.account_number') }} *">
+                                        @error('accounts.'.$index.'.account_number')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                    </div>
+                                    <div>
+                                        <select name="accounts[{{ $index }}][currency]" class="form-select @error('accounts.'.$index.'.currency') is-invalid @enderror" aria-label="{{ __('admin.currency') }}">
+                                            <option value="">{{ __('admin.currency') }} *</option>
+                                            @foreach ($currencies as $code => $currency)
+                                                <option value="{{ $code }}" @selected(($account['currency'] ?? '') === $code)>
+                                                    {{ $currencyLabel($code, $currency) }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                        @error('accounts.'.$index.'.currency')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                    </div>
                                     <button type="button" class="table-button table-button-delete" data-remove-row aria-label="{{ __('admin.delete') }}"><i class="bi bi-trash" aria-hidden="true"></i></button>
                                 </div>
                             @endforeach
@@ -245,17 +260,17 @@
 
     <template id="phoneRowTemplate">
         <div class="dynamic-row">
-            <input data-name="phones[__INDEX__][label]" type="text" class="form-control" placeholder="{{ __('admin.label') }}">
-            <input data-name="phones[__INDEX__][phone_number]" type="text" class="form-control" placeholder="{{ __('admin.phone') }}">
+            <input data-name="phones[__INDEX__][label]" type="text" class="form-control" placeholder="{{ __('admin.label') }} *">
+            <input data-name="phones[__INDEX__][phone_number]" type="text" class="form-control" placeholder="{{ __('admin.phone') }} *">
             <button type="button" class="table-button table-button-delete" data-remove-row aria-label="{{ __('admin.delete') }}"><i class="bi bi-trash" aria-hidden="true"></i></button>
         </div>
     </template>
     <template id="accountRowTemplate">
         <div class="dynamic-row dynamic-row-accounts">
             <input data-name="accounts[__INDEX__][bank_name]" type="text" class="form-control" placeholder="{{ __('admin.bank_name') }}">
-            <input data-name="accounts[__INDEX__][account_number]" type="text" class="form-control" placeholder="{{ __('admin.account_number') }}">
+            <input data-name="accounts[__INDEX__][account_number]" type="text" class="form-control" placeholder="{{ __('admin.account_number') }} *">
             <select data-name="accounts[__INDEX__][currency]" class="form-select" aria-label="{{ __('admin.currency') }}">
-                <option value="">{{ __('admin.currency') }}</option>
+                <option value="">{{ __('admin.currency') }} *</option>
                 @foreach ($currencies as $code => $currency)
                     <option value="{{ $code }}">{{ $currencyLabel($code, $currency) }}</option>
                 @endforeach

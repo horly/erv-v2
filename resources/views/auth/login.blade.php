@@ -88,6 +88,9 @@
             </div>
 
             <div class="login-wrap">
+                <div class="login-logo-card" aria-label="EXAD Solution & Services">
+                    <img src="{{ asset('img/logo/exad-1200x1200.jpg') }}" alt="EXAD Solution & Services" class="app-logo">
+                </div>
                 <span class="access-badge">{{ __('auth.badge') }}</span>
                 <h2 class="login-title">{{ __('auth.login_title') }}</h2>
                 <p class="login-description">{{ __('auth.login_description') }}</p>

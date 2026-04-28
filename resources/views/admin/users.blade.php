@@ -189,7 +189,7 @@
                                         $subscriptionType = $subscription ? strtoupper($subscription->type ?? 'standard') : null;
                                         $subscriptionLimit = $subscription ? match ($subscription->type ?? 'standard') {
                                             'business' => __('admin.unlimited'),
-                                            'pro' => __('admin.three_companies'),
+                                            'pro' => __('admin.two_companies'),
                                             default => __('admin.one_company'),
                                         } : null;
                                         $roleLabel = match ($account->role) {

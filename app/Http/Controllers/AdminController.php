@@ -208,8 +208,13 @@ class AdminController extends Controller
         return view('admin.companies', [
             'user' => Auth::user(),
             'companies' => Company::query()
-                ->with(['subscription', 'phones', 'accounts'])
-                ->withCount('sites')
+                ->with([
+                    'subscription',
+                    'phones',
+                    'accounts',
+                    'users' => fn ($query) => $query->orderBy('name'),
+                ])
+                ->withCount(['sites', 'users'])
                 ->latest()
                 ->paginate(5),
             'countries' => config('countries'),
@@ -435,12 +440,12 @@ class AdminController extends Controller
             'address' => ['nullable', 'string'],
             'logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp,svg', 'max:2048'],
             'phones' => ['nullable', 'array'],
-            'phones.*.label' => ['nullable', 'string', 'max:255'],
-            'phones.*.phone_number' => ['nullable', 'string', 'max:50'],
+            'phones.*.label' => ['required_with:phones.*.phone_number', 'nullable', 'string', 'max:255'],
+            'phones.*.phone_number' => ['required_with:phones.*.label', 'nullable', 'string', 'max:50'],
             'accounts' => ['nullable', 'array'],
             'accounts.*.bank_name' => ['nullable', 'string', 'max:255'],
-            'accounts.*.account_number' => ['nullable', 'string', 'max:100'],
-            'accounts.*.currency' => ['nullable', 'string', Rule::in(array_keys(CurrencyCatalog::all()))],
+            'accounts.*.account_number' => ['required_with:accounts.*.bank_name', 'nullable', 'string', 'max:100'],
+            'accounts.*.currency' => ['required_with:accounts.*.account_number', 'nullable', 'string', Rule::in(array_keys(CurrencyCatalog::all()))],
         ];
     }
 
@@ -583,7 +588,7 @@ class AdminController extends Controller
 
         $limits = [
             'standard' => 1,
-            'pro' => 3,
+            'pro' => 2,
             'business' => null,
         ];
 
@@ -622,7 +627,7 @@ class AdminController extends Controller
 
         $limits = [
             'standard' => 1,
-            'pro' => 3,
+            'pro' => 2,
             'business' => null,
         ];
 

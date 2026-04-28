@@ -1879,6 +1879,380 @@ Verification :
 - `php artisan view:clear` execute.
 - `php artisan test --filter=superadmin_can_open_admin_dashboard` passe.
 
+### 2026-04-28 - Largeur modal site a 700px
+
+Prompt utilisateur :
+
+```text
+reduit legerement la taille du modal mets 700px
+```
+
+Correction appliquee :
+
+- Reduction de la largeur maximale des modals de site de `980px` a `700px`.
+- Conservation de la marge responsive `calc(100% - 2rem)` pour les petits ecrans.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter=site_form_validation` passe.
+
+### 2026-04-28 - Validation du formulaire site dans le modal
+
+Prompt utilisateur :
+
+```text
+lorsque je valide le formulaire du site sans remplir les champs obligatoire, le modale se ferme et m'ouvre un toatr; ce n'est pas comme ça que doit se passer.
+Lorsque je ne valide pas les champs obligatoires, le modal doit rester actif et m'afficher les erreurs en bas des champs à remplir
+```
+
+Correction appliquee :
+
+- Ajout d'un champ cache `_site_modal_id` dans le formulaire de site pour identifier le modal a rouvrir apres validation serveur.
+- Reouverture automatique du modal concerne lorsque Laravel retourne des erreurs de validation.
+- Affichage des erreurs directement sous les champs obligatoires du modal.
+- Suppression du toast global pour les erreurs provenant du modal de site.
+- Isolation des anciennes valeurs et des erreurs au modal concerne afin d'eviter de polluer les autres modals d'edition.
+
+Fichiers modifies :
+
+- `resources/views/main/company-sites.blade.php`
+- `resources/views/main/partials/site-form-modal.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter=site_form_validation` passe.
+- `php artisan test --filter=company_sites` passe.
+
+### 2026-04-28 - Validation conditionnelle des comptes entreprise
+
+Prompt utilisateur :
+
+```text
+ici si le champ est saisie, le numéro de compte devient obligatoire, si le numéro de compte est saisie la devise devient obligatoire
+```
+
+Correction appliquee :
+
+- Ajustement de la validation des comptes bancaires entreprise sur tous les formulaires de creation/modification :
+  - si la banque est renseignee, le numero de compte devient obligatoire;
+  - si le numero de compte est renseigne, la devise devient obligatoire;
+  - les lignes de compte totalement vides restent autorisees et ignorees.
+- Application de la regle :
+  - cote superadmin dans `AdminController`;
+  - cote admin abonnement dans `MainController`.
+- Affichage des erreurs serveur au niveau de chaque champ de ligne de compte :
+  - banque;
+  - numero de compte;
+  - devise.
+- Le placeholder du numero de compte affiche maintenant `*` pour signaler la condition obligatoire lorsque la banque est saisie.
+- Les tests couvrent les deux enchainements de validation cote superadmin et cote `/main`.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/AdminController.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/admin/companies-create.blade.php`
+- `resources/views/main/company-form.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=company_creation_requires_account_number_after_bank_and_currency_after_number` passe.
+- `php artisan test` passe avec 35 tests et 172 assertions.
+
+### 2026-04-28 - Traduction propre des erreurs de comptes entreprise
+
+Prompt utilisateur :
+
+```text
+n'oublie pas la traduction des ereurs et fais ça proprement
+```
+
+Correction appliquee :
+
+- Ajout des fichiers de traduction Laravel pour les erreurs de validation :
+  - `lang/fr/validation.php`;
+  - `lang/en/validation.php`.
+- Ajout de messages specifiques pour les comptes bancaires entreprise :
+  - `Le numero de compte est obligatoire lorsque la banque est renseignee.`;
+  - `La devise est obligatoire lorsque le numero de compte est renseigne.`
+- Ajout des equivalents anglais pour conserver le support bilingue.
+- Ajout de noms lisibles pour les champs dynamiques `accounts.*` afin d'eviter les messages techniques du type `accounts.0.account_number`.
+- Mise a jour des tests pour verifier le texte exact des erreurs cote superadmin et cote `/main`.
+
+Fichiers modifies :
+
+- `lang/fr/validation.php`
+- `lang/en/validation.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=company_creation_requires_account_number_after_bank_and_currency_after_number` passe.
+- `php artisan test` passe avec 35 tests et 172 assertions.
+
+### 2026-04-28 - Validation conditionnelle des numeros de telephone entreprise
+
+Prompt utilisateur :
+
+```text
+applique la meme regle pour le numero de téléphone.
+Pour le numéro de téléphone si le libellé est saisie le télé phone est obligatoire donc vis versa
+```
+
+Correction appliquee :
+
+- Ajout d'une validation conditionnelle sur les numeros de telephone entreprise :
+  - si le libelle est renseigne, le telephone devient obligatoire;
+  - si le telephone est renseigne, le libelle devient obligatoire;
+  - les lignes totalement vides restent autorisees.
+- Application de la regle :
+  - cote superadmin dans `AdminController`;
+  - cote admin abonnement dans `MainController`.
+- Correction du bug SQL `Column 'phone_number' cannot be null` en bloquant les lignes incompletes avant insertion.
+- Ajout de messages traduits FR/EN propres :
+  - `Le telephone est obligatoire lorsque le libelle est renseigne.`;
+  - `Le libelle est obligatoire lorsque le telephone est renseigne.`
+- Affichage des erreurs serveur sous chaque champ de telephone dans les formulaires superadmin et `/main`.
+- Les placeholders telephone/libelle affichent maintenant `*` pour signaler le caractere conditionnellement obligatoire.
+- Ajout de tests pour verifier les deux sens de la validation cote superadmin et cote `/main`.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/AdminController.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/admin/companies-create.blade.php`
+- `resources/views/main/company-form.blade.php`
+- `lang/fr/validation.php`
+- `lang/en/validation.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php -l lang/fr/validation.php` passe.
+- `php -l lang/en/validation.php` passe.
+- `php artisan test --filter=complete_phone_rows` passe.
+- `php artisan test` passe avec 37 tests et 188 assertions.
+
+### 2026-04-28 - Pagination du tableau entreprises sur main
+
+Prompt utilisateur :
+
+```text
+tu as oublié la pagination sur le tableau comme je faisais avec les autres tableaux
+```
+
+Correction appliquee :
+
+- Ajout de la pagination Laravel sur le tableau `Mes entreprises` de la page `/main`.
+- La requete des entreprises cote admin abonnement utilise maintenant `paginate(5)` comme les autres tableaux principaux.
+- Le tableau affiche le compteur de lignes visibles sur le total global.
+- Ajout du bloc de pagination standard :
+  - `subscriptions-pagination`;
+  - `pagination-shell`;
+  - `Precedent`;
+  - numeros de page;
+  - `Suivant`.
+- La numerotation des lignes tient maintenant compte de la page courante via `firstItem()`.
+- Ajout d'un test pour verifier que le tableau `/main` expose bien la pagination lorsqu'il y a plus de 5 entreprises.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/main.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php artisan test --filter=main_companies_table_is_paginated` passe.
+- `php artisan test` passe avec 38 tests et 195 assertions.
+
+### 2026-04-28 - Gestion des sites d'entreprise cote main
+
+Prompt utilisateur :
+
+```text
+fais en sorte que les lignes de la colonne entreprise soit cliquable.
+Lorsqu'on clique elles nous ramenes vers la liste des sites de l'entreprise...
+```
+
+Correction appliquee :
+
+- Les noms d'entreprise de la colonne `Entreprise` sur `/main` sont maintenant cliquables.
+- Ajout des routes cote `/main` pour les sites d'une entreprise :
+  - liste des sites;
+  - creation;
+  - modification;
+  - suppression.
+- Ajout de la page `main.company-sites` avec :
+  - retour aux entreprises;
+  - titre `Entreprise : Sites`;
+  - tableau datatable avec recherche, tri, compteur et pagination;
+  - colonnes : nom, type, ville, responsable, modules, telephone, statut, actions.
+- Ajout d'un modal de creation/modification de site avec :
+  - nom;
+  - type;
+  - code;
+  - responsable;
+  - ville;
+  - telephone;
+  - adresse;
+  - modules;
+  - utilisateurs affectes;
+  - email;
+  - devise de gestion;
+  - statut actif/inactif.
+- Ajout du champ `status` sur les sites.
+- Ajout de la table pivot `company_site_user` pour affecter les utilisateurs aux sites.
+- Le responsable du site est automatiquement affecte au site.
+- Le responsable et les utilisateurs affectables sont limites aux utilisateurs `admin` et `user` du meme abonnement.
+- Ajout de la page `Acces en attente` pour un utilisateur sans site affecte.
+- Application des limites par abonnement :
+  - `standard` : 1 site, module comptabilite uniquement;
+  - `pro` : 2 sites, 2 modules actifs maximum, comptabilite + ressources humaines;
+  - `business` : sites et modules illimites.
+- Ajustement du plan `pro` : limite entreprises a 2 au lieu de 3 pour les nouveaux abonnements et les abonnements existants.
+- La devise de gestion du site est obligatoire et utilise le catalogue mondial des devises.
+- Mise a jour de l'export SQL pour inclure `company_site_user`, `company_sites.status`, la migration de sites et la migration de correction Pro.
+
+Fichiers modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `app/Http/Controllers/AdminController.php`
+- `app/Models/CompanySite.php`
+- `app/Models/User.php`
+- `database/migrations/2026_04_28_000002_add_status_and_user_assignments_to_company_sites.php`
+- `database/migrations/2026_04_28_000003_update_pro_company_limit_to_two.php`
+- `database/exports/erp_database.sql`
+- `resources/views/main/main.blade.php`
+- `resources/views/main/company-sites.blade.php`
+- `resources/views/main/partials/site-form-modal.blade.php`
+- `resources/views/main/pending-access.blade.php`
+- `resources/css/main.css`
+- `resources/views/admin/users.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `lang/fr/admin.php`
+- `lang/en/admin.php`
+- `lang/fr/validation.php`
+- `lang/en/validation.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan migrate --force` execute.
+- `php scripts/export-database.php` execute.
+- `php artisan view:clear` execute.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php -l resources/views/main/company-sites.blade.php` passe.
+- `php -l resources/views/main/partials/site-form-modal.blade.php` passe.
+- `php artisan test` passe avec 41 tests et 217 assertions.
+
+### 2026-04-28 - Nettoyage modal site et module comptabilite par defaut
+
+Prompt utilisateur :
+
+```text
+le module comptabilité doit etre coché automatiquement.
+Les affections des utilisateurs ne sera pas fais ici tu fais supprimer.
+Ajoute un pading sur le modal pour une bonne affichage centralisée
+```
+
+Correction appliquee :
+
+- Le module `Comptabilite (Facturation)` est coche automatiquement lors de la creation d'un site.
+- Le bloc `Utilisateurs affectes` a ete retire du modal de creation/modification de site.
+- L'affectation automatique du responsable au site reste conservee.
+- Les autres utilisateurs ne sont plus affectes depuis ce formulaire.
+- Ajout d'un padding dedie au modal site :
+  - contenu plus centre;
+  - largeur maximale controlee;
+  - header, body et actions mieux espaces.
+- Mise a jour des tests pour verifier :
+  - le module comptabilite coche par defaut;
+  - l'absence du bloc d'affectation utilisateurs;
+  - l'affectation uniquement du responsable.
+- Regeneration de `database/exports/erp_database.sql`.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/partials/site-form-modal.blade.php`
+- `resources/css/main.css`
+- `lang/fr/validation.php`
+- `lang/en/validation.php`
+- `tests/Feature/ExampleTest.php`
+- `database/exports/erp_database.sql`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php -l resources/views/main/partials/site-form-modal.blade.php` passe.
+- `php artisan test --filter=company_sites` passe.
+- `php artisan test` passe avec 41 tests et 218 assertions.
+- `php scripts/export-database.php` execute.
+
+### 2026-04-28 - Menu profil selon role
+
+Prompt utilisateur :
+
+```text
+Pourquoi tu as supprimé profile et gestion des utilisateurs ?
+Pour l'admin remet Profil et gestion des utilisateurs...
+```
+
+Correction appliquee :
+
+- Restauration du lien `Profil` dans les menus utilisateur des pages cote `/main`.
+- Restauration du lien `Gestion des utilisateurs` pour les admins sur :
+  - `/main`;
+  - formulaire entreprise admin;
+  - liste des sites entreprise.
+- Sur la page `Acces en attente`, un utilisateur simple voit uniquement `Profil` et `Deconnexion`.
+- Le superadmin conserve `Profil` et la gestion globale des utilisateurs.
+- Correction des liens `Gestion des utilisateurs` sur certaines pages superadmin pour pointer vers `admin.users`.
+- Ajout de tests pour verifier :
+  - admin : `Profil` + `Gestion des utilisateurs`;
+  - utilisateur simple sans site : `Profil` uniquement.
+
+Fichiers modifies :
+
+- `resources/views/main/main.blade.php`
+- `resources/views/main/company-form.blade.php`
+- `resources/views/main/company-sites.blade.php`
+- `resources/views/main/pending-access.blade.php`
+- `resources/views/admin/dashboard.blade.php`
+- `resources/views/admin/subscriptions.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources/views/main/company-sites.blade.php` passe.
+- `php -l resources/views/main/company-form.blade.php` passe.
+- `php -l resources/views/main/pending-access.blade.php` passe.
+- `php artisan test --filter="admin_can_open_main_page|admin_can_open_company_sites|pending_access"` passe.
+- `php artisan test` passe avec 41 tests et 224 assertions.
+
 ### 2026-04-28 - Sidebar tablette pleine hauteur
 
 Prompt utilisateur :
@@ -1908,6 +2282,318 @@ Verification :
 - `php artisan view:clear` execute.
 - `php artisan test --filter=admin` passe.
 - `php artisan test` passe avec 31 tests et 126 assertions.
+
+### 2026-04-28 - Nombre d'utilisateurs dans la liste des entreprises
+
+Prompt utilisateur :
+
+```text
+dans entreprise rajoute également la rubrique nombre dêutilisateur
+```
+
+Correction appliquee :
+
+- Ajout du compteur reel `users_count` sur la requete de la liste des entreprises.
+- La liste charge maintenant les compteurs :
+  - `sites_count`;
+  - `users_count`.
+- Ajout d'une colonne triable `Utilisateurs` dans le tableau des entreprises.
+- Affichage du nombre d'utilisateurs lies a chaque entreprise via la relation pivot `company_user`.
+- Mise a jour du test de la liste des entreprises pour verifier le compteur utilisateurs en plus du compteur sites.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/AdminController.php`
+- `resources/views/admin/companies.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=companies` passe.
+- `php artisan test` passe avec 31 tests et 127 assertions.
+
+### 2026-04-28 - Login sans panneau bleu sur tablette
+
+Prompt utilisateur :
+
+```text
+dans login à partir de l'affichage tablette n'affiche pas la zone bleu juste le login et ramene le logo
+```
+
+Correction appliquee :
+
+- Ajout d'un logo compact dans la zone formulaire du login avec `.login-logo-card`.
+- A partir du breakpoint tablette `max-width: 991.98px` :
+  - la zone bleue `.brand-side` est masquee;
+  - seule la zone login reste visible;
+  - le logo EXAD est affiche au-dessus du formulaire;
+  - la zone formulaire conserve une hauteur minimale de page avec `100vh` et `100dvh`.
+- Suppression des anciens ajustements mobiles qui concernaient encore le panneau bleu, car il est masque sur tablette et mobile.
+
+Fichiers modifies :
+
+- `resources/views/auth/login.blade.php`
+- `resources/css/auth/login.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=login` passe.
+- `php artisan test` passe avec 31 tests et 127 assertions.
+
+### 2026-04-28 - Modal utilisateurs affectes depuis la liste des entreprises
+
+Prompt utilisateur :
+
+```text
+Dans entreprise je souhaite que les elements de la colonnes soient cliquable et lorsqu'on clique dessus on affiches un tableau sur le modal de tous les utilisateurs affecté à l'entreprise
+```
+
+Correction appliquee :
+
+- La requete de la liste des entreprises charge maintenant les utilisateurs affectes via la relation pivot `company_user`.
+- Le compteur de la colonne `Utilisateurs` est devenu cliquable avec un bouton discret `.count-link`.
+- Au clic sur le compteur, un modal Bootstrap propre a l'entreprise s'ouvre.
+- Le modal affiche un tableau des utilisateurs affectes avec :
+  - nom;
+  - email;
+  - role;
+  - telephone;
+  - grade.
+- Ajout d'un etat vide lorsqu'aucun utilisateur n'est affecte a l'entreprise.
+- Ajout des traductions FR/EN :
+  - `company_users_title`;
+  - `no_company_users`.
+- Mise a jour du test entreprises pour verifier le modal et les donnees utilisateur.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/AdminController.php`
+- `resources/views/admin/companies.blade.php`
+- `resources/css/admin/dashboard.css`
+- `lang/fr/admin.php`
+- `lang/en/admin.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=companies` passe.
+- `php artisan test` passe avec 31 tests et 131 assertions.
+
+### 2026-04-28 - Standard datatable pour le modal utilisateurs entreprise
+
+Prompt utilisateur :
+
+```text
+j'avais dis que tout mes tableaux doivent etre des datatable avec recherche/ refère toi du tableau utilisateurs par exemple
+```
+
+Correction appliquee :
+
+- Generalisation du JavaScript de datatable dans `resources/js/main.js`.
+- Le comportement historique des tableaux principaux est conserve :
+  - recherche;
+  - compteur de lignes visibles;
+  - tri par colonnes;
+  - ligne vide lorsque la recherche ne retourne aucun resultat.
+- Ajout d'un format reutilisable pour les nouveaux tableaux internes/modaux :
+  - wrapper `data-datatable`;
+  - input `data-datatable-search`;
+  - compteur `data-datatable-visible-count`;
+  - table `data-datatable-table`.
+- Le tableau du modal `Utilisateurs affectes` respecte maintenant ce standard :
+  - barre de recherche;
+  - compteur visible/total;
+  - colonnes triables;
+  - message vide pour les recherches sans resultat.
+- Ajout du style `.modal-table-tools` pour garder l'espacement coherent dans les modals.
+- Mise a jour du test entreprises pour verifier que le modal expose bien les attributs datatable.
+
+Regle retenue pour la suite :
+
+- Tout nouveau tableau visible dans l'interface, y compris dans les modals, doit etre construit comme une datatable avec recherche, compteur et tri lorsque cela s'applique.
+- Pour les tableaux multiples sur une meme page, utiliser le pattern `data-datatable`.
+
+Fichiers modifies :
+
+- `resources/js/main.js`
+- `resources/views/admin/companies.blade.php`
+- `resources/css/admin/dashboard.css`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=companies` passe.
+- `php artisan test` passe avec 31 tests et 134 assertions.
+
+### 2026-04-28 - Bouton Fermer bas sur modal utilisateurs entreprise
+
+Prompt utilisateur :
+
+```text
+ajoute le boutton fermer sur le modal en bas. 
+Pour le formatage des tableaux n'oublie pas
+```
+
+Correction appliquee :
+
+- Ajout d'un bouton `Fermer` en bas du modal des utilisateurs affectes a une entreprise.
+- Le bouton utilise le style standard `.modal-actions` + `.modal-cancel`.
+- Le tableau du modal conserve le standard datatable :
+  - recherche;
+  - compteur visible/total;
+  - colonnes triables;
+  - ligne vide de recherche.
+- Mise a jour du test entreprises pour verifier la presence du bouton `Fermer` et des attributs datatable.
+
+Fichiers modifies :
+
+- `resources/views/admin/companies.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=companies` passe.
+- `php artisan test` passe avec 31 tests et 135 assertions.
+
+### 2026-04-28 - Gestion des entreprises cote admin abonnement sur /main
+
+Prompt utilisateur :
+
+```text
+sur la page main lorsque un admin se connecte, il peux voir toutes les entreprises affectées à son abonnements.
+
+les chmaps du tableaux entreprise à affiche sont : 
+Entreprise, nombre de site, pays et email. 
+
+reprends le formatage du tableau. 
+
+et lorsqu'il clique sur nouvelle entreprise une page similaire s'ouvre comme la création de l'entreprise coté superadmin, la seule différence est qu'il n'y a pas la zonne affectation car l'entreprise qu'il va crée son abonnement est déjà connu et c'est lui meme l'admin, on sait récupérer ces informations. et par rapport à la modification pareil et pour la suppression tu connais le style à appliquer on ne supprime pas les entreprises qui ont des sites n'oublie pas
+```
+
+Correction appliquee :
+
+- Ajout des routes CRUD entreprises cote `/main` :
+  - `main.companies.create`;
+  - `main.companies.store`;
+  - `main.companies.edit`;
+  - `main.companies.update`;
+  - `main.companies.destroy`.
+- La page `/main` affiche maintenant les entreprises de l'abonnement de l'admin connecte.
+- Le tableau `/main` suit le format datatable existant :
+  - recherche;
+  - compteur visible/total;
+  - tri sur colonnes;
+  - ligne vide de recherche.
+- Colonnes affichees :
+  - entreprise;
+  - nombre de sites;
+  - pays;
+  - email;
+  - actions.
+- Ajout d'une page `resources/views/main/company-form.blade.php` similaire au formulaire superadmin.
+- Le formulaire cote admin ne contient pas la zone `Affectation` :
+  - l'abonnement est recupere depuis l'utilisateur connecte;
+  - l'admin createur est l'utilisateur connecte.
+- Creation et modification gerent :
+  - identification;
+  - contact;
+  - telephones;
+  - comptes avec devise;
+  - logo.
+- La suppression utilise le style de confirmation existant.
+- Les entreprises ayant des sites ne sont pas supprimables.
+- Ajout des tests pour :
+  - affichage main;
+  - creation entreprise sans zone affectation;
+  - modification entreprise;
+  - suppression bloquee si sites presents;
+  - suppression autorisee sans sites.
+
+Fichiers modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/main.blade.php`
+- `resources/views/main/company-form.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan route:list --path=main` verifie les routes.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php artisan test --filter=main` passe.
+- `php artisan test` passe avec 33 tests et 156 assertions.
+
+### 2026-04-28 - Devise obligatoire sur les comptes entreprise
+
+Prompt utilisateur :
+
+```text
+le devise doit etre obligatoire lors de la création d'une entreprise partout
+```
+
+Correction appliquee :
+
+- La devise d'un compte bancaire entreprise est maintenant obligatoire des qu'une ligne de compte est renseignee.
+- La regle s'applique partout ou l'entreprise est creee ou modifiee :
+  - cote superadmin (`AdminController`);
+  - cote admin abonnement sur `/main` (`MainController`).
+- Les lignes de compte totalement vides restent ignorees pour ne pas bloquer le formulaire initial.
+- Les lignes contenant une banque ou un numero de compte sans devise sont refusees avec une erreur sur `accounts.*.currency`.
+- Les selects de devise affichent maintenant `Devise *` / `Currency *`.
+- Les erreurs serveur de devise sont affichees au niveau de chaque ligne de compte.
+- Ajout de tests pour verifier le blocage cote superadmin et cote admin `/main`.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/AdminController.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/admin/companies-create.blade.php`
+- `resources/views/main/company-form.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=currency` passe.
+- `php artisan test` passe avec 35 tests et 164 assertions.
+
+### 2026-04-28 - Icône bouton nouvelle entreprise sur /main
+
+Prompt utilisateur :
+
+```text
+le button nouvelle entreprise dois avoir le meme icone que l'autre
+```
+
+Correction appliquee :
+
+- Remplacement de l'icone `bi-plus-lg` du bouton `Nouvelle entreprise` sur `/main`.
+- Utilisation de la meme icone que cote superadmin : `bi-building-add`.
+
+Fichiers modifies :
+
+- `resources/views/main/main.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=main` passe.
 
 ### 2026-04-28 - Mise a jour export SQL de la base
 
@@ -2055,6 +2741,29 @@ Verification :
 
 - `php artisan view:clear` execute.
 - `php artisan test --filter=superadmin_can_open_admin_dashboard` passe.
+
+### 2026-04-28 - Taille titre modal nouveau site
+
+Prompt utilisateur :
+
+```text
+reduit légerement la taille du titre du modal nouveau site
+```
+
+Correction appliquee :
+
+- Reduction ciblee du titre des modals de site via `.site-modal .modal-header h2`.
+- Ajout d'un espacement controle entre l'icone et le texte du titre.
+- La modification ne touche pas les autres titres de modals.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter=company_sites` passe.
 
 ### 2026-04-28 - Correction robuste des icones activite recente
 

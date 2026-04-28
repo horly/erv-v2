@@ -1,0 +1,83 @@
+<?php
+
+return [
+    'array' => 'Le champ :attribute doit être une liste.',
+    'confirmed' => 'La confirmation du champ :attribute ne correspond pas.',
+    'date' => 'Le champ :attribute doit être une date valide.',
+    'email' => 'Le champ :attribute doit être une adresse e-mail valide.',
+    'exists' => 'Le champ :attribute sélectionné est invalide.',
+    'file' => 'Le champ :attribute doit être un fichier.',
+    'in' => 'Le champ :attribute sélectionné est invalide.',
+    'integer' => 'Le champ :attribute doit être un nombre entier.',
+    'max' => [
+        'array' => 'Le champ :attribute ne doit pas contenir plus de :max éléments.',
+        'file' => 'Le champ :attribute ne doit pas dépasser :max kilo-octets.',
+        'numeric' => 'Le champ :attribute ne doit pas être supérieur à :max.',
+        'string' => 'Le champ :attribute ne doit pas dépasser :max caractères.',
+    ],
+    'mimes' => 'Le champ :attribute doit être un fichier de type : :values.',
+    'min' => [
+        'array' => 'Le champ :attribute doit contenir au moins :min éléments.',
+        'file' => 'Le champ :attribute doit faire au moins :min kilo-octets.',
+        'numeric' => 'Le champ :attribute doit être au moins :min.',
+        'string' => 'Le champ :attribute doit contenir au moins :min caractères.',
+    ],
+    'required' => 'Le champ :attribute est obligatoire.',
+    'required_with' => 'Le champ :attribute est obligatoire lorsque :values est renseigné.',
+    'string' => 'Le champ :attribute doit être une chaîne de caractères.',
+    'unique' => 'La valeur du champ :attribute est déjà utilisée.',
+    'url' => 'Le champ :attribute doit être une URL valide.',
+
+    'password' => [
+        'letters' => 'Le champ :attribute doit contenir au moins une lettre.',
+        'mixed' => 'Le champ :attribute doit contenir au moins une majuscule et une minuscule.',
+        'numbers' => 'Le champ :attribute doit contenir au moins un chiffre.',
+        'symbols' => 'Le champ :attribute doit contenir au moins un symbole.',
+        'uncompromised' => 'Le champ :attribute apparaît dans une fuite de données. Veuillez en choisir un autre.',
+    ],
+
+    'custom' => [
+        'accounts.*.account_number' => [
+            'required_with' => 'Le numéro de compte est obligatoire lorsque la banque est renseignée.',
+        ],
+        'accounts.*.currency' => [
+            'required_with' => 'La devise est obligatoire lorsque le numéro de compte est renseigné.',
+        ],
+        'phones.*.label' => [
+            'required_with' => 'Le libellé est obligatoire lorsque le téléphone est renseigné.',
+        ],
+        'phones.*.phone_number' => [
+            'required_with' => 'Le téléphone est obligatoire lorsque le libellé est renseigné.',
+        ],
+    ],
+
+    'attributes' => [
+        'accounts.*.bank_name' => 'banque',
+        'accounts.*.account_number' => 'numéro de compte',
+        'accounts.*.currency' => 'devise',
+        'address' => 'adresse',
+        'admin_id' => 'administrateur',
+        'admin_email' => 'e-mail de l’administrateur',
+        'admin_name' => 'nom de l’administrateur',
+        'admin_subscription_id' => 'abonnement',
+        'country' => 'pays',
+        'email' => 'e-mail',
+        'expires_at' => 'date d’expiration',
+        'logo' => 'logo',
+        'name' => 'nom',
+        'password' => 'mot de passe',
+        'password_confirmation' => 'confirmation du mot de passe',
+        'phones.*.label' => 'libellé',
+        'phones.*.phone_number' => 'téléphone',
+        'phone_number' => 'téléphone',
+        'role' => 'rôle',
+        'responsible_id' => 'responsable',
+        'modules' => 'modules',
+        'modules.*' => 'module',
+        'status' => 'statut',
+        'currency' => 'devise',
+        'subscription_id' => 'abonnement',
+        'type' => 'type',
+        'website' => 'site web',
+    ],
+];

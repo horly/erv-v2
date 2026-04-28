@@ -122,7 +122,7 @@
                                 <i class="bi bi-person-circle" aria-hidden="true"></i>
                                 {{ __('admin.profile') }}
                             </a>
-                            <a href="#" class="profile-link">
+                            <a href="{{ route('admin.users') }}" class="profile-link">
                                 <i class="bi bi-people" aria-hidden="true"></i>
                                 {{ __('admin.user_management') }}
                             </a>

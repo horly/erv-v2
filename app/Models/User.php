@@ -76,6 +76,12 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    public function sites(): BelongsToMany
+    {
+        return $this->belongsToMany(CompanySite::class, 'company_site_user')
+            ->withTimestamps();
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === self::ROLE_ADMIN;

@@ -115,67 +115,92 @@
         }
     });
 
-    const refreshVisibleRows = () => {
-        if (!table) {
+    const initDataTable = (dataTable, dataTableSearch = null, dataTableCount = null) => {
+        if (!dataTable) {
             return;
         }
 
-        const query = searchInput?.value.trim().toLowerCase() || '';
-        const rows = Array.from(table.querySelectorAll('tbody tr:not(.empty-row)'));
-        const searchEmptyRow = table.querySelector('.search-empty-row');
-        let visible = 0;
+        const refreshVisibleRows = () => {
+            const query = (dataTableSearch?.value.trim().toLowerCase() || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '');
+            const rows = Array.from(dataTable.querySelectorAll('tbody tr:not(.empty-row)'));
+            const searchEmptyRow = dataTable.querySelector('.search-empty-row');
+            let visible = 0;
 
-        rows.forEach((row) => {
-            const match = row.textContent.toLowerCase().includes(query);
-            row.hidden = !match;
-            visible += match ? 1 : 0;
+            rows.forEach((row) => {
+                const content = row.textContent
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '');
+                const match = content.includes(query);
+                row.hidden = !match;
+                visible += match ? 1 : 0;
+            });
+
+            if (searchEmptyRow) {
+                searchEmptyRow.hidden = query === '' || visible > 0;
+            }
+
+            if (dataTableCount) {
+                dataTableCount.textContent = String(visible);
+            }
+        };
+
+        dataTableSearch?.addEventListener('input', refreshVisibleRows);
+
+        dataTable.querySelectorAll('.table-sort').forEach((button) => {
+            button.addEventListener('click', () => {
+                const tbody = dataTable.tBodies[0];
+                const index = Number(button.dataset.sortIndex);
+                const type = button.dataset.sortType || 'text';
+                const direction = button.dataset.sortDirection === 'asc' ? 'desc' : 'asc';
+                const rows = Array.from(tbody.querySelectorAll('tr:not(.empty-row)'));
+
+                dataTable.querySelectorAll('.table-sort').forEach((sortButton) => {
+                    sortButton.classList.remove('is-sorted-asc', 'is-sorted-desc');
+                    delete sortButton.dataset.sortDirection;
+                });
+
+                button.dataset.sortDirection = direction;
+                button.classList.add(direction === 'asc' ? 'is-sorted-asc' : 'is-sorted-desc');
+
+                rows.sort((leftRow, rightRow) => {
+                    const left = getSortValue(leftRow.cells[index], type);
+                    const right = getSortValue(rightRow.cells[index], type);
+
+                    if (left < right) {
+                        return direction === 'asc' ? -1 : 1;
+                    }
+
+                    if (left > right) {
+                        return direction === 'asc' ? 1 : -1;
+                    }
+
+                    return 0;
+                });
+
+                const searchEmptyRow = dataTable.querySelector('.search-empty-row');
+                rows.forEach((row) => {
+                    if (searchEmptyRow) {
+                        tbody.insertBefore(row, searchEmptyRow);
+                    } else {
+                        tbody.appendChild(row);
+                    }
+                });
+                refreshVisibleRows();
+            });
         });
-
-        if (searchEmptyRow) {
-            searchEmptyRow.hidden = query === '' || visible > 0;
-        }
-
-        if (visibleCount) {
-            visibleCount.textContent = String(visible);
-        }
     };
 
-    searchInput?.addEventListener('input', refreshVisibleRows);
+    initDataTable(table, searchInput, visibleCount);
 
-    table?.querySelectorAll('.table-sort').forEach((button) => {
-        button.addEventListener('click', () => {
-            const tbody = table.tBodies[0];
-            const index = Number(button.dataset.sortIndex);
-            const type = button.dataset.sortType || 'text';
-            const direction = button.dataset.sortDirection === 'asc' ? 'desc' : 'asc';
-            const rows = Array.from(tbody.querySelectorAll('tr:not(.empty-row)'));
-
-            table.querySelectorAll('.table-sort').forEach((sortButton) => {
-                sortButton.classList.remove('is-sorted-asc', 'is-sorted-desc');
-                delete sortButton.dataset.sortDirection;
-            });
-
-            button.dataset.sortDirection = direction;
-            button.classList.add(direction === 'asc' ? 'is-sorted-asc' : 'is-sorted-desc');
-
-            rows.sort((leftRow, rightRow) => {
-                const left = getSortValue(leftRow.cells[index], type);
-                const right = getSortValue(rightRow.cells[index], type);
-
-                if (left < right) {
-                    return direction === 'asc' ? -1 : 1;
-                }
-
-                if (left > right) {
-                    return direction === 'asc' ? 1 : -1;
-                }
-
-                return 0;
-            });
-
-            rows.forEach((row) => tbody.insertBefore(row, table.querySelector('.search-empty-row')));
-            refreshVisibleRows();
-        });
+    document.querySelectorAll('[data-datatable]').forEach((wrapper) => {
+        initDataTable(
+            wrapper.querySelector('[data-datatable-table]'),
+            wrapper.querySelector('[data-datatable-search]'),
+            wrapper.querySelector('[data-datatable-visible-count]'),
+        );
     });
 
     function getSortValue(cell, type) {

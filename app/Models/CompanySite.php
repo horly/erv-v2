@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class CompanySite extends Model
 {
@@ -22,6 +23,9 @@ class CompanySite extends Model
     public const MODULE_ARCHIVING = 'archiving';
     public const MODULE_DOCUMENT_MANAGEMENT = 'document_management';
 
+    public const STATUS_ACTIVE = 'active';
+    public const STATUS_INACTIVE = 'inactive';
+
     protected $fillable = [
         'company_id',
         'responsible_id',
@@ -34,6 +38,7 @@ class CompanySite extends Model
         'address',
         'modules',
         'currency',
+        'status',
     ];
 
     protected function casts(): array
@@ -51,6 +56,12 @@ class CompanySite extends Model
     public function responsible(): BelongsTo
     {
         return $this->belongsTo(User::class, 'responsible_id');
+    }
+
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'company_site_user')
+            ->withTimestamps();
     }
 
     public static function types(): array
@@ -72,6 +83,14 @@ class CompanySite extends Model
             self::MODULE_HUMAN_RESOURCES,
             self::MODULE_ARCHIVING,
             self::MODULE_DOCUMENT_MANAGEMENT,
+        ];
+    }
+
+    public static function statuses(): array
+    {
+        return [
+            self::STATUS_ACTIVE,
+            self::STATUS_INACTIVE,
         ];
     }
 }
