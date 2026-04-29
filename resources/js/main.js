@@ -7,6 +7,7 @@
     const profileMenu = document.querySelector('.profile-menu');
     const profileButton = document.getElementById('profileButton');
     const sidebarToggle = document.getElementById('sidebarToggle');
+    const accountingSubmenuButtons = document.querySelectorAll('[data-accounting-submenu]');
     const searchInput = document.getElementById('companySearch');
     const table = document.getElementById('companyTable');
     const visibleCount = document.getElementById('visibleCount');
@@ -17,6 +18,7 @@
     const storageKey = 'exad-theme';
     const sidebarStorageKey = 'exad-sidebar-collapsed';
     const sidebarCompactQuery = window.matchMedia('(max-width: 1180px)');
+    const isAccountingShell = shell?.classList.contains('accounting-shell') ?? false;
     const submitLoadingLabel = document.documentElement.lang?.toLowerCase().startsWith('en')
         ? 'Processing...'
         : 'Traitement...';
@@ -75,7 +77,7 @@
     });
 
     sidebarToggle?.addEventListener('click', () => {
-        if (sidebarCompactQuery.matches) {
+        if (sidebarCompactQuery.matches && !isAccountingShell) {
             applySidebarState(true);
             return;
         }
@@ -83,6 +85,19 @@
         const collapsed = !shell?.classList.contains('sidebar-collapsed');
         localStorage.setItem(sidebarStorageKey, collapsed ? 'true' : 'false');
         applySidebarState(collapsed);
+    });
+
+    accountingSubmenuButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            if (shell?.classList.contains('sidebar-collapsed')) {
+                return;
+            }
+
+            const group = button.closest('.sidebar-group');
+            const isOpen = group?.classList.toggle('open') ?? false;
+
+            button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
     });
 
     themeButton?.addEventListener('click', () => {
@@ -369,6 +384,13 @@
             phoneInput.value = isEdit ? trigger.dataset.userPhone : '';
             gradeInput.value = isEdit ? trigger.dataset.userGrade : '';
             addressInput.value = isEdit ? trigger.dataset.userAddress : '';
+
+            userForm.dispatchEvent(new CustomEvent('user-form-mode-applied', {
+                detail: {
+                    trigger,
+                    isEdit,
+                },
+            }));
         };
 
         document.querySelectorAll('[data-user-mode]').forEach((trigger) => {

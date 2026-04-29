@@ -17,6 +17,17 @@ class TwoFactorLoginResponse implements TwoFactorLoginResponseContract
         $user = $request->user();
 
         if ($user && method_exists($user, 'redirectRouteAfterLogin')) {
+            if (method_exists($user, 'isUser') && $user->isUser()) {
+                $site = $user->sites()
+                    ->with('company')
+                    ->orderBy('company_sites.id')
+                    ->first();
+
+                if ($site?->company) {
+                    return redirect()->to(route('main.companies.sites.show', [$site->company, $site]));
+                }
+            }
+
             return redirect()->intended(route($user->redirectRouteAfterLogin()));
         }
 

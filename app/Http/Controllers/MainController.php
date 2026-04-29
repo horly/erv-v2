@@ -35,8 +35,14 @@ class MainController extends Controller
             return redirect()->route('admin.dashboard');
         }
 
-        if ($user->isUser() && ! $user->sites()->exists()) {
-            return view('main.pending-access', ['user' => $user]);
+        if ($user->isUser()) {
+            $site = $this->firstAssignedSite($user);
+
+            if (! $site?->company) {
+                return view('main.pending-access', ['user' => $user]);
+            }
+
+            return redirect()->route('main.companies.sites.show', [$site->company, $site]);
         }
 
         $companies = match (true) {
@@ -65,7 +71,7 @@ class MainController extends Controller
         $user = Auth::user();
 
         if (! $this->canManageCompanyRecord($user, $company)) {
-            return redirect()->route('main');
+            return $this->redirectMainArea($user);
         }
 
         $company->load('subscription')->loadCount('sites');
@@ -88,12 +94,71 @@ class MainController extends Controller
         ]);
     }
 
+    public function showCompanySite(Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $user = Auth::user();
+
+        if ($site->company_id !== $company->id || ! $this->canAccessCompanySite($user, $company, $site)) {
+            return $this->redirectMainArea($user);
+        }
+
+        $company->load('subscription');
+        $site->load('responsible');
+
+        return view('main.company-site-show', [
+            'user' => $user,
+            'company' => $company,
+            'site' => $site,
+            'modules' => $this->availableSiteModulesForUser($user, $site),
+            'moduleLabels' => $this->siteModuleLabels(),
+            'typeLabels' => $this->siteTypeLabels(),
+            'planRules' => $this->sitePlanRules($company),
+        ]);
+    }
+
+    public function showSiteModule(Company $company, CompanySite $site, string $module): View|RedirectResponse
+    {
+        $user = Auth::user();
+
+        if ($site->company_id !== $company->id || ! $this->canAccessCompanySite($user, $company, $site)) {
+            return $this->redirectMainArea($user);
+        }
+
+        $availableModules = $this->availableSiteModulesForUser($user, $site);
+
+        if (! in_array($module, $availableModules, true)) {
+            return redirect()->route('main.companies.sites.show', [$company, $site]);
+        }
+
+        $company->load('subscription');
+        $site->load('responsible');
+
+        $moduleMeta = $this->siteModuleMeta()[$module] ?? null;
+
+        if (! $moduleMeta) {
+            return redirect()->route('main.companies.sites.show', [$company, $site]);
+        }
+
+        $view = $module === CompanySite::MODULE_ACCOUNTING
+            ? 'main.modules.accounting-dashboard'
+            : 'main.modules.under-development';
+
+        return view($view, [
+            'user' => $user,
+            'company' => $company,
+            'site' => $site,
+            'module' => $module,
+            'moduleMeta' => $moduleMeta,
+            'planRules' => $this->sitePlanRules($company),
+        ]);
+    }
+
     public function users(): View|RedirectResponse
     {
         $user = Auth::user();
 
         if (! $user->isAdmin() || ! $user->subscription_id) {
-            return redirect()->route('main');
+            return $this->redirectMainArea($user);
         }
 
         $siteOptions = CompanySite::query()
@@ -446,6 +511,66 @@ class MainController extends Controller
             && $company->subscription_id === $user->subscription_id;
     }
 
+    private function canAccessCompanySite(User&Authenticatable $user, Company $company, CompanySite $site): bool
+    {
+        if ($this->canManageCompanyRecord($user, $company)) {
+            return true;
+        }
+
+        return $user->isUser()
+            && $user->sites()
+                ->whereKey($site->getKey())
+                ->exists();
+    }
+
+    private function redirectMainArea(User&Authenticatable $user): RedirectResponse
+    {
+        if ($user->isUser()) {
+            $site = $this->firstAssignedSite($user);
+
+            if ($site?->company) {
+                return redirect()->route('main.companies.sites.show', [$site->company, $site]);
+            }
+        }
+
+        return redirect()->route('main');
+    }
+
+    private function firstAssignedSite(User&Authenticatable $user): ?CompanySite
+    {
+        if (! $user->isUser()) {
+            return null;
+        }
+
+        return $user->sites()
+            ->with('company.subscription')
+            ->orderBy('company_sites.id')
+            ->first();
+    }
+
+    private function availableSiteModulesForUser(User&Authenticatable $user, CompanySite $site): array
+    {
+        if ($user->isAdmin() || $user->isSuperadmin()) {
+            return array_values($site->modules ?? []);
+        }
+
+        $assignedSite = $user->sites()
+            ->whereKey($site->getKey())
+            ->first();
+
+        if (! $assignedSite) {
+            return [];
+        }
+
+        $permissions = json_decode((string) $assignedSite->pivot->module_permissions, true);
+
+        if (is_array($permissions) && $permissions !== []) {
+            return array_values(array_intersect(array_keys($permissions), $site->modules ?? []));
+        }
+
+        return array_values($site->modules ?? []);
+    }
+
     private function canManageSubscriptionUser(User&Authenticatable $admin, User $account): bool
     {
         return ! $account->isSuperadmin()
@@ -735,6 +860,40 @@ class MainController extends Controller
             CompanySite::MODULE_HUMAN_RESOURCES => __('main.module_human_resources'),
             CompanySite::MODULE_ARCHIVING => __('main.module_archiving'),
             CompanySite::MODULE_DOCUMENT_MANAGEMENT => __('main.module_document_management'),
+        ];
+    }
+
+    private function siteModuleMeta(): array
+    {
+        return [
+            CompanySite::MODULE_ACCOUNTING => [
+                'label' => __('main.module_accounting'),
+                'description' => __('main.module_accounting_description'),
+                'icon' => 'bi-receipt',
+                'tone' => 'amber',
+                'class' => 'module-accounting',
+            ],
+            CompanySite::MODULE_HUMAN_RESOURCES => [
+                'label' => __('main.module_human_resources'),
+                'description' => __('main.module_human_resources_description'),
+                'icon' => 'bi-people',
+                'tone' => 'violet',
+                'class' => 'module-human-resources',
+            ],
+            CompanySite::MODULE_ARCHIVING => [
+                'label' => __('main.module_archiving'),
+                'description' => __('main.module_archiving_description'),
+                'icon' => 'bi-archive',
+                'tone' => 'amber',
+                'class' => 'module-archiving',
+            ],
+            CompanySite::MODULE_DOCUMENT_MANAGEMENT => [
+                'label' => __('main.module_document_management'),
+                'description' => __('main.module_document_management_description'),
+                'icon' => 'bi-file-earmark-text',
+                'tone' => 'green',
+                'class' => 'module-document-management',
+            ],
         ];
     }
 

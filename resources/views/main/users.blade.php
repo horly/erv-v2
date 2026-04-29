@@ -149,7 +149,7 @@
                                     $assignedSite = $account->sites->first();
                                     $sitePermissions = $assignedSite ? json_decode($assignedSite->pivot->module_permissions ?: '[]', true) : [];
                                     $enabledModules = array_keys($sitePermissions ?: []);
-                                    $assignedSiteId = $isManagedAdmin ? '' : $assignedSite?->id;
+                                    $assignedSiteId = $assignedSite?->id;
                                     $assignedSiteLabel = $isManagedAdmin ? __('main.all_sites') : ($assignedSite?->name ?? '-');
                                     $roleLabel = match ($account->role) {
                                         \App\Models\User::ROLE_ADMIN => __('admin.admin_role'),
@@ -169,8 +169,8 @@
                                         data-user-grade="{{ $account->grade }}"
                                         data-user-address="{{ $account->address }}"
                                         data-user-site-id="{{ $assignedSiteId }}"
-                                        data-user-modules="{{ e(json_encode($enabledModules)) }}"
-                                        data-user-module-permissions="{{ e(json_encode($sitePermissions)) }}"
+                                        data-user-modules='@json($enabledModules)'
+                                        data-user-module-permissions='@json($sitePermissions)'
                                     @endif
                                 >
                                     <td>{{ ($users->firstItem() ?? 1) + $loop->index }}</td>
@@ -206,7 +206,7 @@
                                                 <button type="button" class="table-button table-button-history" data-login-history-trigger data-login-history-url="{{ route('main.users.login-history', $account) }}" data-login-history-name="{{ $account->name }}" aria-label="{{ __('main.history') }}">
                                                     <i class="bi bi-clock-history" aria-hidden="true"></i>
                                                 </button>
-                                                <button type="button" class="table-button table-button-edit" data-bs-toggle="modal" data-bs-target="#userModal" data-user-mode="edit" data-user-action="{{ route('main.users.update', $account) }}" data-user-id="{{ $account->id }}" data-user-name="{{ $account->name }}" data-user-email="{{ $account->email }}" data-user-role="{{ $account->role }}" data-user-subscription-id="{{ $user->subscription_id }}" data-user-phone="{{ $account->phone_number }}" data-user-grade="{{ $account->grade }}" data-user-address="{{ $account->address }}" data-user-site-id="{{ $assignedSiteId }}" data-user-modules="{{ e(json_encode($enabledModules)) }}" data-user-module-permissions="{{ e(json_encode($sitePermissions)) }}" aria-label="{{ __('admin.edit') }}">
+                                                <button type="button" class="table-button table-button-edit" data-bs-toggle="modal" data-bs-target="#userModal" data-user-mode="edit" data-user-action="{{ route('main.users.update', $account) }}" data-user-id="{{ $account->id }}" data-user-name="{{ $account->name }}" data-user-email="{{ $account->email }}" data-user-role="{{ $account->role }}" data-user-subscription-id="{{ $user->subscription_id }}" data-user-phone="{{ $account->phone_number }}" data-user-grade="{{ $account->grade }}" data-user-address="{{ $account->address }}" data-user-site-id="{{ $assignedSiteId }}" data-user-modules='@json($enabledModules)' data-user-module-permissions='@json($sitePermissions)' aria-label="{{ __('admin.edit') }}">
                                                     <i class="bi bi-pencil" aria-hidden="true"></i>
                                                 </button>
                                                 <form method="POST" action="{{ route('main.users.destroy', $account) }}">
@@ -446,6 +446,25 @@
                 .replaceAll('"', '&quot;')
                 .replaceAll("'", '&#039;');
 
+            const parseDatasetJson = (value, fallback) => {
+                if (!value) {
+                    return fallback;
+                }
+
+                try {
+                    return JSON.parse(value);
+                } catch (error) {
+                    const decoded = document.createElement('textarea');
+                    decoded.innerHTML = value;
+
+                    try {
+                        return JSON.parse(decoded.value);
+                    } catch (secondError) {
+                        return fallback;
+                    }
+                }
+            };
+
             const loadHistory = async (url, page = 1) => {
                 currentUrl = url;
                 state.hidden = false;
@@ -568,6 +587,8 @@
             const wrap = document.getElementById('modulePermissionsWrap');
             const empty = document.getElementById('modulePermissionsEmpty');
             const emptyDefaultText = empty?.textContent || '';
+            const userModal = document.getElementById('userModal');
+            let activeUserTrigger = null;
 
             const checked = (value) => value ? ' checked' : '';
             const disabled = (value) => value ? ' disabled' : '';
@@ -577,6 +598,25 @@
                 .replaceAll('>', '&gt;')
                 .replaceAll('"', '&quot;')
                 .replaceAll("'", '&#039;');
+
+            const parseDatasetJson = (value, fallback) => {
+                if (!value) {
+                    return fallback;
+                }
+
+                try {
+                    return JSON.parse(value);
+                } catch (error) {
+                    const decoded = document.createElement('textarea');
+                    decoded.innerHTML = value;
+
+                    try {
+                        return JSON.parse(decoded.value);
+                    } catch (secondError) {
+                        return fallback;
+                    }
+                }
+            };
 
             const currentState = () => {
                 const modules = [];
@@ -604,15 +644,30 @@
                 return { modules, permissions };
             };
 
+            const forceSelectValue = (select, value) => {
+                if (!select) {
+                    return '';
+                }
+
+                select.disabled = false;
+                select.value = value || '';
+
+                if (value && select.value !== value) {
+                    const option = Array.from(select.options).find((candidate) => candidate.value === value);
+
+                    if (option) {
+                        option.selected = true;
+                    }
+                }
+
+                return select.value;
+            };
+
             const syncAdminPermissionState = () => {
                 const isAdminRole = roleSelect?.value === 'admin';
 
                 if (siteSelect) {
-                    siteSelect.disabled = isAdminRole;
-
-                    if (isAdminRole) {
-                        siteSelect.value = '';
-                    }
+                    siteSelect.disabled = false;
                 }
 
                 if (siteRequiredMarker) {
@@ -661,25 +716,56 @@
                 syncAdminPermissionState();
             };
 
+            const applyUserAssignment = (trigger) => {
+                if (!trigger) {
+                    return;
+                }
+
+                const isEdit = trigger.dataset.userMode === 'edit';
+                const modules = isEdit ? parseDatasetJson(trigger.dataset.userModules, []) : [];
+                const permissions = isEdit ? parseDatasetJson(trigger.dataset.userModulePermissions, {}) : {};
+                const siteId = forceSelectValue(siteSelect, isEdit ? (trigger.dataset.userSiteId || '') : '');
+
+                renderModules(siteId, modules, permissions);
+                syncAdminPermissionState();
+            };
+
             siteSelect?.addEventListener('change', () => {
                 renderModules(siteSelect.value, [], {});
                 syncAdminPermissionState();
             });
             roleSelect?.addEventListener('change', () => {
                 const state = currentState();
-                renderModules(roleSelect.value === 'admin' ? '' : (siteSelect?.value || ''), state.modules, state.permissions);
+                renderModules(siteSelect?.value || '', state.modules, state.permissions);
                 syncAdminPermissionState();
             });
 
             document.querySelectorAll('[data-user-mode]').forEach((trigger) => {
                 trigger.addEventListener('click', () => {
-                    const isEdit = trigger.dataset.userMode === 'edit';
-                    const modules = isEdit ? JSON.parse(trigger.dataset.userModules || '[]') : [];
-                    const permissions = isEdit ? JSON.parse(trigger.dataset.userModulePermissions || '{}') : {};
-                    siteSelect.value = isEdit ? (trigger.dataset.userSiteId || '') : '';
-                    renderModules(roleSelect.value === 'admin' ? '' : siteSelect.value, modules, permissions);
-                    syncAdminPermissionState();
+                    activeUserTrigger = trigger;
+                    window.setTimeout(() => applyUserAssignment(trigger), 0);
                 });
+            });
+
+            document.querySelector('.user-form')?.addEventListener('user-form-mode-applied', (event) => {
+                activeUserTrigger = event.detail.trigger;
+                applyUserAssignment(event.detail.trigger);
+            });
+
+            document.querySelectorAll('.user-edit-row').forEach((row) => {
+                row.addEventListener('click', (event) => {
+                    if (event.target.closest('button, a, form, input, select, textarea')) {
+                        return;
+                    }
+
+                    activeUserTrigger = row;
+                    window.setTimeout(() => applyUserAssignment(row), 0);
+                });
+            });
+
+            userModal?.addEventListener('shown.bs.modal', (event) => {
+                const trigger = event.relatedTarget?.closest('[data-user-mode]') || activeUserTrigger;
+                applyUserAssignment(trigger);
             });
 
             renderModules(oldSiteId || siteSelect?.value || '', oldModules, oldPermissions);

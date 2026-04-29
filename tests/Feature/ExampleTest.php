@@ -148,6 +148,10 @@ class ExampleTest extends TestCase
         $response->assertDontSee(__('main.assigned_users'), false);
         $response->assertSee('siteModal', false);
         $response->assertSee('name="modules[]" value="'.CompanySite::MODULE_ACCOUNTING.'" checked', false);
+        $response->assertSee('site-module-card module-accounting', false);
+        $response->assertSee('site-module-card module-human-resources', false);
+        $response->assertSee('site-module-card module-archiving', false);
+        $response->assertSee('site-module-card module-document-management', false);
 
         $storeResponse = $this->actingAs($admin)->post(route('main.companies.sites.store', $company), [
             'name' => 'Kinshasa Site',
@@ -177,6 +181,357 @@ class ExampleTest extends TestCase
             'company_site_id' => $site->id,
             'user_id' => $worker->id,
         ]);
+
+        $listResponse = $this->actingAs($admin)->get(route('main.companies.sites', $company));
+
+        $listResponse->assertSee(route('main.companies.sites.show', [$company, $site]), false);
+        $listResponse->assertSee('class="site-name-link"', false);
+    }
+
+    public function test_admin_can_open_company_site_detail_and_see_available_modules(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Site Detail Business',
+            'code' => 'SITE_DETAIL_BUSINESS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'detail admin',
+            'email' => 'detail-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Detail Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'detail-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Archive HQ',
+            'type' => CompanySite::TYPE_ARCHIVE,
+            'modules' => [
+                CompanySite::MODULE_ARCHIVING,
+                CompanySite::MODULE_DOCUMENT_MANAGEMENT,
+                CompanySite::MODULE_HUMAN_RESOURCES,
+            ],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('main.companies.sites.show', [$company, $site]));
+
+        $response->assertOk();
+        $response->assertSee(__('main.back_to_company_sites', ['name' => $company->name]), false);
+        $response->assertSee('Archive HQ');
+        $response->assertSee(__('main.site_details'), false);
+        $response->assertSee(__('main.site_modules_intro'), false);
+        $response->assertSee(__('main.module_archiving'), false);
+        $response->assertSee(__('main.module_document_management'), false);
+        $response->assertSee(__('main.module_human_resources'), false);
+        $response->assertSee('site-module-link module-archiving', false);
+        $response->assertSee('site-module-link module-document-management', false);
+        $response->assertSee('site-module-link module-human-resources', false);
+        $response->assertSee(route('main.companies.sites.modules.show', [$company, $site, CompanySite::MODULE_ARCHIVING]), false);
+        $response->assertSee(route('main.companies.sites.modules.show', [$company, $site, CompanySite::MODULE_DOCUMENT_MANAGEMENT]), false);
+        $response->assertSee(route('main.companies.sites.modules.show', [$company, $site, CompanySite::MODULE_HUMAN_RESOURCES]), false);
+        $response->assertSee(__('main.plan'), false);
+        $response->assertSee('BUSINESS');
+    }
+
+    public function test_accounting_module_opens_dedicated_dashboard(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Module',
+            'code' => 'ACCOUNTING_MODULE',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'accounting admin',
+            'email' => 'accounting-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Accounting Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'accounting-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Accounting Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('main.companies.sites.modules.show', [$company, $site, CompanySite::MODULE_ACCOUNTING]));
+
+        $response->assertOk();
+        $response->assertSee(__('main.accounting_dashboard'), false);
+        $response->assertSee(__('admin.week'), false);
+        $response->assertSee(__('admin.month'), false);
+        $response->assertSee(__('admin.year'), false);
+        $response->assertSee(__('main.revenue_expenses_evolution'), false);
+        $response->assertSee(__('main.contacts_distribution'), false);
+        $response->assertSee(__('main.stock_services_activity'), false);
+        $response->assertSee(__('main.documents_flow'), false);
+        $response->assertSee(__('main.schedule'), false);
+        $response->assertSee(__('main.clients_owe_me'), false);
+        $response->assertSee(__('main.i_owe_suppliers'), false);
+        $response->assertSee(__('main.customer_receivable'), false);
+        $response->assertSee(__('main.supplier_debt'), false);
+        $response->assertSee('12,4M CDF', false);
+        $response->assertSee('7,8M CDF', false);
+        $response->assertSee(__('main.cashflow_overview'), false);
+        $response->assertSee('module-kpi-grid', false);
+        $response->assertSee('accountingDashboardData', false);
+        $response->assertSee('accountingRevenueChart', false);
+        $response->assertSee('accountingContactsChart', false);
+        $response->assertSee('accountingStockServicesChart', false);
+        $response->assertSee('accountingDocumentsChart', false);
+        $response->assertSee('accounting-documents-panel', false);
+        $response->assertSee('accountingCashflowChart', false);
+        $response->assertSee('accounting-schedule-summary', false);
+        $response->assertSee('accounting-schedule-list', false);
+        $response->assertSee('resources/js/main/accounting-dashboard.js', false);
+        $response->assertSee('dashboard-sidebar accounting-sidebar', false);
+        $response->assertSee('id="sidebarToggle"', false);
+        $response->assertSee('data-accounting-submenu', false);
+        $response->assertSee('aria-expanded="false" data-accounting-submenu', false);
+        $response->assertSee(__('main.contacts'), false);
+        $response->assertSee(__('main.suppliers'), false);
+        $response->assertSee(__('main.prospects'), false);
+        $response->assertSee(__('main.creditors'), false);
+        $response->assertSee(__('main.debtors'), false);
+        $response->assertSee(__('main.partners'), false);
+        $response->assertSee(__('main.stock'), false);
+        $response->assertSee(__('main.services'), false);
+        $response->assertSee(__('main.currencies'), false);
+        $response->assertSee(__('main.payment_methods'), false);
+        $response->assertSee(__('main.billing'), false);
+        $response->assertSee(__('main.sales_invoices'), false);
+        $response->assertSee(__('main.proforma_invoices'), false);
+        $response->assertSee(__('main.delivery_notes'), false);
+        $response->assertSee(__('main.cash_register'), false);
+        $response->assertSee(__('main.expenses_group'), false);
+        $response->assertSee(__('main.debts'), false);
+        $response->assertSee(__('main.receivables'), false);
+        $response->assertSee(__('main.bank_reconciliation'), false);
+        $response->assertSee(__('main.tasks'), false);
+        $response->assertSee(__('main.reports'), false);
+        $response->assertSee(__('main.module_settings'), false);
+    }
+
+    public function test_non_accounting_module_opens_under_development_page(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'HR Module',
+            'code' => 'HR_MODULE',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'hr admin',
+            'email' => 'hr-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'HR Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'hr-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'HR Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_HUMAN_RESOURCES],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('main.companies.sites.modules.show', [$company, $site, CompanySite::MODULE_HUMAN_RESOURCES]));
+
+        $response->assertOk();
+        $response->assertSee(__('main.module_human_resources'), false);
+        $response->assertSee(__('main.module_human_resources_description'), false);
+        $response->assertSee(__('main.module_under_development'), false);
+        $response->assertSee(__('main.connected_as', ['name' => $admin->name]), false);
+    }
+
+    public function test_assigned_user_only_sees_site_modules_from_permissions(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Site Detail User',
+            'code' => 'SITE_DETAIL_USER',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'assigned admin',
+            'email' => 'assigned-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $user = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'assigned user',
+            'email' => 'assigned-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Assigned Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'assigned-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Assigned Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING, CompanySite::MODULE_HUMAN_RESOURCES],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $user->sites()->sync([
+            $site->id => [
+                'module_permissions' => json_encode([
+                    CompanySite::MODULE_ACCOUNTING => [
+                        'can_create' => true,
+                        'can_update' => false,
+                        'can_delete' => false,
+                    ],
+                ]),
+                'can_create' => true,
+                'can_update' => false,
+                'can_delete' => false,
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->get(route('main.companies.sites.show', [$company, $site]));
+
+        $response->assertOk();
+        $response->assertSee(__('main.module_accounting'), false);
+        $response->assertSee(route('main.companies.sites.modules.show', [$company, $site, CompanySite::MODULE_ACCOUNTING]), false);
+        $response->assertDontSee(__('main.module_human_resources'), false);
+
+        $this->actingAs($user)
+            ->get(route('main.companies.sites.modules.show', [$company, $site, CompanySite::MODULE_HUMAN_RESOURCES]))
+            ->assertRedirect(route('main.companies.sites.show', [$company, $site]));
+    }
+
+    public function test_simple_user_lands_directly_on_assigned_site_and_cannot_open_main_lists(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Simple User Site',
+            'code' => 'SIMPLE_USER_SITE',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'simple admin',
+            'email' => 'simple-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $user = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'simple user',
+            'email' => 'simple-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Simple Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'simple-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Simple Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING, CompanySite::MODULE_HUMAN_RESOURCES],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $user->sites()->sync([
+            $site->id => [
+                'module_permissions' => json_encode([
+                    CompanySite::MODULE_ACCOUNTING => [
+                        'can_create' => true,
+                        'can_update' => false,
+                        'can_delete' => false,
+                    ],
+                ]),
+                'can_create' => true,
+                'can_update' => false,
+                'can_delete' => false,
+            ],
+        ]);
+
+        $siteRoute = route('main.companies.sites.show', [$company, $site]);
+
+        $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'StrongPass@123',
+        ])->assertRedirect($siteRoute);
+
+        $this->assertAuthenticatedAs($user);
+
+        $this->actingAs($user)->get(route('main'))->assertRedirect($siteRoute);
+        $this->actingAs($user)->get(route('main.users'))->assertRedirect($siteRoute);
+        $this->actingAs($user)->get(route('main.companies.sites', $company))->assertRedirect($siteRoute);
+
+        $response = $this->actingAs($user)->get($siteRoute);
+
+        $response->assertOk();
+        $response->assertSee('Simple Site');
+        $response->assertSee(__('main.module_accounting'), false);
+        $response->assertDontSee(__('main.module_human_resources'), false);
+        $response->assertDontSee('id="companyTable"', false);
     }
 
     public function test_site_form_validation_reopens_modal_and_shows_field_errors(): void
@@ -401,6 +756,7 @@ class ExampleTest extends TestCase
         $response->assertSee(__('admin.new_user'), false);
         $response->assertSee('Managed Site - Managed Company', false);
         $response->assertSee('modulePermissionsBody', false);
+        $response->assertDontSee('data-user-modules="[&amp;quot;', false);
         $response->assertSee('bi-clock-history', false);
         $response->assertSee(route('main.users.login-history', $admin), false);
         $response->assertDontSee('data-user-action="'.route('main.users.update', $admin).'"', false);
@@ -431,6 +787,11 @@ class ExampleTest extends TestCase
             ->assertRedirect(route('main.users'));
 
         $account = User::where('email', 'managed-user@example.test')->firstOrFail();
+
+        $response = $this->actingAs($admin)->get(route('main.users'));
+        $response->assertSee("data-user-site-id=\"{$site->id}\"", false);
+        $response->assertSee('data-user-modules=\'["accounting"]\'', false);
+        $response->assertSee('data-user-module-permissions=\'{"accounting":{"can_create":true,"can_update":true,"can_delete":false}}\'', false);
 
         $this->assertDatabaseHas('company_site_user', [
             'company_site_id' => $site->id,

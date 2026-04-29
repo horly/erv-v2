@@ -154,7 +154,11 @@
                             @forelse ($sites as $site)
                                 <tr>
                                     <td>{{ ($sites->firstItem() ?? 1) + $loop->index }}</td>
-                                    <td><strong>{{ $site->name }}</strong></td>
+                                    <td>
+                                        <a class="site-name-link" href="{{ route('main.companies.sites.show', [$company, $site]) }}">
+                                            <strong>{{ $site->name }}</strong>
+                                        </a>
+                                    </td>
                                     <td><span class="site-badge">{{ $typeLabels[$site->type] ?? $site->type }}</span></td>
                                     <td>{{ $site->city ?: '-' }}</td>
                                     <td>{{ $site->responsible?->name ?: '-' }}</td>

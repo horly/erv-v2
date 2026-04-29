@@ -13,6 +13,12 @@
         $code,
         blank($currency['symbol'] ?? null) ? '' : ' - '.$currency['symbol'],
     );
+    $moduleClasses = [
+        'accounting' => 'module-accounting',
+        'human_resources' => 'module-human-resources',
+        'archiving' => 'module-archiving',
+        'document_management' => 'module-document-management',
+    ];
 @endphp
 
 <div class="modal fade site-modal" id="{{ $modalId }}" tabindex="-1" aria-labelledby="{{ $modalId }}Label" aria-hidden="true">
@@ -77,7 +83,7 @@
                                     $allowed = in_array($module, $planRules['allowed_modules'], true);
                                     $checked = in_array($module, $selectedModules, true);
                                 @endphp
-                                <label class="site-module-card {{ ! $allowed ? 'is-disabled' : '' }}">
+                                <label class="site-module-card {{ $moduleClasses[$module] ?? '' }} {{ ! $allowed ? 'is-disabled' : '' }}">
                                     <input type="checkbox" name="modules[]" value="{{ $module }}" @checked($checked) @disabled(! $allowed)>
                                     <span class="module-card-icon"><i class="bi {{ $module === 'accounting' ? 'bi-receipt' : ($module === 'human_resources' ? 'bi-people' : ($module === 'archiving' ? 'bi-archive' : 'bi-file-earmark-text')) }}" aria-hidden="true"></i></span>
                                     <span>{{ $moduleLabels[$module] }}</span>

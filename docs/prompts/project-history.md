@@ -1956,6 +1956,151 @@ Verification :
 - `php -l lang/fr/profile.php` passe.
 - `php artisan test --filter=profile` passe.
 
+### 2026-04-29 - Prechargement du site et des permissions dans le modal utilisateur admin
+
+Prompt utilisateur :
+
+```text
+QUAND je modifie un utilisateur qui est deja affecte a un site. il faut selectionner son site dans le formulaire et afficher les modules et les permissions qui lui sont attribuees
+```
+
+Correction appliquee :
+
+- Conservation de l'ID du site deja affecte dans les attributs `data-user-site-id`, y compris pour un utilisateur admin gere par l'admin connecte.
+- Mise a jour du script du modal utilisateur pour precharger le site selectionne en modification.
+- Affichage automatique des modules et permissions existantes du site affecte.
+- Pour un utilisateur avec le role admin, les permissions restent cochees et verrouillees, tout en affichant le site de reference deja affecte.
+
+Fichier modifie :
+
+- `resources/views/main/users.blade.php`
+
+Verification :
+
+- `php artisan test --filter=admin` passe.
+- `php artisan test` passe avec 59 tests et 353 assertions.
+
+### 2026-04-29 - Renforcement du prechargement du modal utilisateur
+
+Prompt utilisateur :
+
+```text
+ça ne s'affiche toujours pas sur le formulaire
+```
+
+Correction appliquee :
+
+- Ajout d'un prechargement robuste au moment de l'ouverture effective du modal `userModal`.
+- Le script conserve le bouton ou la ligne qui a declenche l'edition, puis reapplique :
+  - le site deja affecte;
+  - les modules du site;
+  - les permissions existantes.
+- Le select du site est force avant le rendu des modules pour eviter les problemes d'ordre entre le script global et le script specifique aux permissions.
+- Le comportement fonctionne aussi bien avec le clic sur l'icone modifier qu'avec le clic sur la ligne du tableau.
+
+Fichier modifie :
+
+- `resources/views/main/users.blade.php`
+
+Verification :
+
+- Tests cibles de gestion utilisateurs admin passes.
+- `php artisan test` passe avec 59 tests et 353 assertions.
+
+### 2026-04-29 - Correction definitive du JSON des permissions utilisateur
+
+Prompt utilisateur :
+
+```text
+mais tu n'y arrive pas. ça ne fonctionne toujours pas
+```
+
+Diagnostic :
+
+- Les attributs HTML `data-user-modules` et `data-user-module-permissions` etaient double-echappes.
+- Le navigateur recevait des valeurs de type `&quot;` dans le dataset.
+- `JSON.parse()` echouait avant le rendu des modules, ce qui laissait le select site vide et le panneau permissions sur le message "Selectionnez un site".
+
+Correction appliquee :
+
+- Remplacement du rendu `{{ e(json_encode(...)) }}` par des attributs simples contenant `@json(...)`.
+- Ajout d'une fonction `parseDatasetJson()` tolerante pour decoder les anciennes valeurs HTML encodees si necessaire.
+- Ajout d'assertions de test pour garantir que les attributs contiennent un JSON exploitable par le navigateur.
+- Vidage du cache des vues avec `php artisan view:clear`.
+
+Fichiers modifies :
+
+- `resources/views/main/users.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- Verification du HTML rendu localement : `data-user-site-id`, `data-user-modules` et `data-user-module-permissions` sortent avec des valeurs propres.
+- `php artisan test --filter=admin_can_manage_subscription_users` passe.
+- `php artisan test --filter=managed_admin` passe.
+- `php artisan test` passe avec 59 tests et 357 assertions.
+
+### 2026-04-29 - Correction de l'erreur JS dans le formulaire de modification utilisateur admin
+
+Prompt utilisateur :
+
+```text
+je parle quand l'admin modifie les utilisateurs.
+ça ne marche toujours pas
+```
+
+Diagnostic :
+
+- Les donnees HTML du bouton de modification etaient enfin correctes.
+- Mais la fonction JavaScript `parseDatasetJson()` avait ete ajoutee dans le bloc du modal historique de connexion.
+- Le bloc du modal utilisateur appelait cette fonction sans l'avoir dans sa portee, ce qui provoquait une erreur JavaScript au clic sur "modifier".
+- L'erreur stoppait le remplissage du site, des modules et des permissions dans le formulaire admin.
+
+Correction appliquee :
+
+- Ajout de `parseDatasetJson()` dans le bloc JavaScript propre au modal utilisateur.
+- Vidage du cache des vues avec `php artisan view:clear`.
+
+Fichier modifie :
+
+- `resources/views/main/users.blade.php`
+
+Verification :
+
+- `php artisan test --filter=admin_can_manage_subscription_users` passe.
+- `php artisan test --filter=managed_admin` passe.
+- `php artisan test` passe avec 59 tests et 357 assertions.
+
+### 2026-04-29 - Synchronisation explicite du modal utilisateur et des permissions
+
+Prompt utilisateur :
+
+```text
+ça ne fonctionne toujours pas
+```
+
+Correction appliquee :
+
+- Ajout d'un evenement JavaScript `user-form-mode-applied` dans le script global `resources/js/main.js` des que le formulaire utilisateur est rempli en mode creation ou edition.
+- Le script specifique de `resources/views/main/users.blade.php` ecoute cet evenement et applique immediatement :
+  - le site affecte;
+  - les modules;
+  - les permissions existantes.
+- Le select du site n'est plus desactive pour les admins afin que le site de reference reste visible dans le formulaire.
+- Vidage du cache des vues avec `php artisan view:clear`.
+
+Fichiers modifies :
+
+- `resources/js/main.js`
+- `resources/views/main/users.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- Tests cibles de gestion utilisateurs admin passes.
+- `php artisan test` passe avec 59 tests et 353 assertions.
+
 ### 2026-04-29 - Page profil commune a tous les utilisateurs
 
 Prompt utilisateur :
@@ -3542,3 +3687,777 @@ Verification :
 
 - `php artisan view:clear` execute.
 - `php artisan test --filter=superadmin_can_open_admin_dashboard` passe.
+
+### 2026-04-29 - Page detail d'un site et acces aux modules disponibles
+
+Prompt utilisateur :
+
+```text
+Je souhaite que les elements de colles site soient cliquable lorsqu'on clique, on il redirigé vers vers le site cliqué où l'on peut accéder au modules qui sont disponibles sur le site en question comme le montre l'image 2
+```
+
+Correction appliquee :
+
+- Ajout d'une route detail pour un site d'entreprise :
+  - `main.companies.sites.show`;
+  - URL `/main/companies/{company}/sites/{site}`.
+- Les noms des sites dans la colonne `Site` de la liste sont maintenant cliquables.
+- Creation de la vue `main.company-site-show` pour afficher :
+  - le retour vers la liste des sites de l'entreprise;
+  - le nom du site;
+  - son type;
+  - son statut;
+  - les details du site : responsable, telephone, email, adresse, plan;
+  - les modules disponibles sur le site sous forme de cartes cliquables.
+- Les admins et superadmins voient tous les modules configures sur le site.
+- Un utilisateur simple affecte au site ne voit que les modules presents dans ses permissions de pivot.
+- Ajout de styles dedies pour garder un affichage proche de la maquette fournie.
+- Ajout des traductions FR/EN necessaires.
+- Ajout de tests pour verifier :
+  - le lien cliquable depuis la liste;
+  - l'ouverture de la page detail par un admin;
+  - le filtrage des modules visibles pour un utilisateur affecte.
+
+Fichiers modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/company-sites.blade.php`
+- `resources/views/main/company-site-show.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l routes\web.php` passe.
+- `php -l resources\views\main\company-site-show.blade.php` passe.
+- `php -l resources\views\main\company-sites.blade.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=site` passe avec 13 tests et 122 assertions.
+- `php artisan test` passe avec 61 tests et 372 assertions.
+
+### 2026-04-29 - Alignement des cartes site et couleurs modules uniformisees
+
+Prompt utilisateur :
+
+```text
+les grip du module doivent etre sur une meme ligne et les cards  détails du site et modules doivent avoir la même taille.
+Sur le formulaire d'ajout et modification du site réprends les couleus
+ des grids des modules  que tu as mis lorsqu'on entre dans un site
+```
+
+Correction appliquee :
+
+- La grille des modules sur la page detail d'un site affiche maintenant les quatre modules sur une meme ligne en desktop.
+- Les cartes `Details du site` et `Modules` s'etirent sur la meme hauteur.
+- Les cartes de modules du formulaire de creation/modification de site utilisent les memes couleurs que les cartes de modules de la page detail :
+  - comptabilite : orange clair;
+  - ressources humaines : violet;
+  - archivage : orange;
+  - GED : vert.
+- Le style selectionne du formulaire conserve le retour visuel sans remplacer la couleur du module par un bleu generique.
+- Ajout d'assertions de test pour verifier les classes de couleurs des modules dans la liste et la page detail.
+
+Fichiers modifies :
+
+- `resources/views/main/partials/site-form-modal.blade.php`
+- `resources/css/main.css`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\partials\site-form-modal.blade.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=company_site` passe avec 2 tests et 33 assertions.
+- `php artisan test` passe avec 61 tests et 379 assertions.
+
+### 2026-04-29 - Redirection directe des utilisateurs simples vers leur site
+
+Prompt utilisateur :
+
+```text
+Les utilisateurs simple ne peuvent pas se connecter sur les pages main, gestion des utilisateurs et la pages qui affiche la liste des sites. lorsqu'il se connecte, ils sont directement connecté au site affecté en tenant compte aussi des modules activés sur le site
+```
+
+Correction appliquee :
+
+- La page `/main` devient une passerelle pour le role `user` :
+  - si l'utilisateur simple a un site affecte, il est redirige directement vers la page detail de ce site;
+  - s'il n'a aucun site affecte, il voit toujours la page `Acces en attente`.
+- Les utilisateurs simples ne peuvent plus rester sur :
+  - `/main`;
+  - `/main/users`;
+  - `/main/companies/{company}/sites`.
+- Lorsqu'un utilisateur simple tente d'ouvrir une page de gestion non autorisee, il est renvoye vers son site affecte.
+- La reponse de connexion Fortify redirige maintenant directement un utilisateur simple vers son site affecte.
+- La reponse apres verification 2FA applique le meme comportement.
+- La page detail du site continue de filtrer les modules visibles selon les permissions attribuees a l'utilisateur sur le pivot `company_site_user`.
+- Ajout d'un test qui verifie :
+  - la redirection apres login vers le site;
+  - le blocage/redirection depuis `/main`, `main.users` et la liste des sites;
+  - l'affichage uniquement des modules autorises.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `app/Http/Responses/LoginResponse.php`
+- `app/Http/Responses/TwoFactorLoginResponse.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l app\Http\Responses\LoginResponse.php` passe.
+- `php -l app\Http\Responses\TwoFactorLoginResponse.php` passe.
+- `php artisan test --filter=simple_user` passe avec 1 test et 16 assertions.
+- `php artisan test` passe avec 62 tests et 395 assertions.
+
+### 2026-04-29 - Premiers ecrans de modules de site
+
+Prompt utilisateur :
+
+```text
+nous allons commencé par developper le modules comptabilité (facturation)
+lorsqu'on clique sur ce module on est redirigé vers le tableau de bord dedié je te dirais les elements à mettre mais garde le style du tableau de bord du superadmin.
+pour les autres modules lorsqu'on clique, voici ce qu'il doit etre affiche joint
+```
+
+Correction appliquee :
+
+- Ajout d'une route dediee pour ouvrir un module d'un site :
+  - `main.companies.sites.modules.show`;
+  - URL `/main/companies/{company}/sites/{site}/modules/{module}`.
+- Les cartes de modules de la page detail du site pointent maintenant vers cette route.
+- Ajout d'une verification d'acces :
+  - le site doit appartenir a l'entreprise;
+  - l'utilisateur doit pouvoir acceder au site;
+  - le module demande doit etre disponible pour cet utilisateur.
+- Creation d'un premier tableau de bord du module `Comptabilite (Facturation)` :
+  - style proche du tableau de bord superadmin;
+  - cartes KPI prêtes pour factures, clients, paiements et devis;
+  - panneaux vides propres en attendant les vrais indicateurs.
+- Creation d'une page generique `Module en cours de developpement` pour :
+  - Ressources Humaines;
+  - Archivage;
+  - GED.
+- La page de developpement affiche :
+  - retour vers le site;
+  - titre du module;
+  - description;
+  - message indiquant que le module est en cours de developpement;
+  - utilisateur connecte.
+- Ajout des styles communs des pages modules.
+- Ajout des traductions FR/EN.
+- Ajout de tests pour verifier :
+  - les liens de modules;
+  - l'ouverture du tableau de bord comptabilite;
+  - l'ouverture de la page de developpement pour les autres modules;
+  - le blocage d'un module non attribue a un utilisateur simple.
+
+Fichiers modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/company-site-show.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/views/main/modules/under-development.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `php -l resources\views\main\modules\under-development.blade.php` passe.
+- `php -l resources\views\main\company-site-show.blade.php` passe.
+- `php -l routes\web.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=module` passe avec 5 tests et 44 assertions.
+- `php artisan test` passe avec 64 tests et 411 assertions.
+
+### 2026-04-29 - Sidebar du module comptabilite
+
+Prompt utilisateur :
+
+```text
+nous sommes dans le modules comptabilités.
+mets la sidebarre avec le style comme on l'a fait avec superadmin. reduction etc...
+Les elements du menu sidebarre : tableau de bord, contacts, stock, services, devises, modes de paiement, facturation, vente, depenses, autres, dettes, creances, rapport.
+```
+
+Correction appliquee :
+
+- Le tableau de bord `Comptabilite (Facturation)` utilise maintenant le shell avec sidebar comme la console superadmin.
+- Ajout du bouton de reduction de sidebar avec le comportement existant `sidebarToggle`.
+- Ajout d'une navigation comptable structuree :
+  - Tableau de bord;
+  - Contacts : clients, fournisseurs, prospects, creanciers, debiteurs, partenaires, commerciaux;
+  - Stock : articles, sous-categories, categories;
+  - Services : grille tarifaire, sous-categories, categories;
+  - Devises;
+  - Modes de paiement;
+  - Facturation : vente et depenses;
+  - Autres : dettes, creances, taxes, tresorerie, rapprochement bancaire, relances de paiement;
+  - Rapport.
+- Les sous-menus restent visibles quand la sidebar est ouverte et se replient proprement quand la sidebar est reduite ou en affichage tablette.
+- Ajout des traductions FR/EN pour toutes les nouvelles entrees.
+- Le test du tableau de bord comptabilite verifie maintenant la presence de la sidebar et des rubriques principales.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 32 assertions.
+- `php artisan test` passe avec 64 tests et 433 assertions.
+
+### 2026-04-29 - Sous-menus comptabilite replies par defaut
+
+Prompt utilisateur :
+
+```text
+les sous menus doivent automatiquement etre caché ou reduit.
+les elements à coté du side barre ne doivent pas etre positionné à gauche ils doivent prendre le 100% du coté
+```
+
+Correction appliquee :
+
+- Les groupes de sous-menu de la sidebar comptabilite sont maintenant fermes par defaut.
+- Les titres de groupes sont devenus des boutons accessibles avec `aria-expanded`.
+- Un clic sur un groupe ouvre ou referme son sous-menu.
+- Quand la sidebar est reduite ou en affichage tablette, les sous-menus restent caches et seuls les pictogrammes principaux sont affiches.
+- Le contenu du tableau de bord comptabilite prend maintenant toute la largeur disponible a droite de la sidebar.
+- Ajout d'assertions de test pour verifier que les sous-menus sont rendus replies par defaut.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/css/main.css`
+- `resources/js/main.js`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 34 assertions.
+
+### 2026-04-29 - Fixation de la zone basse comptabilite et nouvelles entrees sidebar
+
+Prompt utilisateur :
+
+```text
+la nav barre ça va mais la zone en bas non. regles ça.
+
+dans la side barre, avant rapport ajoute Tâches et  après rapport ajoute parametres du modules
+```
+
+Correction appliquee :
+
+- La topbar du module comptabilite reste fixe.
+- La zone basse du panneau droit est maintenant elle aussi encadree dans un conteneur fixe.
+- Le scroll est limite au contenu interne du tableau de bord, ce qui evite le glissement de toute la zone basse.
+- Ajout de l'entree `Taches` avant `Rapport`.
+- Ajout de l'entree `Parametres du module` apres `Rapport`.
+- Ajout des traductions FR/EN et des assertions de test associees.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 36 assertions.
+
+### 2026-04-29 - Dashboard professionnel du module comptabilite avec ApexCharts
+
+Prompt utilisateur :
+
+```text
+reprends le style semane, mois , année comme tu l'avais fais dans le tableau de bord superadmin .
+
+Sur base des elements que je t'ai donné à mettre dans la sidebarre.
+
+génère moi un tableau de bord très professionnel avec charts utilisant toujours la meme lib comme fais dans superadmin. les charts que tu vas générer pour l'instant doivent juste avoir des elements aléatoires en attendants
+```
+
+Correction appliquee :
+
+- Ajout des onglets de periode `Semaine`, `Mois`, `Annee` avec le meme style que le tableau de bord superadmin.
+- Remplacement des panneaux vides par un tableau de bord comptabilite plus complet.
+- Ajout de cartes KPI temporaires :
+  - chiffre d'affaires;
+  - factures de vente;
+  - paiements;
+  - creances;
+  - depenses.
+- Ajout de graphiques ApexCharts avec donnees temporaires :
+  - evolution ventes / depenses;
+  - repartition des contacts;
+  - stock et services;
+  - flux de documents;
+  - tresorerie, dettes et creances.
+- Creation d'un fichier JS isole pour le dashboard comptabilite :
+  - `resources/js/main/accounting-dashboard.js`.
+- Les onglets de periode mettent a jour le graphique principal avec des donnees mockees semaine/mois/annee.
+- Ajout des traductions FR/EN necessaires.
+- Ajout de tests pour verifier les onglets, les panneaux de graphiques et le JS dedie.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-dashboard.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 49 assertions.
+
+### 2026-04-29 - Periodes du graphique comptabilite alignees sur le superadmin
+
+Prompt utilisateur :
+
+```text
+quand le boutton est sur semaines fais comme tu avais fais coté superadmin, pareil pour mois et année
+```
+
+Correction appliquee :
+
+- Les donnees mockees du graphique principal comptabilite utilisent maintenant la meme logique de periodes que le dashboard superadmin.
+- `Semaine` affiche des semaines glissantes avec labels de date.
+- `Mois` affiche des mois glissants avec labels mois/annee.
+- `Annee` affiche des annees glissantes.
+- Les series temporaires ventes, chiffre d'affaires et depenses ont ete alignees sur le nombre de points de chaque periode.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 49 assertions.
+
+### 2026-04-29 - Vue tresorerie periodique et echeancier comptabilite
+
+Prompt utilisateur :
+
+```text
+pareil pour la vue tresorerie.
+
+et rajoute l'echeancier ausssi dans la zone vide
+```
+
+Correction appliquee :
+
+- Le graphique `Vue tresorerie, dettes et creances` utilise maintenant les memes periodes que le graphique principal.
+- Les boutons `Semaine`, `Mois` et `Annee` mettent a jour en meme temps :
+  - l'evolution ventes / depenses;
+  - la vue tresorerie / dettes / creances.
+- Ajout de donnees mockees periodiques pour :
+  - creances;
+  - dettes;
+  - taches.
+- Ajout d'un panneau `Echeancier` dans la zone vide de la grille du dashboard comptabilite.
+- L'echeancier affiche temporairement des echeances facture, commande, creance et dette avec montant et date.
+- Ajout des styles du panneau echeancier.
+- Ajout des traductions FR/EN et des assertions de test.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-dashboard.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 51 assertions.
+- `php artisan test` passe avec 64 tests et 452 assertions.
+
+### 2026-04-29 - Echeancier comptabilite oriente dettes et creances
+
+Prompt utilisateur :
+
+```text
+non pour l'écheancier je souhaite savoir combien mes clients me doivent et combien je dois à mes fournisseurs, les dettes et les créances que j'ai
+```
+
+Correction appliquee :
+
+- Refonte du panneau `Echeancier` pour afficher les dettes et creances plutot que de simples evenements.
+- Ajout de deux totaux temporaires :
+  - montant que les clients doivent a l'entreprise;
+  - montant que l'entreprise doit aux fournisseurs.
+- Ajout d'une liste d'echeances temporaires detaillees :
+  - creances clients;
+  - dettes fournisseurs;
+  - tiers concerne;
+  - montant;
+  - date d'echeance.
+- Ajout des styles de synthese et des pastilles de statut.
+- Ajout des traductions FR/EN et des assertions de test.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 56 assertions.
+- `php artisan test` passe avec 64 tests et 457 assertions.
+
+### 2026-04-29 - Responsivite des charts et sidebar mobile comptabilite
+
+Prompt utilisateur :
+
+```text
+il y a un soucis cotés flux de documents la hauteur dois prendre toutes le parent.
+et je souhaite que mes tous soit responsives memes les charts.
+
+ajuste aussi la sidebare de sorte que lorsque je suis en affichage mobile jdonne la possibilité que je puisse agrandir et reduire car j'ai des sous-menus
+```
+
+Correction appliquee :
+
+- Le panneau `Flux de documents` devient un panneau large avec une hauteur plus coherente.
+- Les panneaux du dashboard comptabilite utilisent un layout flex pour que les charts puissent remplir leur parent.
+- Les charts ApexCharts sont configures pour se redessiner au resize du parent et de la fenetre.
+- La grille du dashboard comptabilite passe en une colonne sur les largeurs tablette/mobile.
+- Les KPI et les cartes d'echeancier deviennent responsives.
+- La sidebar comptabilite garde le bouton de reduction/agrandissement en mobile.
+- En mobile/tablette, la sidebar comptabilite peut maintenant etre agrandie pour afficher les sous-menus, puis reduite a nouveau.
+- L'ordre CSS de la page comptabilite charge les styles admin avant les styles main afin que les overrides du module comptabilite gagnent correctement.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main.js`
+- `resources/js/main/accounting-dashboard.js`
+- `resources/css/main.css`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 57 assertions.
+- `php artisan test` passe avec 64 tests et 458 assertions.
+
+### 2026-04-29 - Flux documents pleine hauteur et devise du site
+
+Prompt utilisateur :
+
+```text
+le flux de documents est toujours suspendus en haut, il doit pas laisser d'espace en bas.
+Et pour les momants toujours mettre la devise du site
+```
+
+Correction appliquee :
+
+- Le graphique `Flux de documents` est configure en hauteur `100%` cote ApexCharts.
+- Le panneau `Flux de documents` utilise un layout flex pour que le graphique occupe toute la hauteur utile du parent.
+- Les canvas/svg ApexCharts du panneau sont forces a prendre toute la hauteur disponible.
+- Les montants temporaires du dashboard comptabilite utilisent maintenant la devise du site via `$site->currency`.
+- Les KPI et l'echeancier ne sont plus figes en `CDF`; ils affichent la devise du site.
+- Ajout d'assertions de test pour verifier les montants affiches avec la devise.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-dashboard.js`
+- `resources/css/main.css`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 59 assertions.
+- `php artisan test` passe avec 64 tests et 460 assertions.
+
+### 2026-04-29 - Retrait des taches du graphique tresorerie
+
+Prompt utilisateur :
+
+```text
+qu'es ce que la tâche fou ici
+```
+
+Correction appliquee :
+
+- Retrait de la serie `Taches` du graphique `Vue tresorerie, dettes et creances`.
+- Le graphique n'affiche plus que :
+  - Creances;
+  - Dettes.
+- Suppression des donnees mockees `tasks` du dataset periodique du graphique tresorerie.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-dashboard.js`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 59 assertions.
+
+### 2026-04-29 - Suppression de l'effet blanc au-dessus du dashboard comptabilite
+
+Prompt utilisateur :
+
+```text
+mais cet effet blanc aud dessus me derange il est toujours présent, scrollable mais enleve cet effet blanc
+```
+
+Correction appliquee :
+
+- Le module comptabilite garde son scroll naturel comme le dashboard superadmin.
+- Ajout d'une classe racine `accounting-module-root` sur le document HTML du module.
+- Application du fond de page au `html` et au `body` du module comptabilite.
+- Desactivation de l'overscroll vertical pour eviter l'effet de rebond qui expose un espace blanc au-dessus.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 49 assertions.
+
+### 2026-04-29 - Scroll du module comptabilite aligne sur le dashboard superadmin
+
+Prompt utilisateur :
+
+```text
+scrollable comme dans le tashboard superadmin stp
+```
+
+Correction appliquee :
+
+- Le panneau droit du module comptabilite reprend le comportement de scroll naturel du dashboard superadmin.
+- Le shell n'est plus fixe sur le viewport.
+- Le contenu droit defile avec la page quand la hauteur depasse l'ecran.
+- La sidebar reste sticky et garde son scroll interne invisible pour les menus longs.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 49 assertions.
+- `php artisan test` passe avec 64 tests et 450 assertions.
+
+### 2026-04-29 - Scroll interne du contenu droit comptabilite
+
+Prompt utilisateur :
+
+```text
+stp la zone à coté du side barre si la hauteur depasse la taille de l'écran, il doit etre scrollable
+```
+
+Correction appliquee :
+
+- La zone de contenu du dashboard comptabilite redevient scrollable uniquement si son contenu depasse la hauteur de l'ecran.
+- Le scroll reste contenu dans le panneau droit, sans faire glisser toute la page ni la sidebar.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 49 assertions.
+- `php artisan test` passe avec 64 tests et 437 assertions.
+
+### 2026-04-29 - Blocage complet de la zone basse comptabilite
+
+Prompt utilisateur :
+
+```text
+tout ce qui suit en bas dois etre fixe please
+```
+
+Correction appliquee :
+
+- Suppression du dernier scroll interne de la zone basse du dashboard comptabilite.
+- Toute la partie sous la topbar reste maintenant fixe, sans glissement a la roulette.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 36 assertions.
+
+### 2026-04-29 - Blocage du glissement vertical du module comptabilite
+
+Prompt utilisateur :
+
+```text
+quand j'eessaie de faire la roulette souris ça glisse et laisse un peu d'espace blan au dessus je souhaite que ça soit fixe comme coté superadmin plaese
+```
+
+Correction appliquee :
+
+- Ajout d'une classe de page `accounting-module-body` sur le module comptabilite.
+- Le scroll du document est verrouille sur cette page pour eviter le glissement et l'espace blanc en haut.
+- Les scrolls internes de la sidebar et de la zone de contenu restent fonctionnels.
+- Ajout de `overscroll-behavior` pour contenir le scroll dans les zones prevues.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 34 assertions.
+
+### 2026-04-29 - Fixation complete du panneau droit comptabilite
+
+Prompt utilisateur :
+
+```text
+la side barre ça va mais la zone à coté non
+```
+
+Correction appliquee :
+
+- Le shell du module comptabilite est maintenant fixe sur tout le viewport.
+- Le panneau droit ne scrolle plus comme un bloc.
+- Le `main` de droite est fixe en hauteur et masque son overflow.
+- Seule la zone de contenu interne du tableau de bord comptabilite peut defiler si son contenu depasse.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 34 assertions.
+- `php artisan test` passe avec 64 tests et 435 assertions.
+
+### 2026-04-29 - Scroll invisible de la sidebar comptabilite
+
+Prompt utilisateur :
+
+```text
+le side barre est scrollable mais le scroll ne dois pas etre visible
+```
+
+Correction appliquee :
+
+- La sidebar comptabilite reste scrollable pour les menus longs.
+- La barre de scroll est maintenant masquee visuellement sur Firefox, Edge, Chrome et navigateurs WebKit.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+### 2026-04-29 - Layout fixe du module comptabilite
+
+Prompt utilisateur :
+
+```text
+la side barre et la zone à coté doivnt etre fixe
+```
+
+Correction appliquee :
+
+- La sidebar du module comptabilite reste fixee sur toute la hauteur du viewport.
+- La zone de contenu a droite garde aussi une hauteur fixe de viewport.
+- Le contenu a droite dispose de son propre scroll interne si la page depasse la hauteur disponible.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 34 assertions.

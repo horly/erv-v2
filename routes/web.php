@@ -18,6 +18,8 @@ Route::controller(MainController::class)->group(function (): void {
         Route::delete('/main/companies/{company}', 'destroyCompany')->name('main.companies.destroy');
         Route::get('/main/companies/{company}/sites', 'companySites')->name('main.companies.sites');
         Route::post('/main/companies/{company}/sites', 'storeCompanySite')->name('main.companies.sites.store');
+        Route::get('/main/companies/{company}/sites/{site}', 'showCompanySite')->name('main.companies.sites.show');
+        Route::get('/main/companies/{company}/sites/{site}/modules/{module}', 'showSiteModule')->name('main.companies.sites.modules.show');
         Route::put('/main/companies/{company}/sites/{site}', 'updateCompanySite')->name('main.companies.sites.update');
         Route::delete('/main/companies/{company}/sites/{site}', 'destroyCompanySite')->name('main.companies.sites.destroy');
         Route::get('/main/users', 'users')->name('main.users');
