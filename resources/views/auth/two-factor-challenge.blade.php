@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ __('profile.two_factor_challenge_title') }} | {{ config('app.name', 'EXAD ERP') }}</title>
+    <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet">
+    <style>{!! file_get_contents(resource_path('css/auth/login.css')) !!}</style>
+</head>
+<body>
+    @php
+        $currentLocale = app()->getLocale();
+    @endphp
+
+    <main class="auth-shell" data-theme="light">
+        <section class="brand-side" aria-label="{{ __('auth.brand_aria') }}">
+            <div class="brand-inner">
+                <div class="logo-card" aria-label="EXAD Solution & Services">
+                    <img src="{{ asset('img/logo/exad-1200x1200.jpg') }}" alt="EXAD Solution & Services" class="app-logo">
+                </div>
+
+                <div>
+                    <div class="brand-copy">
+                        <h4 class="brand-title">
+                            {{ __('auth.brand_title_line_1') }}
+                            <span>{{ __('auth.brand_title_line_2') }}</span>
+                        </h4>
+                        <p class="brand-lead">{{ __('auth.brand_lead') }}</p>
+                    </div>
+
+                    <div class="feature-list" aria-label="{{ __('auth.benefits_aria') }}">
+                        <article class="feature-item">
+                            <span class="feature-icon" aria-hidden="true"><i class="bi bi-shield-lock-fill"></i></span>
+                            <div>
+                                <p class="feature-title">{{ __('profile.two_factor_challenge_security_title') }}</p>
+                                <p class="feature-text">{{ __('profile.two_factor_challenge_security_text') }}</p>
+                            </div>
+                        </article>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="form-side" aria-label="{{ __('profile.two_factor_challenge_form_aria') }}">
+            <div class="top-tools">
+                <button class="icon-button" type="button" id="themeButton" aria-label="{{ __('auth.theme_dark') }}" title="{{ __('auth.theme_dark') }}">
+                    <i class="bi bi-brightness-high-fill" aria-hidden="true"></i>
+                </button>
+                <div class="language-menu">
+                    <button class="language-button" type="button" id="languageButton" aria-label="{{ __('auth.language_switch') }}" aria-expanded="false" aria-controls="languageDropdown" title="{{ __('auth.language_switch') }}">
+                        <i class="bi bi-globe2" aria-hidden="true"></i>
+                        <span>{{ strtoupper($currentLocale) }}</span>
+                        <i class="bi bi-chevron-down language-chevron" aria-hidden="true"></i>
+                    </button>
+                    <div class="language-dropdown" id="languageDropdown" aria-labelledby="languageButton">
+                        <a class="language-option {{ $currentLocale === 'fr' ? 'active' : '' }}" href="{{ route('locale.switch', 'fr') }}">
+                            <span class="language-code">FR</span>
+                            <span class="language-name">{{ __('auth.language_fr') }}</span>
+                            @if ($currentLocale === 'fr')
+                                <i class="bi bi-check-lg language-check" aria-hidden="true"></i>
+                            @endif
+                        </a>
+                        <a class="language-option {{ $currentLocale === 'en' ? 'active' : '' }}" href="{{ route('locale.switch', 'en') }}">
+                            <span class="language-code">EN</span>
+                            <span class="language-name">{{ __('auth.language_en') }}</span>
+                            @if ($currentLocale === 'en')
+                                <i class="bi bi-check-lg language-check" aria-hidden="true"></i>
+                            @endif
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="login-wrap">
+                <div class="login-logo-card" aria-label="EXAD Solution & Services">
+                    <img src="{{ asset('img/logo/exad-1200x1200.jpg') }}" alt="EXAD Solution & Services" class="app-logo">
+                </div>
+                <span class="access-badge">{{ __('profile.two_factor_badge_enabled') }}</span>
+                <h2 class="login-title">{{ __('profile.two_factor_challenge_title') }}</h2>
+                <p class="login-description">{{ __('profile.two_factor_challenge_text') }}</p>
+
+                @if ($errors->any())
+                    <div class="alert alert-danger mb-3" role="alert">
+                        {{ $errors->first() }}
+                    </div>
+                @endif
+
+                <form method="POST" action="{{ route('two-factor.login.store') }}" class="needs-validation" novalidate>
+                    @csrf
+
+                    <div class="mb-4">
+                        <label for="code" class="form-label">{{ __('profile.two_factor_code') }}</label>
+                        <div class="field-row">
+                            <span class="field-icon"><i class="bi bi-123" aria-hidden="true"></i></span>
+                            <input
+                                id="code"
+                                name="code"
+                                type="text"
+                                class="form-control"
+                                placeholder="{{ __('profile.two_factor_code_placeholder') }}"
+                                autocomplete="one-time-code"
+                                inputmode="numeric"
+                                pattern="[0-9]*"
+                                maxlength="6"
+                                required
+                                autofocus
+                            >
+                        </div>
+                        <div class="invalid-feedback">{{ __('profile.two_factor_code_required') }}</div>
+                    </div>
+
+                    <button class="primary-button" type="submit">
+                        {{ __('profile.two_factor_challenge_submit') }}
+                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </button>
+                </form>
+
+                <p class="login-note">
+                    <a href="{{ route('login') }}" class="admin-link">{{ __('profile.two_factor_back_login') }}</a>
+                </p>
+            </div>
+
+            <footer class="page-footer">
+                <span>{{ __('auth.copyright') }}</span>
+                <a href="#">{{ __('auth.privacy') }}</a>
+            </footer>
+        </section>
+    </main>
+
+    <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <script>{!! file_get_contents(resource_path('js/auth/login.js')) !!}</script>
+</body>
+</html>

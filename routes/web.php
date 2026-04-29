@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\MainController;
+use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::controller(MainController::class)->group(function (): void {
@@ -53,4 +54,15 @@ Route::prefix('admin')
 
 Route::controller(LanguageController::class)->group(function (): void {
     Route::get('/lang/{locale}', 'switch')->name('locale.switch');
+});
+
+Route::middleware('auth')->controller(ProfileController::class)->group(function (): void {
+    Route::get('/profile', 'edit')->name('profile.edit');
+    Route::put('/profile/photo', 'updatePhoto')->name('profile.photo.update');
+    Route::put('/profile/information', 'updateInformation')->name('profile.information.update');
+    Route::put('/profile/email', 'updateEmail')->name('profile.email.update');
+    Route::put('/profile/password', 'updatePassword')->name('profile.password.update');
+    Route::post('/profile/two-factor', 'enableTwoFactor')->name('profile.two-factor.enable');
+    Route::post('/profile/two-factor/confirm', 'confirmTwoFactor')->name('profile.two-factor.confirm');
+    Route::delete('/profile/two-factor', 'disableTwoFactor')->name('profile.two-factor.disable');
 });

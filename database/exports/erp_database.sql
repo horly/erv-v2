@@ -199,7 +199,7 @@ CREATE TABLE `migrations` (
   `migration` varchar(255) NOT NULL,
   `batch` int(11) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('1', '0001_01_01_000000_create_users_table', '1');
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('2', '0001_01_01_000001_create_cache_table', '1');
@@ -213,6 +213,7 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('9', '2026_04_28_0
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('10', '2026_04_28_000003_update_pro_company_limit_to_two', '6');
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('11', '2026_04_28_000004_add_permissions_to_company_site_user', '7');
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('12', '2026_04_28_000005_create_user_login_histories_table', '8');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('13', '2026_04_29_000001_add_profile_photo_path_to_users_table', '9');
 
 DROP TABLE IF EXISTS `password_reset_tokens`;
 CREATE TABLE `password_reset_tokens` (
@@ -277,6 +278,7 @@ CREATE TABLE `users` (
   `address` text DEFAULT NULL,
   `phone_number` varchar(32) DEFAULT NULL,
   `grade` varchar(255) DEFAULT NULL,
+  `profile_photo_path` varchar(255) DEFAULT NULL,
   `remember_token` varchar(100) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
@@ -286,13 +288,13 @@ CREATE TABLE `users` (
   CONSTRAINT `users_subscription_id_foreign` FOREIGN KEY (`subscription_id`) REFERENCES `subscriptions` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `remember_token`, `created_at`, `updated_at`) VALUES ('3', '2', 'admin', 'admin@erp.loc', NULL, '$2y$12$SNpTPsgEa0Y8Z7Wiy/nd..kdXlizk06/ZaRGQKqw.UbMely6KMX/W', NULL, NULL, NULL, 'admin', NULL, NULL, NULL, 'mH2I6cSkrwebAT0oY8ZMQ6hLjWhqRy4U4JerWCbvkBwnggCsI9T5rTaAPq2j', '2026-04-25 21:08:53', '2026-04-25 21:49:12');
-INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `remember_token`, `created_at`, `updated_at`) VALUES ('4', '2', 'user1', 'user1@erp.loc', NULL, '$2y$12$uvxmnRyY9pYsXfg7CPX8meKR73LCDXm5eRStSphqI4juy4Dk7iJgO', NULL, NULL, NULL, 'user', NULL, NULL, NULL, NULL, '2026-04-25 21:08:54', '2026-04-25 21:49:12');
-INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `remember_token`, `created_at`, `updated_at`) VALUES ('5', NULL, 'superadmin', 'superadmin@erp.loc', NULL, '$2y$12$sIYrLZrjHbGknvfL9w5E2.8Es2glSsJQKtrG6vDWMjLUKuhHbwvri', NULL, NULL, NULL, 'superadmin', NULL, NULL, NULL, 'mHgfZwv3TEsEQFrPaqDhZcksFQ3kQ9viEvc2Qa5pfnAYWtmVvGnb5AiteRuI', '2026-04-25 21:08:54', '2026-04-25 21:49:13');
-INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `remember_token`, `created_at`, `updated_at`) VALUES ('6', '11', 'admin1', 'admin1@erp.loc', NULL, '$2y$12$O.c1xuOOohV2Mz/l77y.0egBNVwyuURvoBJRnMZ1LgYbCy5ZF/xQK', NULL, NULL, NULL, 'admin', NULL, NULL, NULL, NULL, '2026-04-26 09:15:52', '2026-04-26 09:15:52');
-INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `remember_token`, `created_at`, `updated_at`) VALUES ('7', '11', 'user2', 'user2@erp.loc', NULL, '$2y$12$nNZrX0dxIw5/aWK9hwu3R.tS6MiMq0s2K0fbLIof8qv8WTPgHNsUK', NULL, NULL, NULL, 'user', NULL, NULL, NULL, NULL, '2026-04-26 17:24:39', '2026-04-26 17:24:39');
-INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `remember_token`, `created_at`, `updated_at`) VALUES ('9', '4', 'Test pro user', 'testprouser@erp.loc', NULL, '$2y$12$5p4d0ATu4vs6xnfAk0FGtujvCenJb8pr.4bjnrxW.q.khUl7QSfKO', NULL, NULL, NULL, 'admin', NULL, NULL, NULL, NULL, '2026-04-26 20:02:55', '2026-04-26 20:02:55');
-INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `remember_token`, `created_at`, `updated_at`) VALUES ('10', '2', 'userexad', 'userexad@erp.loc', NULL, '$2y$12$a3jdMF0gtwkzWn5.JDHNOOwl0oFsAybn7Lq57MmrfQyBIoY.mgGK6', NULL, NULL, NULL, 'user', NULL, NULL, NULL, NULL, '2026-04-28 14:25:23', '2026-04-28 14:25:23');
+INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `profile_photo_path`, `remember_token`, `created_at`, `updated_at`) VALUES ('3', '2', 'admin', 'admin@erp.loc', NULL, '$2y$12$SNpTPsgEa0Y8Z7Wiy/nd..kdXlizk06/ZaRGQKqw.UbMely6KMX/W', NULL, NULL, NULL, 'admin', NULL, NULL, NULL, NULL, 'mH2I6cSkrwebAT0oY8ZMQ6hLjWhqRy4U4JerWCbvkBwnggCsI9T5rTaAPq2j', '2026-04-25 21:08:53', '2026-04-25 21:49:12');
+INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `profile_photo_path`, `remember_token`, `created_at`, `updated_at`) VALUES ('4', '2', 'user1', 'user1@erp.loc', NULL, '$2y$12$uvxmnRyY9pYsXfg7CPX8meKR73LCDXm5eRStSphqI4juy4Dk7iJgO', NULL, NULL, NULL, 'user', NULL, NULL, NULL, NULL, NULL, '2026-04-25 21:08:54', '2026-04-25 21:49:12');
+INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `profile_photo_path`, `remember_token`, `created_at`, `updated_at`) VALUES ('5', NULL, 'superadmin', 'superadmin@erp.loc', NULL, '$2y$12$sIYrLZrjHbGknvfL9w5E2.8Es2glSsJQKtrG6vDWMjLUKuhHbwvri', NULL, NULL, NULL, 'superadmin', NULL, NULL, NULL, NULL, 'mHgfZwv3TEsEQFrPaqDhZcksFQ3kQ9viEvc2Qa5pfnAYWtmVvGnb5AiteRuI', '2026-04-25 21:08:54', '2026-04-25 21:49:13');
+INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `profile_photo_path`, `remember_token`, `created_at`, `updated_at`) VALUES ('6', '11', 'admin1', 'admin1@erp.loc', NULL, '$2y$12$O.c1xuOOohV2Mz/l77y.0egBNVwyuURvoBJRnMZ1LgYbCy5ZF/xQK', NULL, NULL, NULL, 'admin', NULL, NULL, NULL, NULL, NULL, '2026-04-26 09:15:52', '2026-04-26 09:15:52');
+INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `profile_photo_path`, `remember_token`, `created_at`, `updated_at`) VALUES ('7', '11', 'user2', 'user2@erp.loc', NULL, '$2y$12$nNZrX0dxIw5/aWK9hwu3R.tS6MiMq0s2K0fbLIof8qv8WTPgHNsUK', NULL, NULL, NULL, 'user', NULL, NULL, NULL, NULL, NULL, '2026-04-26 17:24:39', '2026-04-26 17:24:39');
+INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `profile_photo_path`, `remember_token`, `created_at`, `updated_at`) VALUES ('9', '4', 'Test pro user', 'testprouser@erp.loc', NULL, '$2y$12$5p4d0ATu4vs6xnfAk0FGtujvCenJb8pr.4bjnrxW.q.khUl7QSfKO', NULL, NULL, NULL, 'admin', NULL, NULL, NULL, NULL, NULL, '2026-04-26 20:02:55', '2026-04-26 20:02:55');
+INSERT INTO `users` (`id`, `subscription_id`, `name`, `email`, `email_verified_at`, `password`, `two_factor_secret`, `two_factor_recovery_codes`, `two_factor_confirmed_at`, `role`, `address`, `phone_number`, `grade`, `profile_photo_path`, `remember_token`, `created_at`, `updated_at`) VALUES ('10', '2', 'userexad', 'userexad@erp.loc', NULL, '$2y$12$a3jdMF0gtwkzWn5.JDHNOOwl0oFsAybn7Lq57MmrfQyBIoY.mgGK6', NULL, NULL, NULL, 'user', NULL, NULL, NULL, NULL, NULL, '2026-04-28 14:25:23', '2026-04-28 14:25:23');
 
 DROP TABLE IF EXISTS `user_login_histories`;
 CREATE TABLE `user_login_histories` (

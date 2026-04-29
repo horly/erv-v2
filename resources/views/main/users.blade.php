@@ -60,7 +60,7 @@
                 </div>
                 <div class="profile-menu">
                     <button class="profile-button" type="button" id="profileButton" aria-expanded="false" aria-controls="profileDropdown">
-                        <span class="avatar">{{ $initial }}</span>
+                        @include('partials.user-avatar', ['avatarUser' => $user])
                         <span class="profile-name">{{ $user->name }}</span>
                         <i class="bi bi-chevron-down profile-chevron" aria-hidden="true"></i>
                     </button>
@@ -70,7 +70,7 @@
                             <span>{{ $user->email }}</span>
                             <em>{{ __('main.admin_badge') }}</em>
                         </div>
-                        <a href="#" class="profile-link">
+                        <a href="{{ route('profile.edit') }}" class="profile-link">
                             <i class="bi bi-person-circle" aria-hidden="true"></i>
                             {{ __('main.profile') }}
                         </a>
@@ -176,7 +176,7 @@
                                     <td>{{ ($users->firstItem() ?? 1) + $loop->index }}</td>
                                     <td>
                                         <span class="user-identity">
-                                            <span class="avatar">{{ strtoupper(mb_substr($account->name, 0, 1)) }}</span>
+                                            @include('partials.user-avatar', ['avatarUser' => $account])
                                             <span>
                                                 <strong>{{ $account->name }}</strong>
                                                 <small>{{ $account->email }}</small>

@@ -105,7 +105,7 @@
 
                     <div class="profile-menu">
                         <button class="profile-button" type="button" id="profileButton" aria-expanded="false" aria-controls="profileDropdown">
-                            <span class="avatar">{{ $initial }}</span>
+                            @include('partials.user-avatar', ['avatarUser' => $user])
                             <span class="profile-name">{{ $user->name }}</span>
                             <i class="bi bi-chevron-down profile-chevron" aria-hidden="true"></i>
                         </button>
@@ -115,7 +115,7 @@
                                 <span>{{ $user->email }}</span>
                                 <em>{{ strtoupper($user->role) }}</em>
                             </div>
-                            <a href="#" class="profile-link">
+                            <a href="{{ route('profile.edit') }}" class="profile-link">
                                 <i class="bi bi-person-circle" aria-hidden="true"></i>
                                 {{ __('admin.profile') }}
                             </a>
@@ -213,7 +213,12 @@
                                         @endunless
                                     >
                                         <td>{{ $users->firstItem() + $loop->index }}</td>
-                                        <td class="subscription-name">{{ $account->name }}</td>
+                                        <td class="subscription-name">
+                                            <span class="user-identity">
+                                                @include('partials.user-avatar', ['avatarUser' => $account])
+                                                <strong>{{ $account->name }}</strong>
+                                            </span>
+                                        </td>
                                         <td>{{ $account->email }}</td>
                                         <td>
                                             <span class="status-pill role-{{ $account->role }}">{{ $roleLabel }}</span>

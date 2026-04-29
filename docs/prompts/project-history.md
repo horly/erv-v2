@@ -1879,6 +1879,297 @@ Verification :
 - `php artisan view:clear` execute.
 - `php artisan test --filter=superadmin_can_open_admin_dashboard` passe.
 
+### 2026-04-29 - Authentification a deux facteurs par QR Code
+
+Prompt utilisateur :
+
+```text
+Dans mon projet Laravel, je souhaite ajouter une fonctionnalite d'authentification a deux facteurs dans la page Profil de chaque utilisateur.
+```
+
+Implementation :
+
+- Activation de la fonctionnalite 2FA native Laravel Fortify avec confirmation obligatoire par code TOTP.
+- Ajout du trait `TwoFactorAuthenticatable` sur le modele `User`.
+- Masquage des secrets 2FA dans les donnees serialisees et cast de `two_factor_confirmed_at`.
+- Creation de reponses Fortify personnalisees pour :
+  - rediriger apres validation 2FA selon le role de l'utilisateur;
+  - afficher une erreur claire en cas de code invalide.
+- Ajout de la page `/two-factor-challenge` pour verifier le code TOTP apres email/mot de passe.
+- Ajout dans la page Profil d'une section "Authentification a deux facteurs" :
+  - statut `Non configure` ou `Active`;
+  - bouton de configuration;
+  - QR Code TOTP compatible 2FAS, Google Authenticator, Microsoft Authenticator et Authy;
+  - champ de confirmation du code a 6 chiffres;
+  - affichage du QR Code deja configure;
+  - desactivation securisee par mot de passe actuel.
+- Ajout d'un rate limiting sur la confirmation du code depuis le profil et utilisation du throttle Fortify sur le challenge de connexion.
+- Ajout des traductions FR/EN et du style responsive de la section 2FA.
+
+Fichiers modifies :
+
+- `config/fortify.php`
+- `app/Models/User.php`
+- `app/Providers/FortifyServiceProvider.php`
+- `app/Http/Controllers/ProfileController.php`
+- `app/Http/Responses/TwoFactorLoginResponse.php`
+- `app/Http/Responses/FailedTwoFactorLoginResponse.php`
+- `routes/web.php`
+- `resources/views/profile/edit.blade.php`
+- `resources/views/auth/two-factor-challenge.blade.php`
+- `resources/css/main.css`
+- `lang/fr/profile.php`
+- `lang/en/profile.php`
+- `tests/Feature/ExampleTest.php`
+
+Verification :
+
+- `php -l` passe sur les fichiers PHP modifies.
+- `php artisan route:list --name=two-factor` confirme les routes Fortify et Profil.
+- `php artisan test --filter=profile` passe.
+- `php artisan test --filter=two_factor` passe.
+- `php artisan test` passe avec 59 tests et 353 assertions.
+
+### 2026-04-29 - Correction des traductions francaises du profil 2FA
+
+Prompt utilisateur :
+
+```text
+fais bien la traduction stp
+```
+
+Correction appliquee :
+
+- Nettoyage complet du fichier `lang/fr/profile.php` en UTF-8 correct.
+- Correction des libelles 2FA affiches dans la page Profil :
+  - `Configurer l’authentification à deux facteurs`;
+  - `Désactiver l’authentification à deux facteurs`;
+  - badges, messages, erreurs et page de verification 2FA.
+- Correction des accents deja casses dans les libelles existants du profil.
+
+Fichier modifie :
+
+- `lang/fr/profile.php`
+
+Verification :
+
+- `php -l lang/fr/profile.php` passe.
+- `php artisan test --filter=profile` passe.
+
+### 2026-04-29 - Page profil commune a tous les utilisateurs
+
+Prompt utilisateur :
+
+```text
+fais moi une page de profil pour tous les utilisateurs.
+Modification informations, Changement de mail, mot de passe etc...
+```
+
+Implementation :
+
+- Ajout d'une page profil commune accessible par tous les utilisateurs authentifies via `/profile`.
+- Ajout des routes :
+  - `profile.edit`;
+  - `profile.information.update`;
+  - `profile.email.update`;
+  - `profile.password.update`.
+- Creation du `ProfileController` avec trois actions separees :
+  - mise a jour des informations personnelles;
+  - changement d'adresse e-mail avec confirmation du mot de passe actuel;
+  - changement du mot de passe avec confirmation du mot de passe actuel et regles de securite fortes.
+- Creation de la vue `resources/views/profile/edit.blade.php`.
+- Ajout des traductions dediees dans `lang/fr/profile.php` et `lang/en/profile.php`.
+- Ajout du style de la page profil dans `resources/css/main.css`.
+- Remplacement de tous les liens `Profil` des dropdowns utilisateur pour pointer vers la nouvelle page.
+- Conservation du comportement standard des formulaires :
+  - etat de chargement au submit;
+  - boutons temporairement desactives;
+  - validations affichees sous les champs.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/ProfileController.php`
+- `routes/web.php`
+- `resources/views/profile/edit.blade.php`
+- `resources/css/main.css`
+- `resources/views/admin/dashboard.blade.php`
+- `resources/views/admin/users.blade.php`
+- `resources/views/admin/subscriptions.blade.php`
+- `resources/views/admin/companies.blade.php`
+- `resources/views/admin/companies-create.blade.php`
+- `resources/views/main/main.blade.php`
+- `resources/views/main/users.blade.php`
+- `resources/views/main/company-form.blade.php`
+- `resources/views/main/company-sites.blade.php`
+- `resources/views/main/pending-access.blade.php`
+- `lang/fr/profile.php`
+- `lang/en/profile.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter=profile` passe.
+- `php artisan test --filter="email|password"` passe.
+- `php artisan test` passe : 53 tests, 304 assertions.
+
+### 2026-04-29 - Photo de profil avec Cropper.js
+
+Prompt utilisateur :
+
+```text
+oui je parlerle bien de cropper.js
+J'ai besoin que tu intègre la possibilité de changer la photo de profil mais en utilisant un modal et cropper pour choissir la dimension du photo à uploader
+```
+
+Implementation :
+
+- Ajout de la colonne `profile_photo_path` dans la table `users`.
+- Ajout de la route `profile.photo.update` pour mettre a jour la photo de profil.
+- Ajout de l'action `ProfileController::updatePhoto`.
+- Stockage des photos recadrees dans le disque public, sous `profile-photos/`.
+- Suppression de l'ancienne photo lors du remplacement.
+- Ajout d'un panneau "Photo de profil" sur la page `/profile`.
+- Integration de Cropper.js dans un modal dedie :
+  - recadrage carre;
+  - zoom avant/arriere;
+  - rotation gauche/droite;
+  - generation d'une image finale 512x512 avant envoi.
+- Affichage de la photo de profil dans l'avatar du dropdown de la page profil.
+- Ajout du script isole `public/js/profile.js`.
+- Mise a jour de `database/exports/erp_database.sql`.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/ProfileController.php`
+- `app/Models/User.php`
+- `database/migrations/2026_04_29_000001_add_profile_photo_path_to_users_table.php`
+- `database/exports/erp_database.sql`
+- `resources/views/profile/edit.blade.php`
+- `resources/css/main.css`
+- `public/js/profile.js`
+- `lang/fr/profile.php`
+- `lang/en/profile.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter=profile` passe.
+- `php artisan test` passe : 54 tests, 311 assertions.
+- `php artisan migrate` execute avec succes.
+
+### 2026-04-29 - Correction navigation page profil superadmin
+
+Prompt utilisateur :
+
+```text
+la barre de navigation ne fonctionne pas sur la page de profil
+```
+
+Correction :
+
+- La page profil utilisait une barre de navigation simple, adaptee aux espaces main, meme pour le superadmin.
+- Pour un superadmin, la page profil utilise maintenant la meme structure que les pages admin :
+  - `dashboard-shell`;
+  - sidebar superadmin;
+  - bouton de reduction de sidebar;
+  - liens Tableau de bord, Abonnements, Utilisateurs et Entreprises;
+  - topbar admin.
+- Les utilisateurs simples et admins gardent la navigation simple de l'espace main.
+
+Fichiers modifies :
+
+- `resources/views/profile/edit.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter=profile` passe.
+- `php artisan test` passe : 56 tests, 322 assertions.
+
+### 2026-04-29 - Correction interactions header page profil
+
+Prompt utilisateur :
+
+```text
+tu n'as pas compris je n'arrive pas à traduire, ni changer le mode ni me deconnecter la barre de navigation ne fonctionne pas sur la page profil
+```
+
+Diagnostic :
+
+- La page profil chargeait le script commun avec `asset('js/main.js')`.
+- Le projet n'a pas de fichier `public/js/main.js`.
+- Les autres pages injectent directement `resources/js/main.js`.
+- A cause de ce script absent, les interactions du header ne demarraient pas sur `/profile` :
+  - changement de theme;
+  - dropdown de langue;
+  - dropdown profil;
+  - comportement standard des formulaires.
+
+Correction :
+
+- Remplacement de l'appel `asset('js/main.js')` par l'injection inline de `resources/js/main.js`, comme sur les autres pages.
+- Ajout d'une assertion de test pour garantir que le script commun est bien present sur la page profil.
+- Ajout d'une assertion pour eviter le retour a `/js/main.js`.
+
+Fichiers modifies :
+
+- `resources/views/profile/edit.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter=profile` passe.
+- `php artisan test` passe : 56 tests, 324 assertions.
+
+### 2026-04-29 - Generalisation des photos de profil
+
+Prompt utilisateur :
+
+```text
+la photo se charge seulement sur la page profil mais pas sur toutes les pages.
+Je souhaite que la photo soit chargé partout et pour tous les utilisateurs
+```
+
+Correction :
+
+- Creation du partial `resources/views/partials/user-avatar.blade.php`.
+- Le partial affiche automatiquement :
+  - la photo de profil si `profile_photo_url` existe;
+  - l'initiale de l'utilisateur en fallback.
+- Remplacement des avatars du dropdown dans les pages main et admin.
+- Remplacement des avatars dans les listes utilisateurs qui affichent des comptes.
+- Ajout du support image dans les avatars du CSS admin.
+- Ajout d'un test pour verifier que la photo s'affiche :
+  - dans la navigation main;
+  - dans la liste des utilisateurs admin;
+  - dans la navigation superadmin.
+
+Fichiers modifies :
+
+- `resources/views/partials/user-avatar.blade.php`
+- `resources/views/main/main.blade.php`
+- `resources/views/main/users.blade.php`
+- `resources/views/main/company-form.blade.php`
+- `resources/views/main/company-sites.blade.php`
+- `resources/views/main/pending-access.blade.php`
+- `resources/views/admin/dashboard.blade.php`
+- `resources/views/admin/users.blade.php`
+- `resources/views/admin/subscriptions.blade.php`
+- `resources/views/admin/companies.blade.php`
+- `resources/views/admin/companies-create.blade.php`
+- `resources/css/admin/dashboard.css`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter=profile_photo` passe.
+- `php artisan test` passe : 57 tests, 331 assertions.
+
 ### 2026-04-28 - Gestion utilisateurs admin : sites et responsables
 
 Prompt utilisateur :

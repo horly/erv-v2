@@ -56,7 +56,7 @@
                 </div>
                 <div class="profile-menu">
                     <button class="profile-button" type="button" id="profileButton" aria-expanded="false" aria-controls="profileDropdown">
-                        <span class="avatar">{{ $initial }}</span>
+                        @include('partials.user-avatar', ['avatarUser' => $user])
                         <span class="profile-name">{{ $user->name }}</span>
                         <i class="bi bi-chevron-down profile-chevron" aria-hidden="true"></i>
                     </button>
@@ -66,7 +66,7 @@
                             <span>{{ $user->email }}</span>
                             <em>{{ $user->role === 'admin' ? __('main.admin_badge') : strtoupper($user->role) }}</em>
                         </div>
-                        <a href="#" class="profile-link">
+                        <a href="{{ route('profile.edit') }}" class="profile-link">
                             <i class="bi bi-person-circle" aria-hidden="true"></i>
                             {{ __('main.profile') }}
                         </a>

@@ -10,11 +10,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Laravel\Fortify\TwoFactorAuthenticatable;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, TwoFactorAuthenticatable;
 
     public const ROLE_ADMIN = 'admin';
     public const ROLE_USER = 'user';
@@ -40,6 +43,7 @@ class User extends Authenticatable
         'address',
         'phone_number',
         'grade',
+        'profile_photo_path',
     ];
 
     /**
@@ -50,6 +54,8 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'two_factor_recovery_codes',
+        'two_factor_secret',
     ];
 
     /**
@@ -62,6 +68,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'two_factor_confirmed_at' => 'datetime',
         ];
     }
 
@@ -92,6 +99,21 @@ class User extends Authenticatable
     public function loginHistories(): HasMany
     {
         return $this->hasMany(UserLoginHistory::class);
+    }
+
+    public function getProfilePhotoUrlAttribute(): ?string
+    {
+        if (blank($this->profile_photo_path)) {
+            return null;
+        }
+
+        if (Str::startsWith($this->profile_photo_path, ['http://', 'https://'])) {
+            return $this->profile_photo_path;
+        }
+
+        return Storage::disk('public')->exists($this->profile_photo_path)
+            ? Storage::disk('public')->url($this->profile_photo_path)
+            : null;
     }
 
     public function isAdmin(): bool

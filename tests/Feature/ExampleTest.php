@@ -8,6 +8,10 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Models\UserLoginHistory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Laravel\Fortify\Fortify;
+use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -1979,5 +1983,301 @@ class ExampleTest extends TestCase
         $response->assertOk();
         $response->assertSee('data-name-en="Congo (DRC)"', false);
         $response->assertSee('Congo (DRC) (+243 - VAT 16,00%)', false);
+    }
+
+    public function test_authenticated_users_can_open_profile_page(): void
+    {
+        $user = User::create([
+            'name' => 'Profile User',
+            'email' => 'profile-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('profile.edit'));
+
+        $response->assertOk();
+        $response->assertSee(__('profile.title'), false);
+        $response->assertSee(route('profile.information.update'), false);
+        $response->assertSee(route('profile.photo.update'), false);
+        $response->assertSee(route('profile.email.update'), false);
+        $response->assertSee(route('profile.password.update'), false);
+        $response->assertSee('profileCropModal', false);
+        $response->assertSee('cropper.min.js', false);
+        $response->assertSee('const themeButton = document.getElementById', false);
+        $response->assertDontSee('/js/main.js', false);
+    }
+
+    public function test_superadmin_profile_page_uses_admin_sidebar_navigation(): void
+    {
+        $superadmin = User::create([
+            'name' => 'Profile Superadmin',
+            'email' => 'profile-superadmin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        $response = $this->actingAs($superadmin)->get(route('profile.edit'));
+
+        $response->assertOk();
+        $response->assertSee('dashboard-shell main-shell', false);
+        $response->assertSee('dashboard-sidebar', false);
+        $response->assertSee(route('admin.dashboard'), false);
+        $response->assertSee(route('admin.subscriptions'), false);
+        $response->assertSee(route('admin.users'), false);
+        $response->assertSee(route('admin.companies'), false);
+        $response->assertSee('id="sidebarToggle"', false);
+    }
+
+    public function test_normal_user_profile_page_keeps_simple_navigation(): void
+    {
+        $user = User::create([
+            'name' => 'Simple Profile User',
+            'email' => 'simple-profile-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('profile.edit'));
+
+        $response->assertOk();
+        $response->assertSee('class="main-shell"', false);
+        $response->assertDontSee('<aside class="dashboard-sidebar"', false);
+    }
+
+    public function test_profile_photo_is_rendered_in_navigation_and_user_lists(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('profile-photos/avatar.jpg', 'avatar');
+
+        $subscription = Subscription::create([
+            'name' => 'Avatar subscription',
+            'code' => 'AVATAR',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'Avatar Admin',
+            'email' => 'avatar-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+            'profile_photo_path' => 'profile-photos/avatar.jpg',
+        ]);
+
+        $worker = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'Avatar Worker',
+            'email' => 'avatar-worker@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+            'profile_photo_path' => 'profile-photos/avatar.jpg',
+        ]);
+
+        Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Avatar Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'avatar-company@example.test',
+        ]);
+
+        $mainResponse = $this->actingAs($admin)->get(route('main'));
+        $mainResponse->assertOk();
+        $mainResponse->assertSee('profile-photos/avatar.jpg', false);
+
+        $usersResponse = $this->actingAs($admin)->get(route('main.users'));
+        $usersResponse->assertOk();
+        $usersResponse->assertSee('profile-photos/avatar.jpg', false);
+        $usersResponse->assertSee('alt="'.$worker->name.'"', false);
+
+        $superadmin = User::create([
+            'name' => 'Avatar Superadmin',
+            'email' => 'avatar-superadmin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+            'profile_photo_path' => 'profile-photos/avatar.jpg',
+        ]);
+
+        $adminResponse = $this->actingAs($superadmin)->get(route('admin.dashboard'));
+        $adminResponse->assertOk();
+        $adminResponse->assertSee('profile-photos/avatar.jpg', false);
+    }
+
+    public function test_user_can_update_profile_information(): void
+    {
+        $user = User::create([
+            'name' => 'Old Name',
+            'email' => 'profile-info@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('profile.edit'))
+            ->put(route('profile.information.update'), [
+                'name' => 'New Name',
+                'phone_number' => '+243810000000',
+                'grade' => 'Manager',
+                'address' => 'Kinshasa',
+            ])
+            ->assertRedirect(route('profile.edit'));
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'name' => 'New Name',
+            'phone_number' => '+243810000000',
+            'grade' => 'Manager',
+            'address' => 'Kinshasa',
+        ]);
+    }
+
+    public function test_user_can_change_email_with_current_password(): void
+    {
+        $user = User::create([
+            'name' => 'Email User',
+            'email' => 'old-email@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('profile.edit'))
+            ->put(route('profile.email.update'), [
+                'email' => 'new-email@example.test',
+                'current_password' => 'StrongPass@123',
+            ])
+            ->assertRedirect(route('profile.edit'));
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'email' => 'new-email@example.test',
+        ]);
+    }
+
+    public function test_user_can_change_password_with_current_password(): void
+    {
+        $user = User::create([
+            'name' => 'Password User',
+            'email' => 'password-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('profile.edit'))
+            ->put(route('profile.password.update'), [
+                'current_password' => 'StrongPass@123',
+                'password' => 'EvenStronger@456',
+                'password_confirmation' => 'EvenStronger@456',
+            ])
+            ->assertRedirect(route('profile.edit'));
+
+        $this->assertTrue(Hash::check('EvenStronger@456', $user->fresh()->password));
+    }
+
+    public function test_user_can_update_profile_photo_from_cropped_image(): void
+    {
+        Storage::fake('public');
+
+        $user = User::create([
+            'name' => 'Photo User',
+            'email' => 'photo-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $onePixelPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
+        $this->actingAs($user)
+            ->from(route('profile.edit'))
+            ->put(route('profile.photo.update'), [
+                'cropped_photo' => $onePixelPng,
+            ])
+            ->assertRedirect(route('profile.edit'));
+
+        $user->refresh();
+
+        $this->assertNotNull($user->profile_photo_path);
+        Storage::disk('public')->assertExists($user->profile_photo_path);
+    }
+
+    public function test_user_can_enable_confirm_and_disable_two_factor_authentication(): void
+    {
+        $user = User::create([
+            'name' => 'Two Factor User',
+            'email' => 'two-factor-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('profile.edit'))
+            ->post(route('profile.two-factor.enable'))
+            ->assertRedirect(route('profile.edit'));
+
+        $user->refresh();
+
+        $this->assertNotNull($user->two_factor_secret);
+        $this->assertNull($user->two_factor_confirmed_at);
+
+        $secret = Fortify::currentEncrypter()->decrypt($user->two_factor_secret);
+        $code = app(Google2FA::class)->getCurrentOtp($secret);
+
+        $this->actingAs($user)
+            ->from(route('profile.edit'))
+            ->post(route('profile.two-factor.confirm'), ['code' => $code])
+            ->assertRedirect(route('profile.edit'));
+
+        $this->assertNotNull($user->fresh()->two_factor_confirmed_at);
+
+        $this->actingAs($user)
+            ->from(route('profile.edit'))
+            ->delete(route('profile.two-factor.disable'), ['current_password' => 'StrongPass@123'])
+            ->assertRedirect(route('profile.edit'));
+
+        $user->refresh();
+
+        $this->assertNull($user->two_factor_secret);
+        $this->assertNull($user->two_factor_confirmed_at);
+    }
+
+    public function test_two_factor_users_are_challenged_after_password_login(): void
+    {
+        $user = User::create([
+            'name' => 'Two Factor Superadmin',
+            'email' => 'two-factor-superadmin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+
+        $secret = app(Google2FA::class)->generateSecretKey();
+
+        $user->forceFill([
+            'two_factor_secret' => Fortify::currentEncrypter()->encrypt($secret),
+            'two_factor_recovery_codes' => Fortify::currentEncrypter()->encrypt(json_encode([])),
+            'two_factor_confirmed_at' => now(),
+        ])->save();
+
+        $this->post(route('login'), [
+            'email' => 'two-factor-superadmin@example.test',
+            'password' => 'StrongPass@123',
+        ])->assertRedirect(route('two-factor.login'));
+
+        $this->assertGuest();
+
+        $this->post(route('two-factor.login.store'), [
+            'code' => '000000',
+        ])->assertRedirect(route('two-factor.login'));
+
+        $this->assertGuest();
+
+        $code = app(Google2FA::class)->getCurrentOtp($secret);
+
+        $this->post(route('two-factor.login.store'), [
+            'code' => $code,
+        ])->assertRedirect(route('admin.dashboard'));
+
+        $this->assertAuthenticatedAs($user);
     }
 }

@@ -82,10 +82,10 @@
                         </div>
                     </div>
                     <div class="profile-menu">
-                        <button class="profile-button" type="button" id="profileButton" aria-expanded="false" aria-controls="profileDropdown"><span class="avatar">{{ $initial }}</span><span class="profile-name">{{ $user->name }}</span><i class="bi bi-chevron-down profile-chevron" aria-hidden="true"></i></button>
+                        <button class="profile-button" type="button" id="profileButton" aria-expanded="false" aria-controls="profileDropdown">@include('partials.user-avatar', ['avatarUser' => $user])<span class="profile-name">{{ $user->name }}</span><i class="bi bi-chevron-down profile-chevron" aria-hidden="true"></i></button>
                         <div class="profile-dropdown" id="profileDropdown" aria-labelledby="profileButton">
                             <div class="profile-summary"><strong>{{ $user->name }}</strong><span>{{ $user->email }}</span><em>{{ strtoupper($user->role) }}</em></div>
-                            <a href="#" class="profile-link"><i class="bi bi-person-circle" aria-hidden="true"></i>{{ __('admin.profile') }}</a>
+                            <a href="{{ route('profile.edit') }}" class="profile-link"><i class="bi bi-person-circle" aria-hidden="true"></i>{{ __('admin.profile') }}</a>
                             <a href="{{ route('admin.users') }}" class="profile-link"><i class="bi bi-people" aria-hidden="true"></i>{{ __('admin.user_management') }}</a>
                             <form method="POST" action="{{ route('logout') }}">@csrf<button class="profile-link logout-link" type="submit"><i class="bi bi-box-arrow-right" aria-hidden="true"></i>{{ __('admin.logout') }}</button></form>
                         </div>
