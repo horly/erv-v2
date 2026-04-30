@@ -2543,6 +2543,127 @@ Fichiers modifies :
 - `resources/css/main.css`
 - `docs/prompts/project-history.md`
 
+### 2026-04-30 - Alignement du bouton supprimer sur la ligne des inputs client
+
+Prompt utilisateur :
+
+```text
+à coté de l'input meme migne
+```
+
+Correction appliquee :
+
+- Le bouton de suppression du contact client est maintenant une colonne de la rangée Bootstrap.
+- Il est aligné sur la même ligne que les inputs `Nom complet` et `Fonction ou grade`.
+- Le CSS précédent en grille a été retiré pour éviter un positionnement séparé.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+### 2026-04-30 - Standard placeholders sur les formulaires
+
+Prompt utilisateur :
+
+```text
+toujours mettre des placeholder sur les champs de formulaire
+```
+
+Decision enregistree :
+
+- Tous les nouveaux champs de formulaire doivent avoir un placeholder explicite.
+- Les placeholders doivent rester cohérents avec le libelle du champ et la langue active.
+
+Correction appliquee :
+
+- Ajout des placeholders sur tous les champs du formulaire client.
+- Le placeholder du champ nom bascule selon le type de client : particulier ou entreprise.
+- Les champs de contact ajoutes dynamiquement recoivent aussi leurs placeholders.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/js/main/accounting-clients.js`
+- `docs/prompts/project-history.md`
+
+### 2026-04-30 - Erreurs sous les champs du formulaire client
+
+Prompt utilisateur :
+
+```text
+oui mais applique ça sur le formulaire actuel du client merci
+```
+
+Correction appliquee :
+
+- Le formulaire client n'affiche plus les erreurs de validation dans le toast global.
+- En cas d'erreur, le modal client reste ouvert.
+- Les erreurs de validation sont affichees directement sous les champs concernes.
+- Les champs obligatoires du formulaire client disposent d'un `invalid-feedback` utilisable par la validation front.
+- Les attributs de validation client/contact ont ete ajoutes aux fichiers de traduction FR/EN pour obtenir des messages plus propres.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `lang/fr/validation.php`
+- `lang/en/validation.php`
+- `docs/prompts/project-history.md`
+
+### 2026-04-30 - Reference automatique des clients
+
+Prompt utilisateur :
+
+```text
+Ajoute le numéro de référence pour chaque client, le système dois pouvoir générer lui meme une référence pour chaque client
+```
+
+Correction appliquee :
+
+- Ajout de la colonne `reference` sur `accounting_clients`.
+- Generation automatique des references client au format `CLT-000001`, `CLT-000002`, etc.
+- Migration de rattrapage pour completer les references des clients deja existants.
+- Affichage de la reference dans le tableau clients avec tri.
+- Ajout des traductions FR/EN pour le libelle `Reference`.
+- Mise a jour de `database/exports/erp_database.sql`.
+
+Fichiers modifies :
+
+- `database/migrations/2026_04_30_000002_add_reference_to_accounting_clients_table.php`
+- `app/Models/AccountingClient.php`
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `database/exports/erp_database.sql`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan migrate` execute et la migration de reference client est appliquee.
+- `php artisan test --filter=accounting_clients` passe avec 19 assertions.
+- `php artisan test` passe avec 65 tests et 479 assertions.
+
+### 2026-04-30 - Positionnement lateral du bouton supprimer contact client
+
+Prompt utilisateur :
+
+```text
+l'icone dois se positionner à coté
+```
+
+Correction appliquee :
+
+- Le bouton de suppression d'un contact client n'est plus positionne en absolu.
+- La carte de contact utilise maintenant une grille avec les champs a gauche et le bouton de suppression a droite, aligne sur la ligne des champs.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
 Verification :
 
 - `php artisan test --filter=site_form_validation` passe.
@@ -3964,6 +4085,223 @@ Verification :
 - `php artisan view:clear` execute.
 - `php artisan test --filter=accounting_module` passe avec 2 tests et 34 assertions.
 
+### 2026-04-30 - Rubrique commerciaux du module comptabilite
+
+Prompt utilisateur :
+
+```text
+applique ton idée et travail sur la pages commerciaux
+```
+
+Implementation appliquee :
+
+- Ajout de la table `accounting_sales_representatives`.
+- Ajout du modele `AccountingSalesRepresentative` avec generation automatique des references `COM-000001`.
+- Ajout de la relation `CompanySite::accountingSalesRepresentatives()`.
+- Ajout des routes CRUD commerciaux dans le module comptabilite.
+- Ajout de la page `main.modules.accounting-sales-representatives` avec le tableau standard : recherche, tri, pagination, actions et etat vide propre.
+- Ajout du formulaire modal create/edit avec placeholders, erreurs sous les champs et maintien du modal en cas d'erreur.
+- Ajout des champs metier : type, nom, telephone, email, adresse, zone commerciale, devise, objectif mensuel, objectif annuel, taux de commission, statut et notes.
+- Ajout des types de commerciaux : interne, externe, agent independant, revendeur et apporteur d'affaires.
+- Raccordement du menu `Commerciaux` dans la sidebar comptabilite.
+- Mise a jour du tableau de bord comptabilite pour inclure les commerciaux dans la repartition des contacts.
+- Mise a jour de `database/exports/erp_database.sql`.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_04_30_000009_create_accounting_sales_representatives_table.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingSalesRepresentative.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-sales-representatives.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-sales-representatives.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan migrate` applique la migration commerciaux.
+- `php -l` passe sur le modele, la migration, le controleur, la vue commerciaux et les routes.
+- `node --check resources/js/main/accounting-sales-representatives.js` passe.
+- Le controle UTF-8 des fichiers `lang/fr/*.php` ne retourne aucune anomalie.
+- `php artisan test --filter=accounting` passe avec 10 tests et 197 assertions.
+- `php artisan view:clear` execute.
+- `php artisan test` passe avec 71 tests et 592 assertions.
+
+### 2026-04-30 - Precision du taux de commission commercial
+
+Prompt utilisateur :
+
+```text
+il faut préciser le champs dans le formullaire %
+```
+
+Correction appliquee :
+
+- Le champ du formulaire commercial affiche maintenant `Taux de commission (%)`.
+- Ajout d'un suffixe visuel `%` directement dans l'input du taux de commission.
+- Le placeholder du champ indique un exemple simple : `Ex. 5`.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-sales-representatives.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources/views/main/modules/accounting-sales-representatives.blade.php` passe.
+- Le controle UTF-8 des fichiers `lang/fr/*.php` ne retourne aucune anomalie.
+- `php artisan test --filter=accounting_sales_representatives` passe avec 1 test et 16 assertions.
+
+### 2026-04-30 - Rubrique partenaires du module comptabilite
+
+Prompt utilisateur :
+
+```text
+applique ton idée
+```
+
+Implementation appliquee :
+
+- Ajout de la table `accounting_partners` pour gerer les partenaires rattaches a un site de facturation.
+- Ajout du modele `AccountingPartner` avec generation automatique des references `PAR-000001`.
+- Ajout de la relation `CompanySite::accountingPartners()`.
+- Ajout des routes CRUD partenaires dans le module comptabilite.
+- Ajout de la page `main.modules.accounting-partners` avec le tableau standard : recherche, tri, pagination, actions et ligne vide propre.
+- Ajout du formulaire modal create/edit avec placeholders, erreurs sous les champs et conservation du modal en cas d'erreur.
+- Ajout des types de partenaires : apporteur d'affaires, distributeur, sous-traitant, cabinet conseil, institution, banque, agence et autre.
+- Ajout des statuts : actif, en discussion, suspendu et termine.
+- Raccordement du menu `Partenaires` dans la sidebar comptabilite.
+- Mise a jour du tableau de bord comptabilite pour inclure les partenaires dans la repartition des contacts.
+- Mise a jour de `database/exports/erp_database.sql`.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_04_30_000008_create_accounting_partners_table.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingPartner.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-partners.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-partners.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan migrate` applique la migration partenaires.
+- `php -l` passe sur le modele, la migration, le controleur, la vue partenaires et les routes.
+- `node --check resources/js/main/accounting-partners.js` passe.
+- Le controle UTF-8 des fichiers `lang/fr/*.php` ne retourne aucune anomalie.
+- `php artisan test --filter=accounting` passe avec 9 tests et 181 assertions.
+- `php artisan view:clear` execute.
+- `php artisan test` passe avec 70 tests et 576 assertions.
+
+### 2026-04-30 - Correction encodage UTF-8 des traductions francaises
+
+Prompt utilisateur :
+
+```text
+j'ai un probleme de formatage de texte ne reprends plus cette erreur
+```
+
+Correction appliquee :
+
+- Correction des chaines francaises mal encodees dans `lang/fr/*.php`.
+- Suppression des sequences mojibake visibles comme `Ã©`, `Ã `, `Â°` et `â€™`.
+- Verification explicite des traductions concernees :
+  - `Comptabilité (Facturation)` ;
+  - `Liste des clients rattachés à ce site de facturation.` ;
+  - `Chiffre d’affaires` ;
+  - `Détails du site`.
+- Nettoyage du cache des vues Blade pour forcer le nouvel affichage.
+
+Regle a respecter :
+
+- Ne plus reecrire les fichiers de traduction FR avec un encodage qui casse l'UTF-8.
+- Si une correction massive de texte est necessaire, verifier ensuite l'absence de sequences `Ã`, `Â` ou `�`.
+
+Fichiers modifies :
+
+- `lang/fr/main.php`
+- `lang/fr/auth.php`
+- `lang/fr/validation.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\fr\auth.php` passe.
+- `php -l lang\fr\validation.php` passe.
+- Recherche PHP sur `lang/fr/*.php` : aucune sequence `Ã`, `Â` ou `�` restante.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=accounting` passe avec 5 tests et 108 assertions.
+- `php artisan test` passe avec 66 tests et 503 assertions.
+
+### 2026-04-30 - Ordre du menu contacts comptabilite
+
+Prompt utilisateur :
+
+```text
+change la disposition commence par Prospects, Clients, Fournisseurs; etc...
+```
+
+Changement applique :
+
+- Le sous-menu `Contacts` de la sidebar comptabilite commence maintenant par :
+  - Prospects ;
+  - Clients ;
+  - Fournisseurs ;
+  - Creanciers ;
+  - Debiteurs ;
+  - Partenaires ;
+  - Commerciaux.
+- Le meme ordre est applique dans la sidebar incluse du dashboard comptabilite.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter=accounting` passe avec 5 tests et 108 assertions.
+
+### 2026-04-30 - Ajustements visuels du modal client
+
+Prompt utilisateur :
+
+```text
+c'est bien mais espace un peu l'icone de suppression et l'input.
+deuxième image espace l'icon et nouveau client
+```
+
+Correction appliquee :
+
+- Ajout d'un espace reserve a droite dans les cartes de contact du modal client pour separer le bouton de suppression des champs.
+- Alignement du titre du modal client en `inline-flex` avec un espacement propre entre l'icone et le texte.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
 ### 2026-04-29 - Fixation de la zone basse comptabilite et nouvelles entrees sidebar
 
 Prompt utilisateur :
@@ -4418,6 +4756,449 @@ Verification :
 
 - `php artisan view:clear` execute.
 - `php artisan test --filter=accounting_module` passe avec 2 tests et 34 assertions.
+
+### 2026-04-30 - Module stock complet pour la comptabilite
+
+Prompt utilisateur :
+
+```text
+fais ça, crée les pages et les tables avec toute la logique et les rélations entre tables
+```
+
+Travail realise :
+
+- Ajout des tables stock du module comptabilite :
+  - categories
+  - sous-categories
+  - unites
+  - entrepots
+  - articles
+  - lots / series
+  - mouvements de stock
+  - transferts
+  - inventaires
+  - lignes d'inventaire
+  - alertes de stock
+- Ajout des relations entre site, categories, sous-categories, unites, entrepots, articles, lots, mouvements, transferts, inventaires et alertes.
+- Ajout des modeles Eloquent dedies au stock.
+- Ajout d'une generation automatique de reference par ressource avec le trait `HasAccountingReference`.
+- Ajout des pages CRUD generiques du stock dans le module comptabilite.
+- Ajout du tableau standard avec recherche, tri, pagination et actions.
+- Ajout du modal standard create/edit avec erreurs sous les champs.
+- Ajout de la logique de mouvement :
+  - entree : augmente le stock courant
+  - sortie : diminue le stock courant sans passer sous zero
+  - ajustement : fixe le stock courant a la quantite indiquee
+- Ajout des rubriques stock dans la sidebar comptabilite.
+- Mise a jour de l'export `database/exports/erp_database.sql`.
+- Ajout des traductions FR/EN.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_04_30_000010_create_accounting_stock_tables.php`
+- `database/exports/erp_database.sql`
+- `app/Models/Concerns/HasAccountingReference.php`
+- `app/Models/AccountingStockCategory.php`
+- `app/Models/AccountingStockSubcategory.php`
+- `app/Models/AccountingStockUnit.php`
+- `app/Models/AccountingStockWarehouse.php`
+- `app/Models/AccountingStockItem.php`
+- `app/Models/AccountingStockBatch.php`
+- `app/Models/AccountingStockMovement.php`
+- `app/Models/AccountingStockTransfer.php`
+- `app/Models/AccountingStockInventory.php`
+- `app/Models/AccountingStockInventoryLine.php`
+- `app/Models/AccountingStockAlert.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/js/main/accounting-stock-resource.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan migrate` passe et applique les tables stock.
+- `php artisan test --filter=accounting_stock` passe avec 1 test et 25 assertions.
+- `php artisan test --filter=accounting` passe avec 11 tests et 222 assertions.
+- `php artisan test` passe avec 72 tests et 617 assertions.
+- Scan rapide des fichiers `resources`, `lang`, `app`, `routes` et migrations : aucun texte casse de type `Ã`, `Â` ou `�`.
+
+### 2026-04-30 - Gestion des prospects dans le module comptabilite
+
+Prompt utilisateur :
+
+```text
+applique ton idée pour les prospects
+```
+
+Implementation appliquee :
+
+- Ajout des tables `accounting_prospects` et `accounting_prospect_contacts`.
+- Ajout des modeles `AccountingProspect` et `AccountingProspectContact`.
+- Ajout de la relation `CompanySite::accountingProspects()`.
+- Ajout des routes CRUD prospects dans le module comptabilite.
+- Ajout d'une page `main.modules.accounting-prospects` avec tableau standard, recherche, tri et pagination.
+- Ajout du formulaire modal create/edit pour prospects particuliers et entreprises.
+- Ajout des champs CRM : source, statut, niveau d'interet et notes.
+- Ajout des contacts multiples pour les prospects de type entreprise.
+- Ajout d'une action permettant de convertir un prospect en client.
+- Mise a jour du tableau de bord comptabilite pour integrer les prospects dans la repartition des contacts.
+- Mise a jour de l'export `database/exports/erp_database.sql`.
+- Ajout des traductions FR/EN propres aux prospects.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_04_30_000005_create_accounting_prospects_tables.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingProspect.php`
+- `app/Models/AccountingProspectContact.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-prospects.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-prospects.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l` passe sur le controleur, les modeles et la migration prospects.
+- `node --check resources/js/main/accounting-prospects.js` passe.
+- `php artisan migrate` applique la migration prospects.
+- `php artisan test --filter=accounting` passe avec 6 tests et 131 assertions.
+- `php artisan test` passe avec 67 tests et 526 assertions.
+- Controle UTF-8 des fichiers `lang/fr/*.php` sans mojibake detecte.
+- `php artisan view:clear` execute.
+
+### 2026-04-30 - Retrait de la colonne contacts des tableaux comptabilite
+
+Prompt utilisateur :
+
+```text
+n'affiche pas la colone contacs dans les tableaux de prospects, client, fournisseurs et autres
+```
+
+Correction appliquee :
+
+- Retrait de la colonne visible `Contacts` sur les tableaux Clients, Fournisseurs et Prospects.
+- Conservation des contacts dans les donnees du formulaire modal pour l'edition et la conversion.
+- Ajustement des index de tri et des colonnes `colspan` des lignes vides/recherche.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/views/main/modules/accounting-suppliers.blade.php`
+- `resources/views/main/modules/accounting-prospects.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l` passe sur les trois vues Blade concernees.
+- `php artisan test --filter=accounting` passe avec 6 tests et 131 assertions.
+
+### 2026-04-30 - Gestion des creanciers dans le module comptabilite
+
+Prompt utilisateur :
+
+```text
+applique ton idée
+```
+
+Implementation appliquee :
+
+- Ajout de la table `accounting_creditors`.
+- Ajout du modele `AccountingCreditor` avec reference automatique `CRE-000001`.
+- Ajout de la relation `CompanySite::accountingCreditors()`.
+- Ajout des routes CRUD creanciers dans le module comptabilite.
+- Ajout de la page `main.modules.accounting-creditors` avec tableau standard, recherche, tri et pagination.
+- Ajout d'un formulaire modal create/edit pour les informations du creancier.
+- Ajout des informations de dette : devise, montant initial, montant deja paye, solde du, echeance, priorite, statut et description.
+- Branchement du lien `Creanciers` dans la sidebar comptabilite.
+- Mise a jour du tableau de bord comptabilite pour utiliser le total reel des dettes creanciers dans l'echeancier.
+- Mise a jour de l'export `database/exports/erp_database.sql`.
+- Ajout des traductions FR/EN liees aux creanciers.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_04_30_000006_create_accounting_creditors_table.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingCreditor.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-creditors.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-creditors.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l` passe sur le controleur, les routes, le modele, la migration et la vue Blade creanciers.
+- `node --check resources/js/main/accounting-creditors.js` passe.
+- `php artisan migrate` applique la migration creanciers.
+- `php artisan test --filter=accounting` passe avec 7 tests et 148 assertions.
+- Controle UTF-8 des fichiers `lang/fr/*.php` sans mojibake detecte.
+- `php artisan view:clear` execute.
+- `php artisan test` passe avec 68 tests et 543 assertions.
+
+### 2026-04-30 - Retrait de la colonne priorite du tableau creanciers
+
+Prompt utilisateur :
+
+```text
+n'affiche pas priorité dans le tableau
+```
+
+Correction appliquee :
+
+- Retrait de la colonne visible `Priorite` dans le tableau Creanciers.
+- Conservation du champ `Priorite` dans le formulaire create/edit.
+- Ajustement des index de tri et des colonnes `colspan` des lignes vides/recherche.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-creditors.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources/views/main/modules/accounting-creditors.blade.php` passe.
+- `php artisan test --filter=accounting_creditors` passe avec 1 test et 17 assertions.
+
+### 2026-04-30 - Gestion des debiteurs dans le module comptabilite
+
+Prompt utilisateur :
+
+```text
+applique ton idée
+```
+
+Implementation appliquee :
+
+- Ajout de la table `accounting_debtors`.
+- Ajout du modele `AccountingDebtor` avec reference automatique `DEB-000001`.
+- Ajout de la relation `CompanySite::accountingDebtors()`.
+- Ajout des routes CRUD debiteurs dans le module comptabilite.
+- Ajout de la page `main.modules.accounting-debtors` avec tableau standard, recherche, tri et pagination.
+- Ajout d'un formulaire modal create/edit pour les informations du debiteur.
+- Ajout des informations de creance : devise, montant initial, montant deja encaisse, solde a encaisser, echeance, statut et description.
+- Branchement du lien `Debiteurs` dans la sidebar comptabilite.
+- Mise a jour du tableau de bord comptabilite pour utiliser le total reel des creances debiteurs dans l'echeancier.
+- Mise a jour de l'export `database/exports/erp_database.sql`.
+- Ajout des traductions FR/EN liees aux debiteurs.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_04_30_000007_create_accounting_debtors_table.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingDebtor.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-debtors.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-debtors.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l` passe sur le controleur, les routes, le modele, la migration et la vue Blade debiteurs.
+- `node --check resources/js/main/accounting-debtors.js` passe.
+- `php artisan migrate` applique la migration debiteurs.
+- `php artisan test --filter=accounting` passe avec 8 tests et 165 assertions.
+- Controle UTF-8 des fichiers `lang/fr/*.php` sans mojibake detecte.
+- `php artisan view:clear` execute.
+- `php artisan test` passe avec 69 tests et 560 assertions.
+
+### 2026-04-30 - Tableau de bord comptabilite avec donnees clients reelles
+
+Prompt utilisateur :
+
+```text
+comme on a déjà une table client mets à jour le tableau de bord avec des vraies informations clients
+```
+
+Changements appliques :
+
+- Ajout d'un agregat serveur pour compter les clients du site comptable.
+- Le KPI `Clients` du tableau de bord comptabilite utilise maintenant le nombre reel de clients du site.
+- Le graphique `Repartition des contacts` utilise maintenant les donnees reelles :
+  - clients particuliers ;
+  - clients entreprises ;
+  - contacts rattaches aux clients entreprises.
+- Ajout d'un etat vide propre lorsque le site ne contient encore aucun client.
+- Mise a jour du test du tableau de bord comptabilite avec des clients reels.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-dashboard.js`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `node --check resources\js\main\accounting-dashboard.js` passe.
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 64 assertions.
+- `php artisan test` passe avec 65 tests et 484 assertions.
+
+### 2026-04-30 - Fournisseurs comptabilite et coordonnees bancaires clients
+
+Prompt utilisateur :
+
+```text
+applique ton idée par rapport à la view fournisseurs mais pour le client ajoute et ajuste ça aussi :
+Numéro de compte
+Banque
+Devise du compte
+```
+
+Changements appliques :
+
+- Ajout d'un module fournisseurs dans la comptabilite.
+- Creation des tables `accounting_suppliers` et `accounting_supplier_contacts`.
+- Ajout des modeles `AccountingSupplier` et `AccountingSupplierContact`.
+- Ajout d'une reference fournisseur automatique au format `FRS-000001`.
+- Ajout du CRUD fournisseurs avec tableau standard, recherche, tri, pagination, modal create/edit et suppression confirmee.
+- Ajout du statut fournisseur actif/inactif.
+- Ajout du lien `Fournisseurs` dans la sidebar comptabilite.
+- Utilisation d'un nom d'index court pour rester compatible MySQL.
+- Ajout des champs bancaires sur les clients :
+  - Banque ;
+  - Numero de compte ;
+  - Devise du compte.
+- Les champs bancaires clients sont disponibles pour les particuliers et les entreprises.
+- Mise a jour du tableau de bord comptabilite pour inclure les fournisseurs reels dans la repartition des contacts.
+- Mise a jour de `database/exports/erp_database.sql`.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_04_30_000003_add_bank_and_currency_to_accounting_clients_table.php`
+- `database/migrations/2026_04_30_000004_create_accounting_suppliers_tables.php`
+- `app/Models/AccountingSupplier.php`
+- `app/Models/AccountingSupplierContact.php`
+- `app/Models/AccountingClient.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/views/main/modules/accounting-suppliers.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/js/main/accounting-clients.js`
+- `resources/js/main/accounting-suppliers.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `database/exports/erp_database.sql`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l` passe sur le controleur, les nouveaux modeles, les nouvelles migrations, les vues modifiees, les routes et les traductions.
+- `node --check` passe sur les JS clients et fournisseurs.
+- `php artisan migrate` applique les colonnes bancaires clients et les tables fournisseurs.
+- `php artisan test --filter=accounting` passe avec 5 tests et 108 assertions.
+- `php artisan test` passe avec 66 tests et 503 assertions.
+
+### 2026-04-30 - Page clients du module comptabilite
+
+Prompt utilisateur :
+
+```text
+Nous allons maintenant travailler la page client :
+lorsqu'on on accède sur la page client, on un tableau qui affiche la liste des clients (applique le style qu'on utilise pour tous les tableaux).
+
+Nous avons deux type de client (entreprise et particulier)
+Pour les clients particuliers nous avons les informations suivantes :
+- Nom complet (obligatoire)
+- Profession (Non obligatoire)
+- Téléphone (Non obligatoire)
+- adresse email (Non obligatoire)
+- adresse (Non Non obligatoire)
+
+Pour les clients entreprise :
+- nom de l'entreprise (obligatoire)
+- RCCM (Non obligatoire)
+- ID NAT (Non obligatoire)
+- NIF (Non obligatoire)
+- numéro de compte (Non obligatoire)
+- site web (Non obligatoire)
+
+ensuite les informations du ou des contacts, un client de type entreprise peut avoir un ou plusieurs contact. Voici les informations du contact :
+- Nom complet (obligatoire)
+- fonction ou grade (Non obligatoire)
+- departement (Non obligatoire)
+- adresse émail (Non obligatoire)
+- numero de téléphone (Non obligatoire)
+```
+
+Travail applique :
+
+- Ajout des tables `accounting_clients` et `accounting_client_contacts`.
+- Ajout des modeles `AccountingClient` et `AccountingClientContact`.
+- Ajout de la relation `CompanySite::accountingClients()`.
+- Ajout des routes CRUD clients du module comptabilite.
+- Ajout de la page `main.modules.accounting-clients` avec le tableau standard, recherche, tri, pagination et actions.
+- Ajout d'un formulaire modal create/edit pour les clients particuliers et entreprises.
+- Ajout de contacts multiples pour les clients de type entreprise.
+- Ajout du lien `Clients` depuis la sidebar du module comptabilite.
+- Ajout d'un JS isole `resources/js/main/accounting-clients.js` pour le comportement du formulaire client.
+- Ajout des traductions FR/EN liees aux clients.
+- Respect des permissions du site pour les actions client : creation, modification et suppression.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_04_30_000001_create_accounting_clients_tables.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingClient.php`
+- `app/Models/AccountingClientContact.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-clients.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l` passe sur le controleur, les modeles, la migration et les routes.
+- `php artisan test --filter=accounting_clients` passe.
+- `php artisan test` passe avec 65 tests et 476 assertions.
+- `php artisan migrate` execute et la migration clients est appliquee.
+- `database/exports/erp_database.sql` mis a jour avec les tables clients comptabilite et l'entree de migration.
 - `php artisan test` passe avec 64 tests et 435 assertions.
 
 ### 2026-04-29 - Scroll invisible de la sidebar comptabilite

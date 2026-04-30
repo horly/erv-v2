@@ -14,6 +14,40 @@
         $currentLocale = app()->getLocale();
         $moduleRoute = route('main.companies.sites.modules.show', [$company, $site, $module]);
         $siteCurrency = $site->currency ?: 'CDF';
+        $clientStats = array_merge([
+            'total' => 0,
+            'individuals' => 0,
+            'companies' => 0,
+            'contacts' => 0,
+            'recent' => collect(),
+        ], $clientStats ?? []);
+        $supplierStats = array_merge([
+            'total' => 0,
+            'contacts' => 0,
+        ], $supplierStats ?? []);
+        $prospectStats = array_merge([
+            'total' => 0,
+            'contacts' => 0,
+        ], $prospectStats ?? []);
+        $creditorStats = array_merge([
+            'total' => 0,
+            'balance_due' => 0,
+            'urgent' => 0,
+        ], $creditorStats ?? []);
+        $creditorBalance = number_format((float) $creditorStats['balance_due'], 0, ',', ' ');
+        $debtorStats = array_merge([
+            'total' => 0,
+            'balance_receivable' => 0,
+        ], $debtorStats ?? []);
+        $debtorBalance = number_format((float) $debtorStats['balance_receivable'], 0, ',', ' ');
+        $partnerStats = array_merge([
+            'total' => 0,
+            'active' => 0,
+        ], $partnerStats ?? []);
+        $salesRepresentativeStats = array_merge([
+            'total' => 0,
+            'active' => 0,
+        ], $salesRepresentativeStats ?? []);
         $weeklyLabels = collect(range(7, 0))
             ->map(fn (int $weeksAgo) => \Carbon\CarbonImmutable::now()->subWeeks($weeksAgo)->startOfWeek());
         $monthlyLabels = collect(range(5, 0))
@@ -23,12 +57,13 @@
         $kpis = [
             ['label' => __('main.revenue'), 'value' => '24,8M '.$siteCurrency, 'icon' => 'bi-graph-up-arrow', 'tone' => 'blue', 'trend' => '+18%'],
             ['label' => __('main.sales_invoices'), 'value' => 128, 'icon' => 'bi-receipt', 'tone' => 'violet', 'trend' => '+12%'],
-            ['label' => __('main.payments'), 'value' => 86, 'icon' => 'bi-credit-card', 'tone' => 'green', 'trend' => '+9%'],
+            ['label' => __('main.customers'), 'value' => $clientStats['total'], 'icon' => 'bi-person-check', 'tone' => 'green', 'trend' => null],
             ['label' => __('main.receivables'), 'value' => '12,4M '.$siteCurrency, 'icon' => 'bi-arrow-down-left-circle', 'tone' => 'amber', 'trend' => null],
             ['label' => __('main.expenses'), 'value' => '8,7M '.$siteCurrency, 'icon' => 'bi-wallet2', 'tone' => 'rose', 'trend' => null],
         ];
         $accountingChartData = [
             'emptyLabel' => __('main.no_accounting_documents'),
+            'emptyClientsLabel' => __('main.no_clients'),
             'labels' => [
                 'revenue' => __('main.revenue'),
                 'sales' => __('main.sales'),
@@ -73,8 +108,8 @@
                 ],
             ],
             'contacts' => [
-                'labels' => [__('main.customers'), __('main.suppliers'), __('main.prospects'), __('main.creditors'), __('main.debtors')],
-                'series' => [42, 18, 27, 9, 14],
+                'labels' => [__('main.prospects'), __('main.customers'), __('main.suppliers'), __('main.partners'), __('main.sales_representatives'), __('main.client_contacts'), __('main.supplier_contacts')],
+                'series' => [$prospectStats['total'], $clientStats['total'], $supplierStats['total'], $partnerStats['total'], $salesRepresentativeStats['total'], $clientStats['contacts'], $supplierStats['contacts']],
             ],
             'stockServices' => [
                 'labels' => [__('main.items'), __('main.categories'), __('main.services'), __('main.price_list')],
@@ -86,8 +121,8 @@
             ],
         ];
         $scheduleSummary = [
-            ['label' => __('main.clients_owe_me'), 'amount' => '12,4M '.$siteCurrency, 'tone' => 'green', 'icon' => 'bi-arrow-down-left-circle'],
-            ['label' => __('main.i_owe_suppliers'), 'amount' => '7,8M '.$siteCurrency, 'tone' => 'rose', 'icon' => 'bi-arrow-up-right-circle'],
+            ['label' => __('main.clients_owe_me'), 'amount' => $debtorBalance.' '.$siteCurrency, 'tone' => 'green', 'icon' => 'bi-arrow-down-left-circle'],
+            ['label' => __('main.i_owe_suppliers'), 'amount' => $creditorBalance.' '.$siteCurrency, 'tone' => 'rose', 'icon' => 'bi-arrow-up-right-circle'],
         ];
         $scheduleItems = [
             ['label' => __('main.customer_receivable'), 'subject' => 'EXAD SARL', 'amount' => '4,2M '.$siteCurrency, 'date' => now()->addDays(2)->translatedFormat('d M'), 'tone' => 'green'],
@@ -95,27 +130,35 @@
             ['label' => __('main.supplier_debt'), 'subject' => 'Fournisseur IT', 'amount' => '1,6M '.$siteCurrency, 'date' => now()->addDays(5)->translatedFormat('d M'), 'tone' => 'amber'],
             ['label' => __('main.supplier_debt'), 'subject' => 'Logistique Kin', 'amount' => '980K '.$siteCurrency, 'date' => now()->addDays(13)->translatedFormat('d M'), 'tone' => 'rose'],
         ];
+        $stockRoute = fn (string $resource) => route('main.accounting.stock.index', [$company, $site, $resource]);
         $navigationGroups = [
             [
                 'label' => __('main.contacts'),
                 'icon' => 'bi-person-lines-fill',
                 'items' => [
-                    ['label' => __('main.customers'), 'icon' => 'bi-person-check'],
-                    ['label' => __('main.suppliers'), 'icon' => 'bi-truck'],
-                    ['label' => __('main.prospects'), 'icon' => 'bi-person-plus'],
-                    ['label' => __('main.creditors'), 'icon' => 'bi-arrow-up-right-circle'],
-                    ['label' => __('main.debtors'), 'icon' => 'bi-arrow-down-left-circle'],
-                    ['label' => __('main.partners'), 'icon' => 'bi-diagram-3'],
-                    ['label' => __('main.sales_representatives'), 'icon' => 'bi-briefcase'],
+                    ['label' => __('main.prospects'), 'icon' => 'bi-person-plus', 'href' => route('main.accounting.prospects', [$company, $site])],
+                    ['label' => __('main.customers'), 'icon' => 'bi-person-check', 'href' => route('main.accounting.clients', [$company, $site])],
+                    ['label' => __('main.suppliers'), 'icon' => 'bi-truck', 'href' => route('main.accounting.suppliers', [$company, $site])],
+                    ['label' => __('main.creditors'), 'icon' => 'bi-arrow-up-right-circle', 'href' => route('main.accounting.creditors', [$company, $site])],
+                    ['label' => __('main.debtors'), 'icon' => 'bi-arrow-down-left-circle', 'href' => route('main.accounting.debtors', [$company, $site])],
+                    ['label' => __('main.partners'), 'icon' => 'bi-diagram-3', 'href' => route('main.accounting.partners', [$company, $site])],
+                    ['label' => __('main.sales_representatives'), 'icon' => 'bi-briefcase', 'href' => route('main.accounting.sales-representatives', [$company, $site])],
                 ],
             ],
             [
                 'label' => __('main.stock'),
                 'icon' => 'bi-box-seam',
                 'items' => [
-                    ['label' => __('main.items'), 'icon' => 'bi-box'],
-                    ['label' => __('main.subcategories'), 'icon' => 'bi-tags'],
-                    ['label' => __('main.categories'), 'icon' => 'bi-folder'],
+                    ['label' => __('main.items'), 'icon' => 'bi-box', 'href' => $stockRoute('items')],
+                    ['label' => __('main.categories'), 'icon' => 'bi-folder', 'href' => $stockRoute('categories')],
+                    ['label' => __('main.subcategories'), 'icon' => 'bi-tags', 'href' => $stockRoute('subcategories')],
+                    ['label' => __('main.stock_warehouses'), 'icon' => 'bi-buildings', 'href' => $stockRoute('warehouses')],
+                    ['label' => __('main.stock_movements'), 'icon' => 'bi-arrow-left-right', 'href' => $stockRoute('movements')],
+                    ['label' => __('main.stock_inventories'), 'icon' => 'bi-clipboard-check', 'href' => $stockRoute('inventories')],
+                    ['label' => __('main.stock_alerts'), 'icon' => 'bi-bell', 'href' => $stockRoute('alerts')],
+                    ['label' => __('main.stock_units'), 'icon' => 'bi-rulers', 'href' => $stockRoute('units')],
+                    ['label' => __('main.stock_batches'), 'icon' => 'bi-upc-scan', 'href' => $stockRoute('batches')],
+                    ['label' => __('main.stock_transfers'), 'icon' => 'bi-truck', 'href' => $stockRoute('transfers')],
                 ],
             ],
             [
@@ -189,7 +232,7 @@
                         </button>
                         <div class="sidebar-subnav">
                             @foreach ($group['items'] as $item)
-                                <a href="#" title="{{ $item['label'] }}">
+                                <a href="{{ $item['href'] ?? '#' }}" title="{{ $item['label'] }}">
                                     <i class="bi {{ $item['icon'] }}" aria-hidden="true"></i>
                                     <span>{{ $item['label'] }}</span>
                                 </a>

@@ -2,6 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Models\AccountingClient;
+use App\Models\AccountingCreditor;
+use App\Models\AccountingDebtor;
+use App\Models\AccountingPartner;
+use App\Models\AccountingProspect;
+use App\Models\AccountingSalesRepresentative;
+use App\Models\AccountingStockCategory;
+use App\Models\AccountingStockItem;
+use App\Models\AccountingStockMovement;
+use App\Models\AccountingStockUnit;
+use App\Models\AccountingStockWarehouse;
+use App\Models\AccountingSupplier;
 use App\Models\Company;
 use App\Models\CompanySite;
 use App\Models\Subscription;
@@ -282,6 +294,87 @@ class ExampleTest extends TestCase
             'status' => CompanySite::STATUS_ACTIVE,
         ]);
 
+        AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_INDIVIDUAL,
+            'name' => 'Jean Client',
+        ]);
+
+        $businessClient = AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Client SARL',
+        ]);
+        $businessClient->contacts()->create([
+            'full_name' => 'Marie Contact',
+        ]);
+
+        $supplier = AccountingSupplier::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingSupplier::TYPE_COMPANY,
+            'name' => 'Supplier SARL',
+            'status' => AccountingSupplier::STATUS_ACTIVE,
+        ]);
+        $supplier->contacts()->create([
+            'full_name' => 'Supplier Contact',
+        ]);
+
+        $prospect = AccountingProspect::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingProspect::TYPE_COMPANY,
+            'name' => 'Prospect SARL',
+            'source' => AccountingProspect::SOURCE_REFERRAL,
+            'status' => AccountingProspect::STATUS_NEW,
+            'interest_level' => AccountingProspect::INTEREST_HOT,
+        ]);
+        $prospect->contacts()->create([
+            'full_name' => 'Prospect Contact',
+        ]);
+
+        AccountingCreditor::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingCreditor::TYPE_SUPPLIER,
+            'name' => 'Fournisseur dette',
+            'currency' => 'CDF',
+            'initial_amount' => 5000000,
+            'paid_amount' => 1250000,
+            'priority' => AccountingCreditor::PRIORITY_HIGH,
+            'status' => AccountingCreditor::STATUS_ACTIVE,
+        ]);
+
+        AccountingDebtor::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingDebtor::TYPE_CLIENT,
+            'name' => 'Client creance',
+            'currency' => 'CDF',
+            'initial_amount' => 8500000,
+            'received_amount' => 1500000,
+            'status' => AccountingDebtor::STATUS_ACTIVE,
+        ]);
+
+        AccountingPartner::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingPartner::TYPE_DISTRIBUTOR,
+            'name' => 'Partenaire distribution',
+            'status' => AccountingPartner::STATUS_ACTIVE,
+        ]);
+
+        AccountingSalesRepresentative::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingSalesRepresentative::TYPE_INTERNAL,
+            'name' => 'Commercial Kin',
+            'currency' => 'CDF',
+            'status' => AccountingSalesRepresentative::STATUS_ACTIVE,
+        ]);
+
         $response = $this->actingAs($admin)->get(route('main.companies.sites.modules.show', [$company, $site, CompanySite::MODULE_ACCOUNTING]));
 
         $response->assertOk();
@@ -298,8 +391,8 @@ class ExampleTest extends TestCase
         $response->assertSee(__('main.i_owe_suppliers'), false);
         $response->assertSee(__('main.customer_receivable'), false);
         $response->assertSee(__('main.supplier_debt'), false);
-        $response->assertSee('12,4M CDF', false);
-        $response->assertSee('7,8M CDF', false);
+        $response->assertSee('7 000 000 CDF', false);
+        $response->assertSee('3 750 000 CDF', false);
         $response->assertSee(__('main.cashflow_overview'), false);
         $response->assertSee('module-kpi-grid', false);
         $response->assertSee('accountingDashboardData', false);
@@ -312,6 +405,10 @@ class ExampleTest extends TestCase
         $response->assertSee('accounting-schedule-summary', false);
         $response->assertSee('accounting-schedule-list', false);
         $response->assertSee('resources/js/main/accounting-dashboard.js', false);
+        $response->assertSee(__('main.customers'), false);
+        $response->assertSee(__('main.client_contacts'), false);
+        $response->assertSee(__('main.supplier_contacts'), false);
+        $response->assertSee('"series":[1,2,1,1,1,1,1]', false);
         $response->assertSee('dashboard-sidebar accounting-sidebar', false);
         $response->assertSee('id="sidebarToggle"', false);
         $response->assertSee('data-accounting-submenu', false);
@@ -338,6 +435,883 @@ class ExampleTest extends TestCase
         $response->assertSee(__('main.tasks'), false);
         $response->assertSee(__('main.reports'), false);
         $response->assertSee(__('main.module_settings'), false);
+    }
+
+    public function test_accounting_clients_page_manages_individual_and_company_clients(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Clients',
+            'code' => 'ACCOUNTING_CLIENTS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'clients admin',
+            'email' => 'clients-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Clients Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'clients-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Clients Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $route = route('main.accounting.clients', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.customers'), false)
+            ->assertSee(__('main.new_client'), false)
+            ->assertSee('id="companyTable"', false)
+            ->assertSee('resources/js/main/accounting-clients.js', false);
+
+        $this->actingAs($admin)->post(route('main.accounting.clients.store', [$company, $site]), [
+            'type' => AccountingClient::TYPE_INDIVIDUAL,
+            'name' => 'Jean Client',
+            'profession' => 'Consultant',
+            'phone' => '+243810000000',
+            'email' => 'jean@example.test',
+            'address' => 'Kinshasa',
+            'bank_name' => 'Equity BCDC',
+            'account_number' => 'CD001',
+            'currency' => 'CDF',
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_clients', [
+            'company_site_id' => $site->id,
+            'reference' => 'CLT-000001',
+            'type' => AccountingClient::TYPE_INDIVIDUAL,
+            'name' => 'Jean Client',
+            'profession' => 'Consultant',
+            'bank_name' => 'Equity BCDC',
+            'account_number' => 'CD001',
+            'currency' => 'CDF',
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.clients.store', [$company, $site]), [
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Client SARL',
+            'rccm' => 'CD/KIN/RCCM/001',
+            'id_nat' => 'IDNAT001',
+            'nif' => 'NIF001',
+            'bank_name' => 'Rawbank',
+            'account_number' => '000123456789',
+            'currency' => 'USD',
+            'website' => 'https://client.example.test',
+            'contacts' => [
+                [
+                    'full_name' => 'Marie Contact',
+                    'position' => 'Directrice',
+                    'department' => 'Finance',
+                    'email' => 'marie@example.test',
+                    'phone' => '+243820000000',
+                ],
+            ],
+        ])->assertRedirect($route);
+
+        $client = AccountingClient::query()->where('name', 'Client SARL')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_client_contacts', [
+            'accounting_client_id' => $client->id,
+            'full_name' => 'Marie Contact',
+            'position' => 'Directrice',
+        ]);
+        $this->assertDatabaseHas('accounting_clients', [
+            'name' => 'Client SARL',
+            'bank_name' => 'Rawbank',
+            'account_number' => '000123456789',
+            'currency' => 'USD',
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.reference'), false)
+            ->assertSee('CLT-000001', false)
+            ->assertSee('CLT-000002', false)
+            ->assertSee('Jean Client')
+            ->assertSee('Client SARL')
+            ->assertSee('Marie Contact', false)
+            ->assertSee(__('main.client_company'), false);
+    }
+
+    public function test_accounting_suppliers_page_manages_individual_and_company_suppliers(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Suppliers',
+            'code' => 'ACCOUNTING_SUPPLIERS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'suppliers admin',
+            'email' => 'suppliers-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Suppliers Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'suppliers-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Suppliers Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $route = route('main.accounting.suppliers', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.suppliers'), false)
+            ->assertSee(__('main.new_supplier'), false)
+            ->assertSee('id="companyTable"', false)
+            ->assertSee('resources/js/main/accounting-suppliers.js', false);
+
+        $this->actingAs($admin)->post(route('main.accounting.suppliers.store', [$company, $site]), [
+            'type' => AccountingSupplier::TYPE_INDIVIDUAL,
+            'name' => 'Jean Fournisseur',
+            'profession' => 'Prestataire',
+            'phone' => '+243810000001',
+            'email' => 'fournisseur@example.test',
+            'address' => 'Kinshasa',
+            'bank_name' => 'Equity BCDC',
+            'account_number' => 'FRS001',
+            'currency' => 'CDF',
+            'status' => AccountingSupplier::STATUS_ACTIVE,
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_suppliers', [
+            'company_site_id' => $site->id,
+            'reference' => 'FRS-000001',
+            'type' => AccountingSupplier::TYPE_INDIVIDUAL,
+            'name' => 'Jean Fournisseur',
+            'bank_name' => 'Equity BCDC',
+            'account_number' => 'FRS001',
+            'currency' => 'CDF',
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.suppliers.store', [$company, $site]), [
+            'type' => AccountingSupplier::TYPE_COMPANY,
+            'name' => 'Supplier SARL',
+            'rccm' => 'CD/KIN/RCCM/FRS001',
+            'id_nat' => 'FRSID001',
+            'nif' => 'FRSNIF001',
+            'bank_name' => 'Rawbank',
+            'account_number' => '000987654321',
+            'currency' => 'USD',
+            'website' => 'https://supplier.example.test',
+            'status' => AccountingSupplier::STATUS_INACTIVE,
+            'contacts' => [
+                [
+                    'full_name' => 'Paul Contact',
+                    'position' => 'Responsable achats',
+                    'department' => 'Commercial',
+                    'email' => 'paul@example.test',
+                    'phone' => '+243820000001',
+                ],
+            ],
+        ])->assertRedirect($route);
+
+        $supplier = AccountingSupplier::query()->where('name', 'Supplier SARL')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_supplier_contacts', [
+            'accounting_supplier_id' => $supplier->id,
+            'full_name' => 'Paul Contact',
+            'position' => 'Responsable achats',
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.reference'), false)
+            ->assertSee('FRS-000001', false)
+            ->assertSee('FRS-000002', false)
+            ->assertSee('Jean Fournisseur')
+            ->assertSee('Supplier SARL')
+            ->assertSee('Paul Contact', false)
+            ->assertSee(__('main.supplier_company'), false);
+    }
+
+    public function test_accounting_prospects_page_manages_and_converts_prospects(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Prospects',
+            'code' => 'ACCOUNTING_PROSPECTS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'prospects admin',
+            'email' => 'prospects-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Prospects Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'prospects-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Prospects Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $route = route('main.accounting.prospects', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.prospects'), false)
+            ->assertSee(__('main.new_prospect'), false)
+            ->assertSee('id="companyTable"', false)
+            ->assertSee('resources/js/main/accounting-prospects.js', false);
+
+        $this->actingAs($admin)->post(route('main.accounting.prospects.store', [$company, $site]), [
+            'type' => AccountingProspect::TYPE_INDIVIDUAL,
+            'name' => 'Jean Prospect',
+            'profession' => 'Entrepreneur',
+            'phone' => '+243810000002',
+            'email' => 'jean-prospect@example.test',
+            'address' => 'Kinshasa',
+            'source' => AccountingProspect::SOURCE_REFERRAL,
+            'status' => AccountingProspect::STATUS_CONTACTED,
+            'interest_level' => AccountingProspect::INTEREST_HOT,
+            'notes' => 'Relance prévue cette semaine.',
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_prospects', [
+            'company_site_id' => $site->id,
+            'reference' => 'PRS-000001',
+            'type' => AccountingProspect::TYPE_INDIVIDUAL,
+            'name' => 'Jean Prospect',
+            'source' => AccountingProspect::SOURCE_REFERRAL,
+            'status' => AccountingProspect::STATUS_CONTACTED,
+            'interest_level' => AccountingProspect::INTEREST_HOT,
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.prospects.store', [$company, $site]), [
+            'type' => AccountingProspect::TYPE_COMPANY,
+            'name' => 'Prospect SARL',
+            'rccm' => 'CD/KIN/RCCM/PRS001',
+            'id_nat' => 'PRSID001',
+            'nif' => 'PRSNIF001',
+            'website' => 'https://prospect.example.test',
+            'source' => AccountingProspect::SOURCE_CAMPAIGN,
+            'status' => AccountingProspect::STATUS_QUALIFIED,
+            'interest_level' => AccountingProspect::INTEREST_WARM,
+            'contacts' => [
+                [
+                    'full_name' => 'Claire Prospect',
+                    'position' => 'Directrice générale',
+                    'department' => 'Direction',
+                    'email' => 'claire@example.test',
+                    'phone' => '+243820000002',
+                ],
+            ],
+        ])->assertRedirect($route);
+
+        $prospect = AccountingProspect::query()->where('name', 'Prospect SARL')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_prospect_contacts', [
+            'accounting_prospect_id' => $prospect->id,
+            'full_name' => 'Claire Prospect',
+            'position' => 'Directrice générale',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('main.accounting.prospects.convert', [$company, $site, $prospect]))
+            ->assertRedirect(route('main.accounting.clients', [$company, $site]));
+
+        $prospect->refresh();
+        $this->assertNotNull($prospect->converted_client_id);
+        $this->assertSame(AccountingProspect::STATUS_WON, $prospect->status);
+        $this->assertDatabaseHas('accounting_clients', [
+            'company_site_id' => $site->id,
+            'name' => 'Prospect SARL',
+            'type' => AccountingProspect::TYPE_COMPANY,
+        ]);
+        $this->assertDatabaseHas('accounting_client_contacts', [
+            'full_name' => 'Claire Prospect',
+            'position' => 'Directrice générale',
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee('PRS-000001', false)
+            ->assertSee('PRS-000002', false)
+            ->assertSee(__('main.prospect_company'), false)
+            ->assertSee(__('main.prospect_status_won'), false)
+            ->assertSee(__('main.prospect_interest_hot'), false);
+    }
+
+    public function test_accounting_creditors_page_manages_creditors_and_debts(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Creditors',
+            'code' => 'ACCOUNTING_CREDITORS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'creditors admin',
+            'email' => 'creditors-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Creditors Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'creditors-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Creditors Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $route = route('main.accounting.creditors', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.creditors'), false)
+            ->assertSee(__('main.new_creditor'), false)
+            ->assertSee('id="companyTable"', false)
+            ->assertSee('resources/js/main/accounting-creditors.js', false);
+
+        $this->actingAs($admin)->post(route('main.accounting.creditors.store', [$company, $site]), [
+            'type' => AccountingCreditor::TYPE_BANK,
+            'name' => 'Rawbank',
+            'phone' => '+243810000003',
+            'email' => 'rawbank@example.test',
+            'address' => 'Kinshasa',
+            'currency' => 'CDF',
+            'initial_amount' => 5000000,
+            'paid_amount' => 1250000,
+            'due_date' => now()->addDays(15)->format('Y-m-d'),
+            'description' => 'Crédit court terme',
+            'priority' => AccountingCreditor::PRIORITY_HIGH,
+            'status' => AccountingCreditor::STATUS_ACTIVE,
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_creditors', [
+            'company_site_id' => $site->id,
+            'reference' => 'CRE-000001',
+            'type' => AccountingCreditor::TYPE_BANK,
+            'name' => 'Rawbank',
+            'currency' => 'CDF',
+            'initial_amount' => 5000000,
+            'paid_amount' => 1250000,
+            'priority' => AccountingCreditor::PRIORITY_HIGH,
+            'status' => AccountingCreditor::STATUS_ACTIVE,
+        ]);
+
+        $creditor = AccountingCreditor::query()->where('name', 'Rawbank')->firstOrFail();
+        $this->assertSame(3750000.0, $creditor->balanceDue());
+
+        $this->actingAs($admin)->put(route('main.accounting.creditors.update', [$company, $site, $creditor]), [
+            'type' => AccountingCreditor::TYPE_BANK,
+            'name' => 'Rawbank RDC',
+            'currency' => 'USD',
+            'initial_amount' => 3000,
+            'paid_amount' => 3000,
+            'due_date' => now()->addDays(20)->format('Y-m-d'),
+            'description' => 'Dette soldee',
+            'priority' => AccountingCreditor::PRIORITY_NORMAL,
+            'status' => AccountingCreditor::STATUS_SETTLED,
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_creditors', [
+            'id' => $creditor->id,
+            'name' => 'Rawbank RDC',
+            'currency' => 'USD',
+            'status' => AccountingCreditor::STATUS_SETTLED,
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee('CRE-000001', false)
+            ->assertSee('Rawbank RDC')
+            ->assertSee(__('main.creditor_type_bank'), false)
+            ->assertSee(__('main.settled'), false);
+    }
+
+    public function test_accounting_debtors_page_manages_debtors_and_receivables(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Debtors',
+            'code' => 'ACCOUNTING_DEBTORS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'debtors admin',
+            'email' => 'debtors-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Debtors Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'debtors-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Debtors Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $route = route('main.accounting.debtors', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.debtors'), false)
+            ->assertSee(__('main.new_debtor'), false)
+            ->assertSee('id="companyTable"', false)
+            ->assertSee('resources/js/main/accounting-debtors.js', false);
+
+        $this->actingAs($admin)->post(route('main.accounting.debtors.store', [$company, $site]), [
+            'type' => AccountingDebtor::TYPE_CLIENT,
+            'name' => 'Client Debiteur',
+            'phone' => '+243810000004',
+            'email' => 'debiteur@example.test',
+            'address' => 'Kinshasa',
+            'currency' => 'CDF',
+            'initial_amount' => 7200000,
+            'received_amount' => 1200000,
+            'due_date' => now()->addDays(10)->format('Y-m-d'),
+            'description' => 'Facture a encaisser',
+            'status' => AccountingDebtor::STATUS_ACTIVE,
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_debtors', [
+            'company_site_id' => $site->id,
+            'reference' => 'DEB-000001',
+            'type' => AccountingDebtor::TYPE_CLIENT,
+            'name' => 'Client Debiteur',
+            'currency' => 'CDF',
+            'initial_amount' => 7200000,
+            'received_amount' => 1200000,
+            'status' => AccountingDebtor::STATUS_ACTIVE,
+        ]);
+
+        $debtor = AccountingDebtor::query()->where('name', 'Client Debiteur')->firstOrFail();
+        $this->assertSame(6000000.0, $debtor->balanceReceivable());
+
+        $this->actingAs($admin)->put(route('main.accounting.debtors.update', [$company, $site, $debtor]), [
+            'type' => AccountingDebtor::TYPE_CLIENT,
+            'name' => 'Client Solde',
+            'currency' => 'USD',
+            'initial_amount' => 2500,
+            'received_amount' => 2500,
+            'due_date' => now()->addDays(18)->format('Y-m-d'),
+            'description' => 'Creance soldee',
+            'status' => AccountingDebtor::STATUS_SETTLED,
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_debtors', [
+            'id' => $debtor->id,
+            'name' => 'Client Solde',
+            'currency' => 'USD',
+            'status' => AccountingDebtor::STATUS_SETTLED,
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee('DEB-000001', false)
+            ->assertSee('Client Solde')
+            ->assertSee(__('main.debtor_type_client'), false)
+            ->assertSee(__('main.settled'), false);
+    }
+
+    public function test_accounting_partners_page_manages_partners(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Partners',
+            'code' => 'ACCOUNTING_PARTNERS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'partners admin',
+            'email' => 'partners-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Partners Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'partners-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Partners Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $route = route('main.accounting.partners', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.partners'), false)
+            ->assertSee(__('main.new_partner'), false)
+            ->assertSee('id="companyTable"', false)
+            ->assertSee('resources/js/main/accounting-partners.js', false);
+
+        $this->actingAs($admin)->post(route('main.accounting.partners.store', [$company, $site]), [
+            'type' => AccountingPartner::TYPE_DISTRIBUTOR,
+            'name' => 'Distributeur Kin',
+            'contact_name' => 'Jean Partenaire',
+            'contact_position' => 'Directeur commercial',
+            'phone' => '+243810000005',
+            'email' => 'partner@example.test',
+            'address' => 'Kinshasa',
+            'website' => 'https://partner.example.test',
+            'activity_domain' => 'Distribution',
+            'partnership_started_at' => now()->format('Y-m-d'),
+            'status' => AccountingPartner::STATUS_ACTIVE,
+            'notes' => 'Contrat cadre',
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_partners', [
+            'company_site_id' => $site->id,
+            'reference' => 'PAR-000001',
+            'type' => AccountingPartner::TYPE_DISTRIBUTOR,
+            'name' => 'Distributeur Kin',
+            'contact_name' => 'Jean Partenaire',
+            'status' => AccountingPartner::STATUS_ACTIVE,
+        ]);
+
+        $partner = AccountingPartner::query()->where('name', 'Distributeur Kin')->firstOrFail();
+
+        $this->actingAs($admin)->put(route('main.accounting.partners.update', [$company, $site, $partner]), [
+            'type' => AccountingPartner::TYPE_CONSULTING_FIRM,
+            'name' => 'Cabinet Conseil Kin',
+            'contact_name' => 'Marie Conseil',
+            'contact_position' => 'Associee gerante',
+            'activity_domain' => 'Conseil',
+            'status' => AccountingPartner::STATUS_SUSPENDED,
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_partners', [
+            'id' => $partner->id,
+            'name' => 'Cabinet Conseil Kin',
+            'type' => AccountingPartner::TYPE_CONSULTING_FIRM,
+            'activity_domain' => 'Conseil',
+            'status' => AccountingPartner::STATUS_SUSPENDED,
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee('PAR-000001', false)
+            ->assertSee('Cabinet Conseil Kin')
+            ->assertSee(__('main.partner_type_consulting_firm'), false)
+            ->assertSee(__('main.partner_status_suspended'), false);
+    }
+
+    public function test_accounting_sales_representatives_page_manages_representatives(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Commercials',
+            'code' => 'ACCOUNTING_COMMERCIALS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'commercials admin',
+            'email' => 'commercials-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Commercials Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'commercials-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Commercials Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $route = route('main.accounting.sales-representatives', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.sales_representatives'), false)
+            ->assertSee(__('main.new_sales_representative'), false)
+            ->assertSee('id="companyTable"', false)
+            ->assertSee('resources/js/main/accounting-sales-representatives.js', false);
+
+        $this->actingAs($admin)->post(route('main.accounting.sales-representatives.store', [$company, $site]), [
+            'type' => AccountingSalesRepresentative::TYPE_INTERNAL,
+            'name' => 'Jean Commercial',
+            'phone' => '+243810000006',
+            'email' => 'commercial@example.test',
+            'address' => 'Kinshasa',
+            'sales_area' => 'Kinshasa Ouest',
+            'currency' => 'CDF',
+            'monthly_target' => 5000000,
+            'annual_target' => 60000000,
+            'commission_rate' => 5.5,
+            'status' => AccountingSalesRepresentative::STATUS_ACTIVE,
+            'notes' => 'Portefeuille prioritaire',
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_sales_representatives', [
+            'company_site_id' => $site->id,
+            'reference' => 'COM-000001',
+            'type' => AccountingSalesRepresentative::TYPE_INTERNAL,
+            'name' => 'Jean Commercial',
+            'sales_area' => 'Kinshasa Ouest',
+            'currency' => 'CDF',
+            'monthly_target' => 5000000,
+            'commission_rate' => 5.5,
+            'status' => AccountingSalesRepresentative::STATUS_ACTIVE,
+        ]);
+
+        $representative = AccountingSalesRepresentative::query()->where('name', 'Jean Commercial')->firstOrFail();
+
+        $this->actingAs($admin)->put(route('main.accounting.sales-representatives.update', [$company, $site, $representative]), [
+            'type' => AccountingSalesRepresentative::TYPE_RESELLER,
+            'name' => 'Agence Commerciale',
+            'sales_area' => 'Grand Kinshasa',
+            'currency' => 'USD',
+            'monthly_target' => 3000,
+            'annual_target' => 36000,
+            'commission_rate' => 7,
+            'status' => AccountingSalesRepresentative::STATUS_SUSPENDED,
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_sales_representatives', [
+            'id' => $representative->id,
+            'name' => 'Agence Commerciale',
+            'type' => AccountingSalesRepresentative::TYPE_RESELLER,
+            'sales_area' => 'Grand Kinshasa',
+            'currency' => 'USD',
+            'status' => AccountingSalesRepresentative::STATUS_SUSPENDED,
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee('COM-000001', false)
+            ->assertSee('Agence Commerciale')
+            ->assertSee(__('main.sales_representative_type_reseller'), false)
+            ->assertSee(__('main.suspended'), false);
+    }
+
+    public function test_accounting_stock_pages_manage_items_and_movements(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Stock',
+            'code' => 'ACCOUNTING_STOCK',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'stock admin',
+            'email' => 'stock-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Stock Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'stock-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Stock Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $categoriesRoute = route('main.accounting.stock.index', [$company, $site, 'categories']);
+
+        $this->actingAs($admin)->get($categoriesRoute)
+            ->assertOk()
+            ->assertSee(__('main.categories'), false)
+            ->assertSee(__('main.new_stock_category'), false)
+            ->assertSee('id="companyTable"', false)
+            ->assertSee('resources/js/main/accounting-stock-resource.js', false);
+
+        $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'categories']), [
+            'name' => 'Matieres premieres',
+            'description' => 'Articles de fabrication',
+            'status' => 'active',
+        ])->assertRedirect($categoriesRoute);
+
+        $category = AccountingStockCategory::query()->where('name', 'Matieres premieres')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_stock_categories', [
+            'company_site_id' => $site->id,
+            'reference' => 'CAT-000001',
+            'name' => 'Matieres premieres',
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'units']), [
+            'name' => 'Piece',
+            'symbol' => 'pcs',
+            'type' => AccountingStockUnit::TYPE_UNIT,
+            'status' => 'active',
+        ])->assertRedirect(route('main.accounting.stock.index', [$company, $site, 'units']));
+
+        $unit = AccountingStockUnit::query()->where('symbol', 'pcs')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_stock_units', [
+            'company_site_id' => $site->id,
+            'reference' => 'UNT-000001',
+            'symbol' => 'pcs',
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'warehouses']), [
+            'name' => 'Depot principal',
+            'code' => 'DEP-01',
+            'manager_name' => 'Responsable stock',
+            'status' => 'active',
+        ])->assertRedirect(route('main.accounting.stock.index', [$company, $site, 'warehouses']));
+
+        $warehouse = AccountingStockWarehouse::query()->where('code', 'DEP-01')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_stock_warehouses', [
+            'company_site_id' => $site->id,
+            'reference' => 'DEP-000001',
+            'name' => 'Depot principal',
+        ]);
+
+        $itemsRoute = route('main.accounting.stock.index', [$company, $site, 'items']);
+
+        $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'items']), [
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'default_warehouse_id' => $warehouse->id,
+            'name' => 'Ciment gris',
+            'type' => AccountingStockItem::TYPE_PRODUCT,
+            'currency' => 'CDF',
+            'purchase_price' => 12000,
+            'sale_price' => 15000,
+            'current_stock' => 10,
+            'min_stock' => 3,
+            'status' => 'active',
+        ])->assertRedirect($itemsRoute);
+
+        $item = AccountingStockItem::query()->where('name', 'Ciment gris')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_stock_items', [
+            'company_site_id' => $site->id,
+            'reference' => 'ART-000001',
+            'name' => 'Ciment gris',
+            'current_stock' => 10,
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'movements']), [
+            'item_id' => $item->id,
+            'warehouse_id' => $warehouse->id,
+            'type' => AccountingStockMovement::TYPE_ENTRY,
+            'quantity' => 5,
+            'movement_date' => now()->format('Y-m-d'),
+            'reason' => 'Reception fournisseur',
+        ])->assertRedirect(route('main.accounting.stock.index', [$company, $site, 'movements']));
+
+        $item->refresh();
+
+        $this->assertSame(15.0, (float) $item->current_stock);
+        $this->assertDatabaseHas('accounting_stock_movements', [
+            'company_site_id' => $site->id,
+            'reference' => 'MVT-000001',
+            'item_id' => $item->id,
+            'quantity' => 5,
+        ]);
+
+        $this->actingAs($admin)->get($itemsRoute)
+            ->assertOk()
+            ->assertSee('ART-000001', false)
+            ->assertSee('Ciment gris')
+            ->assertSee('15,00', false);
     }
 
     public function test_non_accounting_module_opens_under_development_page(): void

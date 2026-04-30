@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CompanySite extends Model
 {
@@ -63,6 +64,91 @@ class CompanySite extends Model
         return $this->belongsToMany(User::class, 'company_site_user')
             ->withPivot(['module_permissions', 'can_create', 'can_update', 'can_delete'])
             ->withTimestamps();
+    }
+
+    public function accountingClients(): HasMany
+    {
+        return $this->hasMany(AccountingClient::class);
+    }
+
+    public function accountingSuppliers(): HasMany
+    {
+        return $this->hasMany(AccountingSupplier::class);
+    }
+
+    public function accountingProspects(): HasMany
+    {
+        return $this->hasMany(AccountingProspect::class);
+    }
+
+    public function accountingCreditors(): HasMany
+    {
+        return $this->hasMany(AccountingCreditor::class);
+    }
+
+    public function accountingDebtors(): HasMany
+    {
+        return $this->hasMany(AccountingDebtor::class);
+    }
+
+    public function accountingPartners(): HasMany
+    {
+        return $this->hasMany(AccountingPartner::class);
+    }
+
+    public function accountingSalesRepresentatives(): HasMany
+    {
+        return $this->hasMany(AccountingSalesRepresentative::class);
+    }
+
+    public function accountingStockCategories(): HasMany
+    {
+        return $this->hasMany(AccountingStockCategory::class);
+    }
+
+    public function accountingStockSubcategories(): HasMany
+    {
+        return $this->hasMany(AccountingStockSubcategory::class);
+    }
+
+    public function accountingStockUnits(): HasMany
+    {
+        return $this->hasMany(AccountingStockUnit::class);
+    }
+
+    public function accountingStockItems(): HasMany
+    {
+        return $this->hasMany(AccountingStockItem::class);
+    }
+
+    public function accountingStockWarehouses(): HasMany
+    {
+        return $this->hasMany(AccountingStockWarehouse::class);
+    }
+
+    public function accountingStockBatches(): HasMany
+    {
+        return $this->hasMany(AccountingStockBatch::class);
+    }
+
+    public function accountingStockMovements(): HasMany
+    {
+        return $this->hasMany(AccountingStockMovement::class);
+    }
+
+    public function accountingStockTransfers(): HasMany
+    {
+        return $this->hasMany(AccountingStockTransfer::class);
+    }
+
+    public function accountingStockInventories(): HasMany
+    {
+        return $this->hasMany(AccountingStockInventory::class);
+    }
+
+    public function accountingStockAlerts(): HasMany
+    {
+        return $this->hasMany(AccountingStockAlert::class);
     }
 
     public static function types(): array

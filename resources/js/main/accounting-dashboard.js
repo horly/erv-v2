@@ -18,11 +18,11 @@
         white: '#ffffff',
     };
 
-    const renderFallback = (selector) => {
+    const renderFallback = (selector, message = null) => {
         const element = document.querySelector(selector);
 
         if (element) {
-            element.innerHTML = `<div class="chart-empty">${data.emptyLabel || 'Aucune donnée'}</div>`;
+            element.innerHTML = `<div class="chart-empty">${message || data.emptyLabel || 'Aucune donnée'}</div>`;
         }
     };
 
@@ -158,20 +158,27 @@
         });
     });
 
-    renderChart('#accountingContactsChart', {
-        ...baseOptions,
-        chart: { ...baseOptions.chart, type: 'donut', height: 220 },
-        colors: [colors.blue, colors.violet, colors.green, colors.amber, colors.rose],
-        labels: data.contacts?.labels || [],
-        series: data.contacts?.series || [],
-        stroke: { width: 4, colors: [colors.white] },
-        plotOptions: {
-            pie: {
-                donut: { size: '58%' },
+    const contactsSeries = data.contacts?.series || [];
+    const contactsTotal = contactsSeries.reduce((total, value) => total + Number(value || 0), 0);
+
+    if (contactsTotal > 0) {
+        renderChart('#accountingContactsChart', {
+            ...baseOptions,
+            chart: { ...baseOptions.chart, type: 'donut', height: 220 },
+            colors: [colors.blue, colors.violet, colors.green, colors.amber, colors.rose],
+            labels: data.contacts?.labels || [],
+            series: contactsSeries,
+            stroke: { width: 4, colors: [colors.white] },
+            plotOptions: {
+                pie: {
+                    donut: { size: '58%' },
+                },
             },
-        },
-        legend: { ...baseOptions.legend, position: 'bottom' },
-    });
+            legend: { ...baseOptions.legend, position: 'bottom' },
+        });
+    } else {
+        renderFallback('#accountingContactsChart', data.emptyClientsLabel);
+    }
 
     renderChart('#accountingStockServicesChart', {
         ...baseOptions,

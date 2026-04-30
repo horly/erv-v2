@@ -49,6 +49,9 @@ return [
         'phones.*.phone_number' => [
             'required_with' => 'Le téléphone est obligatoire lorsque le libellé est renseigné.',
         ],
+        'contacts.*.full_name' => [
+            'required_with' => 'Le nom complet du contact est obligatoire lorsqu’une information du contact est renseignée.',
+        ],
     ],
 
     'attributes' => [
@@ -60,11 +63,19 @@ return [
         'admin_email' => 'e-mail de l’administrateur',
         'admin_name' => 'nom de l’administrateur',
         'admin_subscription_id' => 'abonnement',
+        'account_number' => 'numéro de compte',
+        'contacts.*.full_name' => 'nom complet du contact',
+        'contacts.*.position' => 'fonction ou grade du contact',
+        'contacts.*.department' => 'département du contact',
+        'contacts.*.email' => 'e-mail du contact',
+        'contacts.*.phone' => 'téléphone du contact',
         'country' => 'pays',
         'email' => 'e-mail',
         'expires_at' => 'date d’expiration',
+        'id_nat' => 'ID Nat.',
         'logo' => 'logo',
         'name' => 'nom',
+        'nif' => 'NIF',
         'password' => 'mot de passe',
         'password_confirmation' => 'confirmation du mot de passe',
         'phones.*.label' => 'libellé',

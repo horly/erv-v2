@@ -1,5 +1,5 @@
 -- EXAD ERP database export
--- Generated: 2026-04-28 18:05:24 +02:00
+-- Generated: 2026-04-30 00:00:00 +01:00
 -- Database: erp_database
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 SET time_zone = "+00:00";
@@ -88,6 +88,7 @@ CREATE TABLE `company_phones` (
 DROP TABLE IF EXISTS `company_site_user`;
 CREATE TABLE `company_site_user` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
   `company_site_id` bigint(20) unsigned NOT NULL,
   `user_id` bigint(20) unsigned NOT NULL,
   `module_permissions` json DEFAULT NULL,
@@ -127,6 +128,553 @@ CREATE TABLE `company_sites` (
   KEY `company_sites_status_index` (`status`),
   CONSTRAINT `company_sites_company_id_foreign` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
   CONSTRAINT `company_sites_responsible_id_foreign` FOREIGN KEY (`responsible_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `accounting_client_contacts`;
+DROP TABLE IF EXISTS `accounting_prospect_contacts`;
+DROP TABLE IF EXISTS `accounting_prospects`;
+DROP TABLE IF EXISTS `accounting_supplier_contacts`;
+DROP TABLE IF EXISTS `accounting_suppliers`;
+DROP TABLE IF EXISTS `accounting_stock_alerts`;
+DROP TABLE IF EXISTS `accounting_stock_inventory_lines`;
+DROP TABLE IF EXISTS `accounting_stock_inventories`;
+DROP TABLE IF EXISTS `accounting_stock_transfers`;
+DROP TABLE IF EXISTS `accounting_stock_movements`;
+DROP TABLE IF EXISTS `accounting_stock_batches`;
+DROP TABLE IF EXISTS `accounting_stock_items`;
+DROP TABLE IF EXISTS `accounting_stock_warehouses`;
+DROP TABLE IF EXISTS `accounting_stock_units`;
+DROP TABLE IF EXISTS `accounting_stock_subcategories`;
+DROP TABLE IF EXISTS `accounting_stock_categories`;
+DROP TABLE IF EXISTS `accounting_sales_representatives`;
+DROP TABLE IF EXISTS `accounting_partners`;
+DROP TABLE IF EXISTS `accounting_debtors`;
+DROP TABLE IF EXISTS `accounting_creditors`;
+DROP TABLE IF EXISTS `accounting_clients`;
+CREATE TABLE `accounting_clients` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `type` varchar(30) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `profession` varchar(255) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `rccm` varchar(255) DEFAULT NULL,
+  `id_nat` varchar(255) DEFAULT NULL,
+  `nif` varchar(255) DEFAULT NULL,
+  `bank_name` varchar(255) DEFAULT NULL,
+  `account_number` varchar(100) DEFAULT NULL,
+  `currency` varchar(3) DEFAULT NULL,
+  `website` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_clients_reference_unique` (`reference`),
+  KEY `accounting_clients_company_site_id_type_index` (`company_site_id`,`type`),
+  KEY `accounting_clients_company_site_id_name_index` (`company_site_id`,`name`),
+  KEY `accounting_clients_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_clients_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_clients_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_client_contacts` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `accounting_client_id` bigint(20) unsigned NOT NULL,
+  `full_name` varchar(255) NOT NULL,
+  `position` varchar(255) DEFAULT NULL,
+  `department` varchar(255) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `accounting_client_contacts_accounting_client_id_full_name_index` (`accounting_client_id`,`full_name`),
+  CONSTRAINT `accounting_client_contacts_accounting_client_id_foreign` FOREIGN KEY (`accounting_client_id`) REFERENCES `accounting_clients` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_suppliers` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `type` varchar(30) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `profession` varchar(255) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `rccm` varchar(255) DEFAULT NULL,
+  `id_nat` varchar(255) DEFAULT NULL,
+  `nif` varchar(255) DEFAULT NULL,
+  `bank_name` varchar(255) DEFAULT NULL,
+  `account_number` varchar(255) DEFAULT NULL,
+  `currency` varchar(3) DEFAULT NULL,
+  `website` varchar(255) DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_suppliers_reference_unique` (`reference`),
+  KEY `accounting_suppliers_company_site_id_type_index` (`company_site_id`,`type`),
+  KEY `accounting_suppliers_company_site_id_name_index` (`company_site_id`,`name`),
+  KEY `accounting_suppliers_company_site_id_status_index` (`company_site_id`,`status`),
+  KEY `accounting_suppliers_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_suppliers_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_suppliers_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_supplier_contacts` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `accounting_supplier_id` bigint(20) unsigned NOT NULL,
+  `full_name` varchar(255) NOT NULL,
+  `position` varchar(255) DEFAULT NULL,
+  `department` varchar(255) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `acct_supplier_contacts_supplier_name_idx` (`accounting_supplier_id`,`full_name`),
+  CONSTRAINT `accounting_supplier_contacts_accounting_supplier_id_foreign` FOREIGN KEY (`accounting_supplier_id`) REFERENCES `accounting_suppliers` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_prospects` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `converted_client_id` bigint(20) unsigned DEFAULT NULL,
+  `type` varchar(30) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `profession` varchar(255) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `rccm` varchar(255) DEFAULT NULL,
+  `id_nat` varchar(255) DEFAULT NULL,
+  `nif` varchar(255) DEFAULT NULL,
+  `website` varchar(255) DEFAULT NULL,
+  `source` varchar(50) NOT NULL DEFAULT 'other',
+  `status` varchar(50) NOT NULL DEFAULT 'new',
+  `interest_level` varchar(30) NOT NULL DEFAULT 'warm',
+  `notes` text DEFAULT NULL,
+  `converted_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_prospects_reference_unique` (`reference`),
+  KEY `accounting_prospects_company_site_id_type_index` (`company_site_id`,`type`),
+  KEY `accounting_prospects_company_site_id_status_index` (`company_site_id`,`status`),
+  KEY `accounting_prospects_company_site_id_interest_level_index` (`company_site_id`,`interest_level`),
+  KEY `accounting_prospects_company_site_id_name_index` (`company_site_id`,`name`),
+  KEY `accounting_prospects_created_by_foreign` (`created_by`),
+  KEY `accounting_prospects_converted_client_id_foreign` (`converted_client_id`),
+  CONSTRAINT `accounting_prospects_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_prospects_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_prospects_converted_client_id_foreign` FOREIGN KEY (`converted_client_id`) REFERENCES `accounting_clients` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_prospect_contacts` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `accounting_prospect_id` bigint(20) unsigned NOT NULL,
+  `full_name` varchar(255) NOT NULL,
+  `position` varchar(255) DEFAULT NULL,
+  `department` varchar(255) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `acct_prospect_contacts_prospect_name_idx` (`accounting_prospect_id`,`full_name`),
+  CONSTRAINT `accounting_prospect_contacts_accounting_prospect_id_foreign` FOREIGN KEY (`accounting_prospect_id`) REFERENCES `accounting_prospects` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_creditors` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `type` varchar(40) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `currency` varchar(3) NOT NULL,
+  `initial_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `paid_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `due_date` date DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `priority` varchar(20) NOT NULL DEFAULT 'normal',
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_creditors_reference_unique` (`reference`),
+  KEY `accounting_creditors_company_site_id_type_index` (`company_site_id`,`type`),
+  KEY `accounting_creditors_company_site_id_name_index` (`company_site_id`,`name`),
+  KEY `accounting_creditors_company_site_id_status_index` (`company_site_id`,`status`),
+  KEY `accounting_creditors_company_site_id_due_date_index` (`company_site_id`,`due_date`),
+  KEY `accounting_creditors_company_site_id_priority_index` (`company_site_id`,`priority`),
+  KEY `accounting_creditors_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_creditors_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_creditors_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_debtors` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `type` varchar(40) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `currency` varchar(3) NOT NULL,
+  `initial_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `received_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `due_date` date DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_debtors_reference_unique` (`reference`),
+  KEY `accounting_debtors_company_site_id_type_index` (`company_site_id`,`type`),
+  KEY `accounting_debtors_company_site_id_name_index` (`company_site_id`,`name`),
+  KEY `accounting_debtors_company_site_id_status_index` (`company_site_id`,`status`),
+  KEY `accounting_debtors_company_site_id_due_date_index` (`company_site_id`,`due_date`),
+  KEY `accounting_debtors_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_debtors_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_debtors_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_partners` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `type` varchar(40) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `contact_name` varchar(255) DEFAULT NULL,
+  `contact_position` varchar(255) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `website` varchar(255) DEFAULT NULL,
+  `activity_domain` varchar(255) DEFAULT NULL,
+  `partnership_started_at` date DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_partners_reference_unique` (`reference`),
+  KEY `accounting_partners_company_site_id_type_index` (`company_site_id`,`type`),
+  KEY `accounting_partners_company_site_id_name_index` (`company_site_id`,`name`),
+  KEY `accounting_partners_company_site_id_status_index` (`company_site_id`,`status`),
+  KEY `accounting_partners_company_site_id_activity_domain_index` (`company_site_id`,`activity_domain`),
+  KEY `accounting_partners_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_partners_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_partners_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_sales_representatives` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `type` varchar(40) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `sales_area` varchar(255) DEFAULT NULL,
+  `currency` varchar(3) NOT NULL DEFAULT 'CDF',
+  `monthly_target` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `annual_target` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `commission_rate` decimal(5,2) NOT NULL DEFAULT 0.00,
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_sales_representatives_reference_unique` (`reference`),
+  KEY `acct_sales_rep_site_type_idx` (`company_site_id`,`type`),
+  KEY `acct_sales_rep_site_name_idx` (`company_site_id`,`name`),
+  KEY `acct_sales_rep_site_status_idx` (`company_site_id`,`status`),
+  KEY `acct_sales_rep_site_area_idx` (`company_site_id`,`sales_area`),
+  KEY `accounting_sales_representatives_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_sales_representatives_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_sales_representatives_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_stock_categories` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `name` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_stock_categories_reference_unique` (`reference`),
+  KEY `acct_stock_cat_site_name_idx` (`company_site_id`,`name`),
+  KEY `acct_stock_cat_site_status_idx` (`company_site_id`,`status`),
+  KEY `accounting_stock_categories_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_stock_categories_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_categories_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_stock_subcategories` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `category_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `name` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_stock_subcategories_reference_unique` (`reference`),
+  KEY `acct_stock_subcat_site_cat_idx` (`company_site_id`,`category_id`),
+  KEY `acct_stock_subcat_site_name_idx` (`company_site_id`,`name`),
+  KEY `accounting_stock_subcategories_category_id_foreign` (`category_id`),
+  KEY `accounting_stock_subcategories_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_stock_subcategories_category_id_foreign` FOREIGN KEY (`category_id`) REFERENCES `accounting_stock_categories` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_subcategories_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_subcategories_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_stock_units` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `name` varchar(255) NOT NULL,
+  `symbol` varchar(20) NOT NULL,
+  `type` varchar(30) NOT NULL DEFAULT 'unit',
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_stock_units_reference_unique` (`reference`),
+  KEY `acct_stock_unit_site_name_idx` (`company_site_id`,`name`),
+  KEY `accounting_stock_units_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_stock_units_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_units_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_stock_warehouses` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `name` varchar(255) NOT NULL,
+  `code` varchar(60) DEFAULT NULL,
+  `manager_name` varchar(255) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_stock_warehouses_reference_unique` (`reference`),
+  KEY `acct_stock_wh_site_name_idx` (`company_site_id`,`name`),
+  KEY `acct_stock_wh_site_status_idx` (`company_site_id`,`status`),
+  KEY `accounting_stock_warehouses_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_stock_warehouses_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_warehouses_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_stock_items` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `category_id` bigint(20) unsigned NOT NULL,
+  `subcategory_id` bigint(20) unsigned DEFAULT NULL,
+  `unit_id` bigint(20) unsigned NOT NULL,
+  `default_warehouse_id` bigint(20) unsigned DEFAULT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `sku` varchar(255) DEFAULT NULL,
+  `barcode` varchar(255) DEFAULT NULL,
+  `name` varchar(255) NOT NULL,
+  `type` varchar(30) NOT NULL DEFAULT 'product',
+  `purchase_price` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `sale_price` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `current_stock` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `min_stock` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `currency` varchar(3) NOT NULL DEFAULT 'CDF',
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_stock_items_reference_unique` (`reference`),
+  KEY `acct_stock_item_site_name_idx` (`company_site_id`,`name`),
+  KEY `acct_stock_item_site_cat_idx` (`company_site_id`,`category_id`),
+  KEY `acct_stock_item_site_status_idx` (`company_site_id`,`status`),
+  KEY `accounting_stock_items_subcategory_id_foreign` (`subcategory_id`),
+  KEY `accounting_stock_items_unit_id_foreign` (`unit_id`),
+  KEY `accounting_stock_items_default_warehouse_id_foreign` (`default_warehouse_id`),
+  KEY `accounting_stock_items_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_stock_items_category_id_foreign` FOREIGN KEY (`category_id`) REFERENCES `accounting_stock_categories` (`id`),
+  CONSTRAINT `accounting_stock_items_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_items_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_stock_items_default_warehouse_id_foreign` FOREIGN KEY (`default_warehouse_id`) REFERENCES `accounting_stock_warehouses` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_stock_items_subcategory_id_foreign` FOREIGN KEY (`subcategory_id`) REFERENCES `accounting_stock_subcategories` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_stock_items_unit_id_foreign` FOREIGN KEY (`unit_id`) REFERENCES `accounting_stock_units` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_stock_batches` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `item_id` bigint(20) unsigned NOT NULL,
+  `warehouse_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `batch_number` varchar(255) DEFAULT NULL,
+  `serial_number` varchar(255) DEFAULT NULL,
+  `expires_at` date DEFAULT NULL,
+  `quantity` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_stock_batches_reference_unique` (`reference`),
+  KEY `acct_stock_batch_site_item_idx` (`company_site_id`,`item_id`),
+  KEY `acct_stock_batch_wh_item_idx` (`warehouse_id`,`item_id`),
+  KEY `accounting_stock_batches_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_stock_batches_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_batches_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_stock_batches_item_id_foreign` FOREIGN KEY (`item_id`) REFERENCES `accounting_stock_items` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_batches_warehouse_id_foreign` FOREIGN KEY (`warehouse_id`) REFERENCES `accounting_stock_warehouses` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_stock_movements` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `item_id` bigint(20) unsigned NOT NULL,
+  `warehouse_id` bigint(20) unsigned NOT NULL,
+  `batch_id` bigint(20) unsigned DEFAULT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `type` varchar(30) NOT NULL,
+  `quantity` decimal(15,2) NOT NULL,
+  `movement_date` date DEFAULT NULL,
+  `reason` varchar(255) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_stock_movements_reference_unique` (`reference`),
+  KEY `acct_stock_move_site_type_idx` (`company_site_id`,`type`),
+  KEY `acct_stock_move_site_item_idx` (`company_site_id`,`item_id`),
+  KEY `accounting_stock_movements_warehouse_id_foreign` (`warehouse_id`),
+  KEY `accounting_stock_movements_batch_id_foreign` (`batch_id`),
+  KEY `accounting_stock_movements_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_stock_movements_batch_id_foreign` FOREIGN KEY (`batch_id`) REFERENCES `accounting_stock_batches` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_stock_movements_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_movements_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_stock_movements_item_id_foreign` FOREIGN KEY (`item_id`) REFERENCES `accounting_stock_items` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_movements_warehouse_id_foreign` FOREIGN KEY (`warehouse_id`) REFERENCES `accounting_stock_warehouses` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_stock_transfers` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `item_id` bigint(20) unsigned NOT NULL,
+  `from_warehouse_id` bigint(20) unsigned NOT NULL,
+  `to_warehouse_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `quantity` decimal(15,2) NOT NULL,
+  `transfer_date` date DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'draft',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_stock_transfers_reference_unique` (`reference`),
+  KEY `acct_stock_transfer_site_status_idx` (`company_site_id`,`status`),
+  KEY `acct_stock_transfer_site_item_idx` (`company_site_id`,`item_id`),
+  KEY `accounting_stock_transfers_from_warehouse_id_foreign` (`from_warehouse_id`),
+  KEY `accounting_stock_transfers_to_warehouse_id_foreign` (`to_warehouse_id`),
+  KEY `accounting_stock_transfers_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_stock_transfers_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_transfers_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_stock_transfers_from_warehouse_id_foreign` FOREIGN KEY (`from_warehouse_id`) REFERENCES `accounting_stock_warehouses` (`id`),
+  CONSTRAINT `accounting_stock_transfers_item_id_foreign` FOREIGN KEY (`item_id`) REFERENCES `accounting_stock_items` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_transfers_to_warehouse_id_foreign` FOREIGN KEY (`to_warehouse_id`) REFERENCES `accounting_stock_warehouses` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_stock_inventories` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `warehouse_id` bigint(20) unsigned NOT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `counted_at` date DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'draft',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_stock_inventories_reference_unique` (`reference`),
+  KEY `acct_stock_inv_site_status_idx` (`company_site_id`,`status`),
+  KEY `accounting_stock_inventories_warehouse_id_foreign` (`warehouse_id`),
+  KEY `accounting_stock_inventories_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_stock_inventories_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_inventories_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_stock_inventories_warehouse_id_foreign` FOREIGN KEY (`warehouse_id`) REFERENCES `accounting_stock_warehouses` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_stock_inventory_lines` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `inventory_id` bigint(20) unsigned NOT NULL,
+  `item_id` bigint(20) unsigned NOT NULL,
+  `expected_quantity` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `counted_quantity` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `difference_quantity` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `acct_stock_inv_line_unique` (`inventory_id`,`item_id`),
+  KEY `accounting_stock_inventory_lines_item_id_foreign` (`item_id`),
+  CONSTRAINT `accounting_stock_inventory_lines_inventory_id_foreign` FOREIGN KEY (`inventory_id`) REFERENCES `accounting_stock_inventories` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_inventory_lines_item_id_foreign` FOREIGN KEY (`item_id`) REFERENCES `accounting_stock_items` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_stock_alerts` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `item_id` bigint(20) unsigned NOT NULL,
+  `warehouse_id` bigint(20) unsigned DEFAULT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `type` varchar(30) NOT NULL DEFAULT 'low_stock',
+  `threshold_quantity` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_stock_alerts_reference_unique` (`reference`),
+  KEY `acct_stock_alert_site_status_idx` (`company_site_id`,`status`),
+  KEY `acct_stock_alert_site_item_idx` (`company_site_id`,`item_id`),
+  KEY `accounting_stock_alerts_warehouse_id_foreign` (`warehouse_id`),
+  KEY `accounting_stock_alerts_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_stock_alerts_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_alerts_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_stock_alerts_item_id_foreign` FOREIGN KEY (`item_id`) REFERENCES `accounting_stock_items` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_stock_alerts_warehouse_id_foreign` FOREIGN KEY (`warehouse_id`) REFERENCES `accounting_stock_warehouses` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `company_user`;
@@ -199,7 +747,7 @@ CREATE TABLE `migrations` (
   `migration` varchar(255) NOT NULL,
   `batch` int(11) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('1', '0001_01_01_000000_create_users_table', '1');
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('2', '0001_01_01_000001_create_cache_table', '1');
@@ -214,6 +762,16 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('10', '2026_04_28_
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('11', '2026_04_28_000004_add_permissions_to_company_site_user', '7');
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('12', '2026_04_28_000005_create_user_login_histories_table', '8');
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('13', '2026_04_29_000001_add_profile_photo_path_to_users_table', '9');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('14', '2026_04_30_000001_create_accounting_clients_tables', '10');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('15', '2026_04_30_000002_add_reference_to_accounting_clients_table', '11');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('16', '2026_04_30_000003_add_bank_and_currency_to_accounting_clients_table', '12');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('17', '2026_04_30_000004_create_accounting_suppliers_tables', '12');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('18', '2026_04_30_000005_create_accounting_prospects_tables', '13');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('19', '2026_04_30_000006_create_accounting_creditors_table', '14');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('20', '2026_04_30_000007_create_accounting_debtors_table', '15');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('21', '2026_04_30_000008_create_accounting_partners_table', '16');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('22', '2026_04_30_000009_create_accounting_sales_representatives_table', '17');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('23', '2026_04_30_000010_create_accounting_stock_tables', '18');
 
 DROP TABLE IF EXISTS `password_reset_tokens`;
 CREATE TABLE `password_reset_tokens` (

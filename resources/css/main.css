@@ -494,6 +494,534 @@ input {
     color: #0284c7;
 }
 
+.table-button-convert:hover {
+    border-color: rgba(16, 185, 129, .35);
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.client-name,
+.supplier-name,
+.prospect-name,
+.creditor-name,
+.debtor-name,
+.partner-name,
+.representative-name {
+    display: inline-flex;
+    align-items: center;
+    gap: .75rem;
+}
+
+.client-name strong,
+.client-name small,
+.supplier-name strong,
+.supplier-name small,
+.prospect-name strong,
+.prospect-name small,
+.creditor-name strong,
+.creditor-name small,
+.debtor-name strong,
+.debtor-name small,
+.partner-name strong,
+.partner-name small,
+.representative-name strong,
+.representative-name small {
+    display: block;
+}
+
+.client-name small,
+.supplier-name small,
+.prospect-name small,
+.creditor-name small,
+.debtor-name small,
+.partner-name small,
+.representative-name small {
+    margin-top: .15rem;
+    color: var(--muted);
+    font-size: .72rem;
+}
+
+.client-icon,
+.supplier-icon,
+.prospect-icon,
+.creditor-icon,
+.debtor-icon,
+.partner-icon,
+.representative-icon {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 9px;
+    background: #eef4ff;
+    color: var(--blue-600);
+}
+
+.client-icon-company,
+.supplier-icon-company,
+.prospect-icon-company {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.reference-pill {
+    display: inline-flex;
+    min-height: 28px;
+    align-items: center;
+    padding: 0 .7rem;
+    border-radius: 7px;
+    background: #eef4ff;
+    color: #1d4ed8;
+    font-size: .72rem;
+    font-weight: 850;
+    letter-spacing: .04em;
+    white-space: nowrap;
+}
+
+.client-type-individual,
+.supplier-type-individual,
+.prospect-type-individual {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.client-type-company,
+.supplier-type-company,
+.prospect-type-company {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.prospect-source-referral,
+.prospect-source-website,
+.prospect-source-campaign {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.prospect-source-call,
+.prospect-source-social,
+.prospect-source-event {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.prospect-source-other {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.prospect-status-new {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.prospect-status-contacted {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.prospect-status-qualified {
+    background: #dcfce7;
+    color: #047857;
+}
+
+.prospect-status-proposal_sent {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.prospect-status-won {
+    background: #bbf7d0;
+    color: #047857;
+}
+
+.prospect-status-lost {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.prospect-interest-cold {
+    background: #e2e8f0;
+    color: #475569;
+}
+
+.prospect-interest-warm {
+    background: #ffedd5;
+    color: #c2410c;
+}
+
+.prospect-interest-hot {
+    background: #ffe4e6;
+    color: #be123c;
+}
+
+.creditor-icon-bank,
+.creditor-icon-lender {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.creditor-icon-tax {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.creditor-icon-employee,
+.creditor-icon-partner {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.creditor-type-supplier,
+.creditor-type-bank,
+.creditor-type-lender {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.creditor-type-landlord,
+.creditor-type-employee,
+.creditor-type-partner {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.creditor-type-tax {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.creditor-type-other {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.creditor-priority-normal {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.creditor-priority-high {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.creditor-priority-urgent {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.creditor-status-active {
+    background: #dcfce7;
+    color: #047857;
+}
+
+.creditor-status-inactive {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.creditor-status-settled {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.debtor-icon-client,
+.debtor-icon-advance {
+    background: #dcfce7;
+    color: #047857;
+}
+
+.debtor-icon-employee,
+.debtor-icon-partner,
+.debtor-icon-associate {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.debtor-type-client,
+.debtor-type-advance {
+    background: #dcfce7;
+    color: #047857;
+}
+
+.debtor-type-employee,
+.debtor-type-partner,
+.debtor-type-associate {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.debtor-type-other {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.debtor-status-active {
+    background: #dcfce7;
+    color: #047857;
+}
+
+.debtor-status-inactive {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.debtor-status-settled {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.partner-icon-business_referrer,
+.partner-icon-distributor,
+.partner-icon-agency {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.partner-icon-subcontractor,
+.partner-icon-consulting_firm {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.partner-icon-institution,
+.partner-icon-bank {
+    background: #dcfce7;
+    color: #047857;
+}
+
+.partner-type-business_referrer,
+.partner-type-distributor,
+.partner-type-agency {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.partner-type-subcontractor,
+.partner-type-consulting_firm {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.partner-type-institution,
+.partner-type-bank {
+    background: #dcfce7;
+    color: #047857;
+}
+
+.partner-type-other {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.partner-status-active {
+    background: #dcfce7;
+    color: #047857;
+}
+
+.partner-status-discussion {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.partner-status-suspended {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.partner-status-ended {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.representative-icon-internal,
+.representative-icon-reseller {
+    background: #dcfce7;
+    color: #047857;
+}
+
+.representative-icon-external,
+.representative-icon-independent_agent {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.representative-icon-business_referrer {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.representative-type-internal,
+.representative-type-reseller {
+    background: #dcfce7;
+    color: #047857;
+}
+
+.representative-type-external,
+.representative-type-independent_agent {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.representative-type-business_referrer {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.representative-status-active {
+    background: #dcfce7;
+    color: #047857;
+}
+
+.representative-status-suspended {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.representative-status-inactive {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.accounting-client-modal .modal-dialog,
+.accounting-supplier-modal .modal-dialog,
+.accounting-prospect-modal .modal-dialog,
+.accounting-creditor-modal .modal-dialog,
+.accounting-debtor-modal .modal-dialog,
+.accounting-partner-modal .modal-dialog,
+.accounting-representative-modal .modal-dialog {
+    max-width: 760px;
+}
+
+.accounting-stock-modal .modal-dialog {
+    max-width: 780px;
+}
+
+.client-form h2,
+.supplier-form h2,
+.prospect-form h2,
+.creditor-form h2,
+.debtor-form h2,
+.partner-form h2,
+.representative-form h2 {
+    display: inline-flex;
+    align-items: center;
+    gap: .65rem;
+}
+
+.stock-resource-form h2 {
+    display: inline-flex;
+    align-items: center;
+    gap: .65rem;
+}
+
+.stock-status-active,
+.stock-status-validated {
+    background: #dcfce7;
+    color: #047857;
+}
+
+.stock-status-inactive,
+.stock-status-draft {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.stock-status-cancelled {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.client-type-panel,
+.supplier-type-panel,
+.prospect-type-panel {
+    margin-top: 1rem;
+}
+
+.client-contacts-section,
+.supplier-contacts-section,
+.prospect-contacts-section,
+.client-bank-section,
+.supplier-bank-section,
+.prospect-crm-section,
+.creditor-finance-section,
+.debtor-finance-section,
+.partner-relation-section,
+.representative-performance-section {
+    margin-top: 1rem;
+}
+
+.form-section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: .75rem;
+    color: var(--muted);
+    font-size: .78rem;
+    font-weight: 850;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.form-section-title span,
+.light-action {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+}
+
+.light-action {
+    min-height: 38px;
+    padding: 0 .8rem;
+    border: 0;
+    border-radius: 8px;
+    background: #edf4ff;
+    color: #0b55ff;
+    font-size: .78rem;
+    font-weight: 850;
+}
+
+.client-contact-list,
+.supplier-contact-list,
+.prospect-contact-list {
+    display: grid;
+    gap: .75rem;
+}
+
+.client-contact-card,
+.supplier-contact-card,
+.prospect-contact-card {
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.client-contact-card .icon-light-button,
+.supplier-contact-card .icon-light-button,
+.prospect-contact-card .icon-light-button {
+    flex: 0 0 auto;
+}
+
+.icon-light-button {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--field);
+    color: var(--muted);
+}
+
+.icon-light-button:hover {
+    border-color: rgba(220, 38, 38, .35);
+    color: #dc2626;
+}
+
 .empty-row td {
     color: var(--muted);
     text-align: center;
@@ -1466,6 +1994,11 @@ body.accounting-module-body {
     color: #ffffff;
 }
 
+.sidebar-subnav a.active {
+    background: rgba(56, 189, 248, .18);
+    color: #ffffff;
+}
+
 .sidebar-subnav i {
     color: rgba(56, 189, 248, .9);
     font-size: .8rem;
@@ -1811,6 +2344,11 @@ body.accounting-module-body {
 .status-pill.status-active {
     background: #d1fae5;
     color: #047857;
+}
+
+.status-pill.status-inactive {
+    background: #fee2e2;
+    color: #991b1b;
 }
 
 .status-pill.status-neutral {
