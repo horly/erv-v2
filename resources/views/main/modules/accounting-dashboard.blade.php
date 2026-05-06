@@ -131,6 +131,7 @@
             ['label' => __('main.supplier_debt'), 'subject' => 'Logistique Kin', 'amount' => '980K '.$siteCurrency, 'date' => now()->addDays(13)->translatedFormat('d M'), 'tone' => 'rose'],
         ];
         $stockRoute = fn (string $resource) => route('main.accounting.stock.index', [$company, $site, $resource]);
+        $serviceRoute = fn (string $resource) => route('main.accounting.services.index', [$company, $site, $resource]);
         $navigationGroups = [
             [
                 'label' => __('main.contacts'),
@@ -165,17 +166,22 @@
                 'label' => __('main.services'),
                 'icon' => 'bi-grid-1x2',
                 'items' => [
-                    ['label' => __('main.price_list'), 'icon' => 'bi-card-list'],
-                    ['label' => __('main.subcategories'), 'icon' => 'bi-tags'],
-                    ['label' => __('main.categories'), 'icon' => 'bi-folder'],
+                    ['label' => __('main.price_list'), 'icon' => 'bi-card-list', 'href' => $serviceRoute('price-list')],
+                    ['label' => __('main.service_categories'), 'icon' => 'bi-folder', 'href' => $serviceRoute('categories')],
+                    ['label' => __('main.service_subcategories'), 'icon' => 'bi-tags', 'href' => $serviceRoute('subcategories')],
+                    ['label' => __('main.service_units'), 'icon' => 'bi-rulers', 'href' => $serviceRoute('units')],
+                    ['label' => __('main.recurring_services'), 'icon' => 'bi-arrow-repeat', 'href' => $serviceRoute('recurring')],
                 ],
             ],
         ];
         $salesItems = [
-            ['label' => __('main.sales_invoices'), 'icon' => 'bi-receipt'],
-            ['label' => __('main.proforma_invoices'), 'icon' => 'bi-file-earmark-richtext'],
+            ['label' => __('main.proforma_invoices'), 'icon' => 'bi-file-earmark-richtext', 'href' => route('main.accounting.proforma-invoices', [$company, $site])],
+            ['label' => __('main.customer_orders'), 'icon' => 'bi-clipboard-check'],
             ['label' => __('main.delivery_notes'), 'icon' => 'bi-box-arrow-up'],
+            ['label' => __('main.sales_invoices'), 'icon' => 'bi-receipt'],
+            ['label' => __('main.payments_received'), 'icon' => 'bi-cash-coin'],
             ['label' => __('main.cash_register'), 'icon' => 'bi-calculator'],
+            ['label' => __('main.credit_notes'), 'icon' => 'bi-arrow-counterclockwise'],
             ['label' => __('main.other_income'), 'icon' => 'bi-plus-circle'],
         ];
         $expenseItems = [
@@ -241,11 +247,11 @@
                     </div>
                 @endforeach
 
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="{{ route('main.accounting.currencies', [$company, $site]) }}">
                     <i class="bi bi-currency-exchange" aria-hidden="true"></i>
                     {{ __('main.currencies') }}
                 </a>
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="{{ route('main.accounting.payment-methods', [$company, $site]) }}">
                     <i class="bi bi-credit-card-2-front" aria-hidden="true"></i>
                     {{ __('main.payment_methods') }}
                 </a>
@@ -260,7 +266,7 @@
                     </button>
                     <div class="sidebar-subnav">
                         @foreach ($salesItems as $item)
-                            <a href="#" title="{{ $item['label'] }}">
+                            <a href="{{ $item['href'] ?? '#' }}" title="{{ $item['label'] }}">
                                 <i class="bi {{ $item['icon'] }}" aria-hidden="true"></i>
                                 <span>{{ $item['label'] }}</span>
                             </a>

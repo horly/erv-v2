@@ -19,8 +19,16 @@ class AccountingStockUnit extends Model
     public const TYPE_VOLUME = 'volume';
     public const TYPE_LENGTH = 'length';
     public const TYPE_PACKAGE = 'package';
+    public const TYPE_QUANTITY = 'quantity';
 
-    protected $fillable = ['company_site_id', 'created_by', 'reference', 'name', 'symbol', 'type', 'status'];
+    protected $fillable = ['company_site_id', 'created_by', 'reference', 'name', 'symbol', 'type', 'status', 'is_default'];
+
+    protected function casts(): array
+    {
+        return [
+            'is_default' => 'boolean',
+        ];
+    }
 
     public function site(): BelongsTo
     {
@@ -39,6 +47,13 @@ class AccountingStockUnit extends Model
 
     public static function types(): array
     {
-        return [self::TYPE_UNIT, self::TYPE_WEIGHT, self::TYPE_VOLUME, self::TYPE_LENGTH, self::TYPE_PACKAGE];
+        return [
+            self::TYPE_UNIT,
+            self::TYPE_WEIGHT,
+            self::TYPE_VOLUME,
+            self::TYPE_LENGTH,
+            self::TYPE_PACKAGE,
+            self::TYPE_QUANTITY,
+        ];
     }
 }

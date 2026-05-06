@@ -2,12 +2,26 @@
 
 namespace App\Http\Controllers;
 
+use Barryvdh\DomPDF\Facade\Pdf;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Writer;
 use App\Models\AccountingClient;
 use App\Models\AccountingCreditor;
+use App\Models\AccountingCurrency;
 use App\Models\AccountingDebtor;
+use App\Models\AccountingPaymentMethod;
 use App\Models\AccountingPartner;
+use App\Models\AccountingProformaInvoice;
+use App\Models\AccountingProformaInvoiceLine;
 use App\Models\AccountingProspect;
+use App\Models\AccountingRecurringService;
 use App\Models\AccountingSalesRepresentative;
+use App\Models\AccountingService;
+use App\Models\AccountingServiceCategory;
+use App\Models\AccountingServiceSubcategory;
+use App\Models\AccountingServiceUnit;
 use App\Models\AccountingSupplier;
 use App\Models\AccountingStockAlert;
 use App\Models\AccountingStockBatch;
@@ -29,6 +43,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -825,13 +840,20 @@ class MainController extends Controller
         }
 
         [$user, $moduleMeta] = $access;
+        $this->ensureDefaultAccountingCurrencyRecord($site);
         $config = $this->accountingStockResourceConfig($site, $resource);
 
         abort_if($config === null, 404);
 
-        $records = $config['model']::query()
+        $recordsQuery = $config['model']::query()
             ->where('company_site_id', $site->id)
-            ->with($config['relations'] ?? [])
+            ->with($config['relations'] ?? []);
+
+        if (in_array($resource, ['categories', 'subcategories', 'warehouses', 'units'], true)) {
+            $recordsQuery->orderByDesc('is_default');
+        }
+
+        $records = $recordsQuery
             ->latest()
             ->paginate(5)
             ->withQueryString();
@@ -858,6 +880,7 @@ class MainController extends Controller
         }
 
         [$user] = $access;
+        $this->ensureDefaultAccountingCurrencyRecord($site);
         $config = $this->accountingStockResourceConfig($site, $resource);
 
         abort_if($config === null, 404);
@@ -886,6 +909,7 @@ class MainController extends Controller
         }
 
         [$user] = $access;
+        $this->ensureDefaultAccountingCurrencyRecord($site);
         $config = $this->accountingStockResourceConfig($site, $resource);
 
         abort_if($config === null, 404);
@@ -897,6 +921,7 @@ class MainController extends Controller
         $model = $config['model']::query()
             ->where('company_site_id', $site->id)
             ->findOrFail($record);
+
         $original = $model->replicate();
         $validated = $request->validate($this->accountingStockRules($site, $resource, $config));
 
@@ -929,6 +954,13 @@ class MainController extends Controller
             ->where('company_site_id', $site->id)
             ->findOrFail($record);
 
+        if ($this->isProtectedDefaultStockResource($resource, $model)) {
+            return redirect()
+                ->route('main.accounting.stock.index', [$company, $site, $resource])
+                ->with('success', __('main.default_stock_resource_cannot_delete'))
+                ->with('toast_type', 'danger');
+        }
+
         if ($resource === 'movements' && $model instanceof AccountingStockMovement) {
             $this->reverseAccountingStockMovement($model);
         }
@@ -938,6 +970,646 @@ class MainController extends Controller
         return redirect()
             ->route('main.accounting.stock.index', [$company, $site, $resource])
             ->with('success', __('main.stock_resource_deleted', ['resource' => $config['singular_lower']]))
+            ->with('toast_type', 'danger');
+    }
+
+    public function accountingServiceIndex(Company $company, CompanySite $site, string $resource): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $config = $this->accountingServiceResourceConfig($site, $resource);
+
+        abort_if($config === null, 404);
+
+        $recordsQuery = $config['model']::query()
+            ->where('company_site_id', $site->id)
+            ->with($config['relations'] ?? []);
+
+        if (in_array($resource, ['categories', 'subcategories', 'units'], true)) {
+            $recordsQuery->orderByDesc('is_default');
+        }
+
+        return view('main.modules.accounting-service-resource', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'servicePermissions' => $this->sitePermissionFlags($user, $site),
+            'resource' => $resource,
+            'config' => $config,
+            'records' => $recordsQuery->latest()->paginate(5)->withQueryString(),
+        ]);
+    }
+
+    public function storeAccountingServiceResource(Request $request, Company $company, CompanySite $site, string $resource): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $config = $this->accountingServiceResourceConfig($site, $resource);
+
+        abort_if($config === null, 404);
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.services.index', [$company, $site, $resource]);
+        }
+
+        $validated = $request->validate($this->accountingServiceRules($site, $resource));
+        $site->{$config['relation']}()->create($this->accountingServicePayload($validated, $user, true));
+
+        return redirect()
+            ->route('main.accounting.services.index', [$company, $site, $resource])
+            ->with('success', __('main.service_resource_saved', ['resource' => $config['singular_lower']]));
+    }
+
+    public function updateAccountingServiceResource(Request $request, Company $company, CompanySite $site, string $resource, int $record): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $config = $this->accountingServiceResourceConfig($site, $resource);
+
+        abort_if($config === null, 404);
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.services.index', [$company, $site, $resource]);
+        }
+
+        $model = $config['model']::query()
+            ->where('company_site_id', $site->id)
+            ->findOrFail($record);
+
+        $validated = $request->validate($this->accountingServiceRules($site, $resource));
+        $model->update($this->accountingServicePayload($validated, $user, false));
+
+        return redirect()
+            ->route('main.accounting.services.index', [$company, $site, $resource])
+            ->with('success', __('main.service_resource_updated', ['resource' => $config['singular_lower']]));
+    }
+
+    public function destroyAccountingServiceResource(Company $company, CompanySite $site, string $resource, int $record): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $config = $this->accountingServiceResourceConfig($site, $resource);
+
+        abort_if($config === null, 404);
+
+        if (! $this->sitePermissionFlags($user, $site)['can_delete']) {
+            return redirect()->route('main.accounting.services.index', [$company, $site, $resource]);
+        }
+
+        $model = $config['model']::query()
+            ->where('company_site_id', $site->id)
+            ->findOrFail($record);
+
+        if ($this->isProtectedDefaultServiceResource($resource, $model)) {
+            return redirect()
+                ->route('main.accounting.services.index', [$company, $site, $resource])
+                ->with('success', __('main.default_service_resource_cannot_delete'))
+                ->with('toast_type', 'danger');
+        }
+
+        $model->delete();
+
+        return redirect()
+            ->route('main.accounting.services.index', [$company, $site, $resource])
+            ->with('success', __('main.service_resource_deleted', ['resource' => $config['singular_lower']]))
+            ->with('toast_type', 'danger');
+    }
+
+    public function accountingCurrencies(Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+
+        return view('main.modules.accounting-currencies', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'currencyPermissions' => $this->sitePermissionFlags($user, $site),
+            'accountingCurrencies' => AccountingCurrency::query()
+                ->where('company_site_id', $site->id)
+                ->orderByDesc('is_default')
+                ->orderByDesc('is_base')
+                ->orderBy('name')
+                ->paginate(5)
+                ->withQueryString(),
+            'currencyOptions' => collect(CurrencyCatalog::sorted())
+                ->mapWithKeys(fn (array $currency, string $code) => [$code => CurrencyCatalog::label($code)])
+                ->all(),
+            'statusLabels' => $this->accountingCurrencyStatusLabels(),
+        ]);
+    }
+
+    public function storeAccountingCurrency(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.currencies', [$company, $site]);
+        }
+
+        $validated = $request->validate($this->accountingCurrencyRules($site));
+        $site->accountingCurrencies()->create($this->accountingCurrencyPayload($validated, $user));
+
+        return redirect()
+            ->route('main.accounting.currencies', [$company, $site])
+            ->with('success', __('main.currency_saved'));
+    }
+
+    public function updateAccountingCurrency(Request $request, Company $company, CompanySite $site, AccountingCurrency $currency): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ($currency->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.currencies', [$company, $site]);
+        }
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.currencies', [$company, $site]);
+        }
+
+        if ($currency->is_default) {
+            return redirect()
+                ->route('main.accounting.currencies', [$company, $site])
+                ->with('success', __('main.default_currency_cannot_update'))
+                ->with('toast_type', 'danger');
+        }
+
+        $validated = $request->validate($this->accountingCurrencyRules($site, $currency));
+        $currency->update($this->accountingCurrencyPayload($validated, $user, false));
+
+        return redirect()
+            ->route('main.accounting.currencies', [$company, $site])
+            ->with('success', __('main.currency_updated'));
+    }
+
+    public function destroyAccountingCurrency(Company $company, CompanySite $site, AccountingCurrency $currency): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_delete']) {
+            return redirect()->route('main.accounting.currencies', [$company, $site]);
+        }
+
+        if ($currency->company_site_id === $site->id && ! $currency->is_default && ! $currency->is_base) {
+            $currency->delete();
+
+            return redirect()
+                ->route('main.accounting.currencies', [$company, $site])
+                ->with('success', __('main.currency_deleted'))
+                ->with('toast_type', 'danger');
+        }
+
+        return redirect()
+            ->route('main.accounting.currencies', [$company, $site])
+            ->with('success', __('main.default_currency_cannot_delete'))
+            ->with('toast_type', 'danger');
+    }
+
+    public function accountingPaymentMethods(Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingPaymentMethodRecord($site);
+
+        return view('main.modules.accounting-payment-methods', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'paymentMethodPermissions' => $this->sitePermissionFlags($user, $site),
+            'paymentMethods' => AccountingPaymentMethod::query()
+                ->where('company_site_id', $site->id)
+                ->orderByDesc('is_system_default')
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->paginate(5)
+                ->withQueryString(),
+            'typeLabels' => $this->paymentMethodTypeLabels(),
+            'statusLabels' => $this->paymentMethodStatusLabels(),
+            'currencyOptions' => $this->siteCurrencyOptions($site),
+        ]);
+    }
+
+    public function storeAccountingPaymentMethod(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.payment-methods', [$company, $site]);
+        }
+
+        $validated = $request->validate($this->paymentMethodRules($site));
+
+        DB::transaction(function () use ($site, $validated, $user): void {
+            $payload = $this->paymentMethodPayload($validated, $user);
+
+            if ($payload['is_default']) {
+                AccountingPaymentMethod::query()
+                    ->where('company_site_id', $site->id)
+                    ->update(['is_default' => false]);
+            }
+
+            $site->accountingPaymentMethods()->create($payload);
+        });
+
+        return redirect()
+            ->route('main.accounting.payment-methods', [$company, $site])
+            ->with('success', __('main.payment_method_saved'));
+    }
+
+    public function updateAccountingPaymentMethod(Request $request, Company $company, CompanySite $site, AccountingPaymentMethod $method): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ($method->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.payment-methods', [$company, $site]);
+        }
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.payment-methods', [$company, $site]);
+        }
+
+        if ($method->is_system_default) {
+            return redirect()
+                ->route('main.accounting.payment-methods', [$company, $site])
+                ->with('success', __('main.default_payment_method_cannot_update'))
+                ->with('toast_type', 'danger');
+        }
+
+        $validated = $request->validate($this->paymentMethodRules($site, $method));
+
+        DB::transaction(function () use ($site, $method, $validated, $user): void {
+            $payload = $this->paymentMethodPayload($validated, $user, false);
+
+            if ($payload['is_default']) {
+                AccountingPaymentMethod::query()
+                    ->where('company_site_id', $site->id)
+                    ->whereKeyNot($method->id)
+                    ->update(['is_default' => false]);
+            }
+
+            $method->update($payload);
+            $this->ensureDefaultAccountingPaymentMethodRecord($site);
+        });
+
+        return redirect()
+            ->route('main.accounting.payment-methods', [$company, $site])
+            ->with('success', __('main.payment_method_updated'));
+    }
+
+    public function destroyAccountingPaymentMethod(Company $company, CompanySite $site, AccountingPaymentMethod $method): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_delete']) {
+            return redirect()->route('main.accounting.payment-methods', [$company, $site]);
+        }
+
+        if ($method->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.payment-methods', [$company, $site]);
+        }
+
+        if ($method->is_system_default || $method->is_default) {
+            return redirect()
+                ->route('main.accounting.payment-methods', [$company, $site])
+                ->with('success', __('main.default_payment_method_cannot_delete'))
+                ->with('toast_type', 'danger');
+        }
+
+        $method->delete();
+
+        return redirect()
+            ->route('main.accounting.payment-methods', [$company, $site])
+            ->with('success', __('main.payment_method_deleted'))
+            ->with('toast_type', 'danger');
+    }
+
+    public function accountingProformaInvoices(Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+
+        return view('main.modules.accounting-proforma-invoices', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'proformaPermissions' => $this->sitePermissionFlags($user, $site),
+            'proformas' => AccountingProformaInvoice::query()
+                ->with(['client', 'lines'])
+                ->where('company_site_id', $site->id)
+                ->latest('issue_date')
+                ->latest()
+                ->paginate(5)
+                ->withQueryString(),
+            'clients' => $this->proformaClientOptions($site),
+            'items' => $this->proformaItemOptions($site),
+            'services' => $this->proformaServiceOptions($site),
+            'currencies' => $this->siteCurrencyOptions($site),
+            'statusLabels' => $this->proformaStatusLabels(),
+            'lineTypeLabels' => $this->proformaLineTypeLabels(),
+            'paymentTermLabels' => $this->proformaPaymentTermLabels(),
+            'proformaDefaultTaxRate' => $this->companyCountryVatRate($company),
+        ]);
+    }
+
+    public function createAccountingProformaInvoice(Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.proforma-invoices', [$company, $site]);
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+
+        return view('main.modules.accounting-proforma-invoice-create', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'clients' => $this->proformaClientOptions($site),
+            'items' => $this->proformaItemOptions($site),
+            'services' => $this->proformaServiceOptions($site),
+            'currencies' => $this->siteCurrencyOptions($site),
+            'statusLabels' => $this->proformaStatusLabels(),
+            'lineTypeLabels' => $this->proformaLineTypeLabels(),
+            'paymentTermLabels' => $this->proformaPaymentTermLabels(),
+            'proformaDefaultTaxRate' => $this->companyCountryVatRate($company),
+        ]);
+    }
+
+    public function editAccountingProformaInvoice(Company $company, CompanySite $site, AccountingProformaInvoice $proforma): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        if ($proforma->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.proforma-invoices', [$company, $site]);
+        }
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.proforma-invoices', [$company, $site]);
+        }
+
+        if ($proforma->status === AccountingProformaInvoice::STATUS_CONVERTED) {
+            return redirect()
+                ->route('main.accounting.proforma-invoices', [$company, $site])
+                ->with('success', __('main.converted_proforma_cannot_update'))
+                ->with('toast_type', 'danger');
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+
+        return view('main.modules.accounting-proforma-invoice-create', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'proforma' => $proforma->load('lines'),
+            'clients' => $this->proformaClientOptions($site),
+            'items' => $this->proformaItemOptions($site),
+            'services' => $this->proformaServiceOptions($site),
+            'currencies' => $this->siteCurrencyOptions($site),
+            'statusLabels' => $this->proformaStatusLabels(),
+            'lineTypeLabels' => $this->proformaLineTypeLabels(),
+            'paymentTermLabels' => $this->proformaPaymentTermLabels(),
+            'proformaDefaultTaxRate' => $this->companyCountryVatRate($company),
+        ]);
+    }
+
+    public function storeAccountingProformaInvoice(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.proforma-invoices', [$company, $site]);
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+
+        $validated = $request->validate($this->proformaRules($site));
+
+        DB::transaction(function () use ($site, $user, $validated): void {
+            $totals = $this->calculateProformaTotals($validated['lines'], (float) $validated['tax_rate']);
+            $proforma = $site->accountingProformaInvoices()->create($this->proformaPayload($validated, $user, $totals));
+            $this->syncProformaLines($proforma, $validated['lines']);
+        });
+
+        return redirect()
+            ->route('main.accounting.proforma-invoices', [$company, $site])
+            ->with('success', __('main.proforma_saved'));
+    }
+
+    public function updateAccountingProformaInvoice(Request $request, Company $company, CompanySite $site, AccountingProformaInvoice $proforma): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ($proforma->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.proforma-invoices', [$company, $site]);
+        }
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.proforma-invoices', [$company, $site]);
+        }
+
+        if ($proforma->status === AccountingProformaInvoice::STATUS_CONVERTED) {
+            return redirect()
+                ->route('main.accounting.proforma-invoices', [$company, $site])
+                ->with('success', __('main.converted_proforma_cannot_update'))
+                ->with('toast_type', 'danger');
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+
+        $validated = $request->validate($this->proformaRules($site, true));
+
+        DB::transaction(function () use ($proforma, $user, $validated): void {
+            $totals = $this->calculateProformaTotals($validated['lines'], (float) $validated['tax_rate']);
+            $proforma->update($this->proformaPayload($validated, $user, $totals, false));
+            $this->syncProformaLines($proforma, $validated['lines']);
+        });
+
+        return redirect()
+            ->route('main.accounting.proforma-invoices', [$company, $site])
+            ->with('success', __('main.proforma_updated'));
+    }
+
+    public function printAccountingProformaInvoice(Company $company, CompanySite $site, AccountingProformaInvoice $proforma): Response|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ($proforma->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.proforma-invoices', [$company, $site]);
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+
+        $proforma->load([
+            'client',
+            'creator',
+            'lines.item.unit',
+            'lines.service.unit',
+        ]);
+
+        $filename = 'facture-proforma-'.$proforma->reference.'.pdf';
+        $proformaUrl = route('main.accounting.proforma-invoices.print', [$company, $site, $proforma], true);
+
+        return Pdf::loadView('main.modules.accounting-proforma-invoice-print', [
+            'user' => $user,
+            'company' => $company->load(['subscription', 'accounts']),
+            'site' => $site->load('responsible'),
+            'proforma' => $proforma,
+            'proformaUrl' => $proformaUrl,
+            'proformaQrCodeDataUri' => $this->qrCodeSvgDataUri($proformaUrl),
+            'statusLabels' => $this->proformaStatusLabels(),
+            'lineTypeLabels' => $this->proformaLineTypeLabels(),
+            'paymentTermLabels' => $this->proformaPaymentTermLabels(),
+            'isPdf' => true,
+        ])->setPaper('a4')->stream($filename);
+    }
+
+    public function destroyAccountingProformaInvoice(Company $company, CompanySite $site, AccountingProformaInvoice $proforma): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_delete']) {
+            return redirect()->route('main.accounting.proforma-invoices', [$company, $site]);
+        }
+
+        if ($proforma->company_site_id === $site->id && $proforma->status !== AccountingProformaInvoice::STATUS_CONVERTED) {
+            $proforma->delete();
+
+            return redirect()
+                ->route('main.accounting.proforma-invoices', [$company, $site])
+                ->with('success', __('main.proforma_deleted'))
+                ->with('toast_type', 'danger');
+        }
+
+        return redirect()
+            ->route('main.accounting.proforma-invoices', [$company, $site])
+            ->with('success', __('main.converted_proforma_cannot_delete'))
             ->with('toast_type', 'danger');
     }
 
@@ -1079,7 +1751,7 @@ class MainController extends Controller
                 'profession' => $prospect->isCompany() ? null : $prospect->profession,
                 'phone' => $prospect->isCompany() ? null : $prospect->phone,
                 'email' => $prospect->isCompany() ? null : $prospect->email,
-                'address' => $prospect->isCompany() ? null : $prospect->address,
+                'address' => $prospect->address,
                 'rccm' => $prospect->isCompany() ? $prospect->rccm : null,
                 'id_nat' => $prospect->isCompany() ? $prospect->id_nat : null,
                 'nif' => $prospect->isCompany() ? $prospect->nif : null,
@@ -1296,6 +1968,10 @@ class MainController extends Controller
 
         DB::transaction(function () use ($company, $validated): void {
             $site = $company->sites()->create($this->sitePayload($validated));
+            $this->ensureDefaultAccountingStockRecords($site);
+            $this->ensureDefaultAccountingServiceRecords($site);
+            $this->ensureDefaultAccountingCurrencyRecord($site);
+            $this->ensureDefaultAccountingPaymentMethodRecord($site);
             $this->syncSiteUsers($site, $validated);
         });
 
@@ -1319,6 +1995,10 @@ class MainController extends Controller
 
         DB::transaction(function () use ($site, $validated): void {
             $site->update($this->sitePayload($validated));
+            $this->ensureDefaultAccountingStockRecords($site);
+            $this->ensureDefaultAccountingServiceRecords($site);
+            $this->ensureDefaultAccountingCurrencyRecord($site);
+            $this->ensureDefaultAccountingPaymentMethodRecord($site);
             $this->syncSiteUsers($site, $validated);
         });
 
@@ -2035,7 +2715,7 @@ class MainController extends Controller
             'profession' => $isCompany ? null : ($validated['profession'] ?? null),
             'phone' => $isCompany ? null : ($validated['phone'] ?? null),
             'email' => $isCompany ? null : ($validated['email'] ?? null),
-            'address' => $isCompany ? null : ($validated['address'] ?? null),
+            'address' => $validated['address'] ?? null,
             'rccm' => $isCompany ? ($validated['rccm'] ?? null) : null,
             'id_nat' => $isCompany ? ($validated['id_nat'] ?? null) : null,
             'nif' => $isCompany ? ($validated['nif'] ?? null) : null,
@@ -2087,7 +2767,7 @@ class MainController extends Controller
             'profession' => $isCompany ? null : ($validated['profession'] ?? null),
             'phone' => $isCompany ? null : ($validated['phone'] ?? null),
             'email' => $isCompany ? null : ($validated['email'] ?? null),
-            'address' => $isCompany ? null : ($validated['address'] ?? null),
+            'address' => $validated['address'] ?? null,
             'rccm' => $isCompany ? ($validated['rccm'] ?? null) : null,
             'id_nat' => $isCompany ? ($validated['id_nat'] ?? null) : null,
             'nif' => $isCompany ? ($validated['nif'] ?? null) : null,
@@ -2210,7 +2890,7 @@ class MainController extends Controller
             'profession' => $isCompany ? null : ($validated['profession'] ?? null),
             'phone' => $isCompany ? null : ($validated['phone'] ?? null),
             'email' => $isCompany ? null : ($validated['email'] ?? null),
-            'address' => $isCompany ? null : ($validated['address'] ?? null),
+            'address' => $validated['address'] ?? null,
             'rccm' => $isCompany ? ($validated['rccm'] ?? null) : null,
             'id_nat' => $isCompany ? ($validated['id_nat'] ?? null) : null,
             'nif' => $isCompany ? ($validated['nif'] ?? null) : null,
@@ -2298,6 +2978,215 @@ class MainController extends Controller
     private function syncSiteUsers(CompanySite $site, array $validated): void
     {
         $site->users()->sync([$validated['responsible_id']]);
+    }
+
+    private function ensureDefaultAccountingStockRecords(CompanySite $site): void
+    {
+        if (! in_array(CompanySite::MODULE_ACCOUNTING, $site->modules ?? [], true)) {
+            return;
+        }
+
+        $warehouse = AccountingStockWarehouse::query()->firstOrCreate(
+            [
+                'company_site_id' => $site->id,
+                'is_default' => true,
+            ],
+            [
+                'created_by' => $site->responsible_id,
+                'name' => 'Entrepot principal',
+                'code' => 'DEP-DEFAULT',
+                'status' => AccountingStockCategory::STATUS_ACTIVE,
+            ]
+        );
+
+        $category = AccountingStockCategory::query()->firstOrCreate(
+            [
+                'company_site_id' => $site->id,
+                'is_default' => true,
+            ],
+            [
+                'warehouse_id' => $warehouse->id,
+                'created_by' => $site->responsible_id,
+                'name' => 'Categorie generale',
+                'description' => 'Categorie stock creee automatiquement par le systeme.',
+                'status' => AccountingStockCategory::STATUS_ACTIVE,
+            ]
+        );
+
+        if ((int) $category->warehouse_id !== (int) $warehouse->id) {
+            $category->update(['warehouse_id' => $warehouse->id]);
+        }
+
+        AccountingStockSubcategory::query()->firstOrCreate(
+            [
+                'company_site_id' => $site->id,
+                'is_default' => true,
+            ],
+            [
+                'category_id' => $category->id,
+                'created_by' => $site->responsible_id,
+                'name' => 'Sous-categorie generale',
+                'description' => 'Sous-categorie stock creee automatiquement par le systeme.',
+                'status' => AccountingStockCategory::STATUS_ACTIVE,
+            ]
+        );
+
+        AccountingStockUnit::query()->firstOrCreate(
+            [
+                'company_site_id' => $site->id,
+                'is_default' => true,
+            ],
+            [
+                'created_by' => $site->responsible_id,
+                'name' => 'Pièce',
+                'symbol' => 'pc',
+                'type' => AccountingStockUnit::TYPE_QUANTITY,
+                'status' => AccountingStockCategory::STATUS_ACTIVE,
+            ]
+        );
+    }
+
+    private function isProtectedDefaultStockResource(string $resource, Model $record): bool
+    {
+        return in_array($resource, ['categories', 'subcategories', 'warehouses', 'units'], true)
+            && (bool) data_get($record, 'is_default');
+    }
+
+    private function ensureDefaultAccountingServiceRecords(CompanySite $site): void
+    {
+        if (! in_array(CompanySite::MODULE_ACCOUNTING, $site->modules ?? [], true)) {
+            return;
+        }
+
+        AccountingServiceUnit::query()->firstOrCreate(
+            [
+                'company_site_id' => $site->id,
+                'is_default' => true,
+            ],
+            [
+                'created_by' => $site->responsible_id,
+                'name' => 'Forfait',
+                'symbol' => 'forfait',
+                'status' => AccountingServiceUnit::STATUS_ACTIVE,
+            ]
+        );
+
+        $category = AccountingServiceCategory::query()->firstOrCreate(
+            [
+                'company_site_id' => $site->id,
+                'is_default' => true,
+            ],
+            [
+                'created_by' => $site->responsible_id,
+                'name' => 'Services generaux',
+                'description' => 'Categorie de services creee automatiquement par le systeme.',
+                'status' => AccountingServiceCategory::STATUS_ACTIVE,
+            ]
+        );
+
+        AccountingServiceSubcategory::query()->firstOrCreate(
+            [
+                'company_site_id' => $site->id,
+                'is_default' => true,
+            ],
+            [
+                'category_id' => $category->id,
+                'created_by' => $site->responsible_id,
+                'name' => 'Prestations generales',
+                'description' => 'Sous-categorie de services creee automatiquement par le systeme.',
+                'status' => AccountingServiceSubcategory::STATUS_ACTIVE,
+            ]
+        );
+    }
+
+    private function ensureDefaultAccountingCurrencyRecord(CompanySite $site): void
+    {
+        if (! in_array(CompanySite::MODULE_ACCOUNTING, $site->modules ?? [], true)) {
+            return;
+        }
+
+        $code = $site->currency ?: 'CDF';
+        $currency = CurrencyCatalog::all()[$code] ?? null;
+        $name = $currency['name_fr'] ?? $code;
+        $symbol = $currency['symbol'] ?? null;
+
+        $defaultCurrency = AccountingCurrency::query()->firstOrCreate(
+            [
+                'company_site_id' => $site->id,
+                'is_default' => true,
+            ],
+            [
+                'created_by' => $site->responsible_id,
+                'code' => $code,
+                'name' => $name,
+                'symbol' => $symbol,
+                'exchange_rate' => 1,
+                'is_base' => true,
+                'status' => AccountingCurrency::STATUS_ACTIVE,
+            ]
+        );
+
+        if ($defaultCurrency->code !== $code) {
+            $duplicate = AccountingCurrency::query()
+                ->where('company_site_id', $site->id)
+                ->where('code', $code)
+                ->whereKeyNot($defaultCurrency->id)
+                ->first();
+
+            if ($duplicate) {
+                $duplicate->delete();
+            }
+        }
+
+        $defaultCurrency->forceFill([
+            'code' => $code,
+            'name' => $name,
+            'symbol' => $symbol,
+            'exchange_rate' => 1,
+            'is_base' => true,
+            'is_default' => true,
+            'status' => AccountingCurrency::STATUS_ACTIVE,
+        ])->save();
+
+        AccountingCurrency::query()
+            ->where('company_site_id', $site->id)
+            ->whereKeyNot($defaultCurrency->id)
+            ->where('is_base', true)
+            ->update(['is_base' => false]);
+    }
+
+    private function ensureDefaultAccountingPaymentMethodRecord(CompanySite $site): void
+    {
+        if (! in_array(CompanySite::MODULE_ACCOUNTING, $site->modules ?? [], true)) {
+            return;
+        }
+
+        $method = AccountingPaymentMethod::query()->firstOrCreate(
+            [
+                'company_site_id' => $site->id,
+                'is_system_default' => true,
+            ],
+            [
+                'created_by' => $site->responsible_id,
+                'name' => 'Espèces',
+                'type' => AccountingPaymentMethod::TYPE_CASH,
+                'currency_code' => $site->currency ?: 'CDF',
+                'is_default' => true,
+                'status' => AccountingPaymentMethod::STATUS_ACTIVE,
+            ]
+        );
+
+        $method->forceFill([
+            'name' => 'Espèces',
+            'type' => AccountingPaymentMethod::TYPE_CASH,
+            'currency_code' => $site->currency ?: 'CDF',
+            'is_system_default' => true,
+            'status' => AccountingPaymentMethod::STATUS_ACTIVE,
+        ])->save();
+
+        if (! AccountingPaymentMethod::query()->where('company_site_id', $site->id)->where('is_default', true)->exists()) {
+            $method->forceFill(['is_default' => true])->save();
+        }
     }
 
     private function siteAssignableUsers(Company $company, ?CompanySite $site = null)
@@ -2570,13 +3459,25 @@ class MainController extends Controller
         ];
         $categoryOptions = $this->stockSelectOptions(AccountingStockCategory::class, $site, 'name');
         $subcategoryOptions = $this->stockSelectOptions(AccountingStockSubcategory::class, $site, 'name');
+        $categoryOptionAttributes = AccountingStockCategory::query()
+            ->where('company_site_id', $site->id)
+            ->get()
+            ->mapWithKeys(fn (AccountingStockCategory $category) => [
+                $category->id => ['data-warehouse-id' => $category->warehouse_id],
+            ])
+            ->all();
+        $subcategoryOptionAttributes = AccountingStockSubcategory::query()
+            ->where('company_site_id', $site->id)
+            ->get()
+            ->mapWithKeys(fn (AccountingStockSubcategory $subcategory) => [
+                $subcategory->id => ['data-category-id' => $subcategory->category_id],
+            ])
+            ->all();
         $unitOptions = $this->stockSelectOptions(AccountingStockUnit::class, $site, 'name', 'symbol');
         $warehouseOptions = $this->stockSelectOptions(AccountingStockWarehouse::class, $site, 'name', 'code');
         $itemOptions = $this->stockSelectOptions(AccountingStockItem::class, $site, 'name', 'reference');
         $batchOptions = $this->stockSelectOptions(AccountingStockBatch::class, $site, 'batch_number', 'reference');
-        $currencyOptions = collect(CurrencyCatalog::all())
-            ->mapWithKeys(fn ($currency, string $code) => [$code => CurrencyCatalog::label($code)])
-            ->all();
+        $currencyOptions = $this->siteCurrencyOptions($site);
 
         return [
             'categories' => [
@@ -2590,13 +3491,15 @@ class MainController extends Controller
                 'icon' => 'bi-folder',
                 'active' => 'stock-categories',
                 'empty' => __('main.no_stock_categories'),
-                'relations' => [],
+                'relations' => ['warehouse', 'items.unit', 'items.subcategory'],
                 'columns' => [
                     ['key' => 'reference', 'label' => __('main.reference')],
                     ['key' => 'name', 'label' => __('main.name')],
+                    ['key' => 'warehouse.name', 'label' => __('main.warehouse')],
                     ['key' => 'status', 'label' => __('main.status'), 'type' => 'status'],
                 ],
                 'fields' => [
+                    ['name' => 'warehouse_id', 'label' => __('main.warehouse'), 'type' => 'select', 'required' => true, 'options' => $warehouseOptions],
                     ['name' => 'name', 'label' => __('main.name'), 'type' => 'text', 'required' => true],
                     ['name' => 'status', 'label' => __('main.status'), 'type' => 'select', 'required' => true, 'options' => $statusOptions, 'default' => 'active'],
                     ['name' => 'description', 'label' => __('main.description'), 'type' => 'textarea'],
@@ -2613,7 +3516,7 @@ class MainController extends Controller
                 'icon' => 'bi-tags',
                 'active' => 'stock-subcategories',
                 'empty' => __('main.no_stock_subcategories'),
-                'relations' => ['category'],
+                'relations' => ['category', 'items.unit'],
                 'columns' => [
                     ['key' => 'reference', 'label' => __('main.reference')],
                     ['key' => 'name', 'label' => __('main.name')],
@@ -2638,7 +3541,7 @@ class MainController extends Controller
                 'icon' => 'bi-rulers',
                 'active' => 'stock-units',
                 'empty' => __('main.no_stock_units'),
-                'relations' => [],
+                'relations' => ['services.unit', 'services.subcategory'],
                 'columns' => [
                     ['key' => 'reference', 'label' => __('main.reference')],
                     ['key' => 'name', 'label' => __('main.name')],
@@ -2701,8 +3604,8 @@ class MainController extends Controller
                     ['key' => 'status', 'label' => __('main.status'), 'type' => 'status'],
                 ],
                 'fields' => [
-                    ['name' => 'category_id', 'label' => __('main.category'), 'type' => 'select', 'required' => true, 'options' => $categoryOptions],
-                    ['name' => 'subcategory_id', 'label' => __('main.subcategory'), 'type' => 'select', 'options' => $subcategoryOptions],
+                    ['name' => 'category_id', 'label' => __('main.category'), 'type' => 'select', 'required' => true, 'options' => $categoryOptions, 'option_attributes' => $categoryOptionAttributes],
+                    ['name' => 'subcategory_id', 'label' => __('main.subcategory'), 'type' => 'select', 'options' => $subcategoryOptions, 'option_attributes' => $subcategoryOptionAttributes],
                     ['name' => 'unit_id', 'label' => __('main.stock_unit'), 'type' => 'select', 'required' => true, 'options' => $unitOptions],
                     ['name' => 'default_warehouse_id', 'label' => __('main.default_warehouse'), 'type' => 'select', 'options' => $warehouseOptions],
                     ['name' => 'name', 'label' => __('main.item_name'), 'type' => 'text', 'required' => true],
@@ -2891,6 +3794,7 @@ class MainController extends Controller
 
         return array_merge($base, match ($resource) {
             'categories' => [
+                'warehouse_id' => ['required', 'integer', $existsForSite('accounting_stock_warehouses')],
                 'name' => ['required', 'string', 'max:255'],
                 'description' => ['nullable', 'string'],
                 'status' => ['required', Rule::in(['active', 'inactive'])],
@@ -2927,7 +3831,12 @@ class MainController extends Controller
                 'sale_price' => ['required', 'numeric', 'min:0'],
                 'current_stock' => ['required', 'numeric', 'min:0'],
                 'min_stock' => ['required', 'numeric', 'min:0'],
-                'currency' => ['required', Rule::in(array_keys(CurrencyCatalog::all()))],
+                'currency' => [
+                    'required',
+                    Rule::exists('accounting_currencies', 'code')
+                        ->where('company_site_id', $site->id)
+                        ->where('status', AccountingCurrency::STATUS_ACTIVE),
+                ],
                 'status' => ['required', Rule::in(['active', 'inactive'])],
                 'description' => ['nullable', 'string'],
             ],
@@ -3046,6 +3955,7 @@ class MainController extends Controller
             AccountingStockUnit::TYPE_VOLUME => __('main.stock_unit_type_volume'),
             AccountingStockUnit::TYPE_LENGTH => __('main.stock_unit_type_length'),
             AccountingStockUnit::TYPE_PACKAGE => __('main.stock_unit_type_package'),
+            AccountingStockUnit::TYPE_QUANTITY => __('main.stock_unit_type_quantity'),
         ];
     }
 
@@ -3074,6 +3984,657 @@ class MainController extends Controller
             AccountingStockAlert::TYPE_OVERSTOCK => __('main.stock_alert_type_overstock'),
             AccountingStockAlert::TYPE_EXPIRATION => __('main.stock_alert_type_expiration'),
         ];
+    }
+
+    private function accountingServiceResourceConfig(CompanySite $site, string $resource): ?array
+    {
+        $statusOptions = ['active' => __('main.active'), 'inactive' => __('main.inactive')];
+        $categoryOptions = $this->serviceSelectOptions(AccountingServiceCategory::class, $site, 'name');
+        $subcategoryOptions = $this->serviceSelectOptions(AccountingServiceSubcategory::class, $site, 'name');
+        $subcategoryOptionAttributes = AccountingServiceSubcategory::query()
+            ->where('company_site_id', $site->id)
+            ->get()
+            ->mapWithKeys(fn (AccountingServiceSubcategory $subcategory) => [
+                $subcategory->id => ['data-category-id' => $subcategory->category_id],
+            ])
+            ->all();
+        $unitOptions = $this->serviceSelectOptions(AccountingServiceUnit::class, $site, 'name', 'symbol');
+        $serviceOptions = $this->serviceSelectOptions(AccountingService::class, $site, 'name', 'reference');
+        $currencyOptions = $this->siteCurrencyOptions($site);
+
+        return [
+            'price-list' => [
+                'model' => AccountingService::class,
+                'relation' => 'accountingServices',
+                'title' => __('main.price_list'),
+                'singular_lower' => __('main.service_lower'),
+                'subtitle' => __('main.services_price_list_subtitle'),
+                'new_label' => __('main.new_service'),
+                'edit_label' => __('main.edit_service'),
+                'icon' => 'bi-card-list',
+                'active' => 'service-price-list',
+                'empty' => __('main.no_services'),
+                'relations' => ['category', 'subcategory', 'unit'],
+                'columns' => [
+                    ['key' => 'reference', 'label' => __('main.reference')],
+                    ['key' => 'name', 'label' => __('main.service')],
+                    ['key' => 'category.name', 'label' => __('main.category')],
+                    ['key' => 'billing_type', 'label' => __('main.billing_type'), 'type' => 'service_billing'],
+                    ['key' => 'price', 'label' => __('main.sale_price'), 'type' => 'money'],
+                    ['key' => 'status', 'label' => __('main.status'), 'type' => 'status'],
+                ],
+                'fields' => [
+                    ['name' => 'category_id', 'label' => __('main.category'), 'type' => 'select', 'required' => true, 'options' => $categoryOptions],
+                    ['name' => 'subcategory_id', 'label' => __('main.subcategory'), 'type' => 'select', 'options' => $subcategoryOptions, 'option_attributes' => $subcategoryOptionAttributes],
+                    ['name' => 'unit_id', 'label' => __('main.service_unit'), 'type' => 'select', 'required' => true, 'options' => $unitOptions],
+                    ['name' => 'name', 'label' => __('main.service_name'), 'type' => 'text', 'required' => true],
+                    ['name' => 'billing_type', 'label' => __('main.billing_type'), 'type' => 'select', 'required' => true, 'options' => $this->serviceBillingTypeLabels(), 'default' => AccountingService::BILLING_FIXED],
+                    ['name' => 'currency', 'label' => __('admin.currency'), 'type' => 'select', 'required' => true, 'options' => $currencyOptions, 'default' => $site->currency ?: 'CDF'],
+                    ['name' => 'price', 'label' => __('main.sale_price'), 'type' => 'number', 'default' => '0'],
+                    ['name' => 'tax_rate', 'label' => __('main.tax_rate_percent'), 'type' => 'number', 'default' => '0'],
+                    ['name' => 'estimated_duration', 'label' => __('main.estimated_duration_minutes'), 'type' => 'number'],
+                    ['name' => 'status', 'label' => __('main.status'), 'type' => 'select', 'required' => true, 'options' => $statusOptions, 'default' => 'active'],
+                    ['name' => 'description', 'label' => __('main.description'), 'type' => 'textarea'],
+                    ['name' => 'internal_notes', 'label' => __('main.internal_notes'), 'type' => 'textarea'],
+                ],
+            ],
+            'categories' => [
+                'model' => AccountingServiceCategory::class,
+                'relation' => 'accountingServiceCategories',
+                'title' => __('main.service_categories'),
+                'singular_lower' => __('main.service_category_lower'),
+                'subtitle' => __('main.service_categories_subtitle'),
+                'new_label' => __('main.new_service_category'),
+                'edit_label' => __('main.edit_service_category'),
+                'icon' => 'bi-folder',
+                'active' => 'service-categories',
+                'empty' => __('main.no_service_categories'),
+                'relations' => [],
+                'columns' => [
+                    ['key' => 'reference', 'label' => __('main.reference')],
+                    ['key' => 'name', 'label' => __('main.name')],
+                    ['key' => 'status', 'label' => __('main.status'), 'type' => 'status'],
+                ],
+                'fields' => [
+                    ['name' => 'name', 'label' => __('main.name'), 'type' => 'text', 'required' => true],
+                    ['name' => 'status', 'label' => __('main.status'), 'type' => 'select', 'required' => true, 'options' => $statusOptions, 'default' => 'active'],
+                    ['name' => 'description', 'label' => __('main.description'), 'type' => 'textarea'],
+                ],
+            ],
+            'subcategories' => [
+                'model' => AccountingServiceSubcategory::class,
+                'relation' => 'accountingServiceSubcategories',
+                'title' => __('main.service_subcategories'),
+                'singular_lower' => __('main.service_subcategory_lower'),
+                'subtitle' => __('main.service_subcategories_subtitle'),
+                'new_label' => __('main.new_service_subcategory'),
+                'edit_label' => __('main.edit_service_subcategory'),
+                'icon' => 'bi-tags',
+                'active' => 'service-subcategories',
+                'empty' => __('main.no_service_subcategories'),
+                'relations' => ['category', 'services.unit'],
+                'columns' => [
+                    ['key' => 'reference', 'label' => __('main.reference')],
+                    ['key' => 'name', 'label' => __('main.name')],
+                    ['key' => 'category.name', 'label' => __('main.category')],
+                    ['key' => 'status', 'label' => __('main.status'), 'type' => 'status'],
+                ],
+                'fields' => [
+                    ['name' => 'category_id', 'label' => __('main.category'), 'type' => 'select', 'required' => true, 'options' => $categoryOptions],
+                    ['name' => 'name', 'label' => __('main.name'), 'type' => 'text', 'required' => true],
+                    ['name' => 'status', 'label' => __('main.status'), 'type' => 'select', 'required' => true, 'options' => $statusOptions, 'default' => 'active'],
+                    ['name' => 'description', 'label' => __('main.description'), 'type' => 'textarea'],
+                ],
+            ],
+            'units' => [
+                'model' => AccountingServiceUnit::class,
+                'relation' => 'accountingServiceUnits',
+                'title' => __('main.service_units'),
+                'singular_lower' => __('main.service_unit_lower'),
+                'subtitle' => __('main.service_units_subtitle'),
+                'new_label' => __('main.new_service_unit'),
+                'edit_label' => __('main.edit_service_unit'),
+                'icon' => 'bi-rulers',
+                'active' => 'service-units',
+                'empty' => __('main.no_service_units'),
+                'relations' => [],
+                'columns' => [
+                    ['key' => 'reference', 'label' => __('main.reference')],
+                    ['key' => 'name', 'label' => __('main.name')],
+                    ['key' => 'symbol', 'label' => __('main.symbol')],
+                    ['key' => 'status', 'label' => __('main.status'), 'type' => 'status'],
+                ],
+                'fields' => [
+                    ['name' => 'name', 'label' => __('main.name'), 'type' => 'text', 'required' => true],
+                    ['name' => 'symbol', 'label' => __('main.symbol'), 'type' => 'text', 'required' => true],
+                    ['name' => 'status', 'label' => __('main.status'), 'type' => 'select', 'required' => true, 'options' => $statusOptions, 'default' => 'active'],
+                ],
+            ],
+            'recurring' => [
+                'model' => AccountingRecurringService::class,
+                'relation' => 'accountingRecurringServices',
+                'title' => __('main.recurring_services'),
+                'singular_lower' => __('main.recurring_service_lower'),
+                'subtitle' => __('main.recurring_services_subtitle'),
+                'new_label' => __('main.new_recurring_service'),
+                'edit_label' => __('main.edit_recurring_service'),
+                'icon' => 'bi-arrow-repeat',
+                'active' => 'service-recurring',
+                'empty' => __('main.no_recurring_services'),
+                'relations' => ['service'],
+                'columns' => [
+                    ['key' => 'reference', 'label' => __('main.reference')],
+                    ['key' => 'name', 'label' => __('main.name')],
+                    ['key' => 'service.name', 'label' => __('main.service')],
+                    ['key' => 'frequency', 'label' => __('main.frequency'), 'type' => 'service_frequency'],
+                    ['key' => 'next_invoice_date', 'label' => __('main.next_invoice_date'), 'type' => 'date'],
+                    ['key' => 'status', 'label' => __('main.status'), 'type' => 'status'],
+                ],
+                'fields' => [
+                    ['name' => 'service_id', 'label' => __('main.service'), 'type' => 'select', 'required' => true, 'options' => $serviceOptions],
+                    ['name' => 'name', 'label' => __('main.name'), 'type' => 'text', 'required' => true],
+                    ['name' => 'frequency', 'label' => __('main.frequency'), 'type' => 'select', 'required' => true, 'options' => $this->serviceFrequencyLabels(), 'default' => AccountingRecurringService::FREQUENCY_MONTHLY],
+                    ['name' => 'start_date', 'label' => __('main.start_date'), 'type' => 'date'],
+                    ['name' => 'next_invoice_date', 'label' => __('main.next_invoice_date'), 'type' => 'date'],
+                    ['name' => 'status', 'label' => __('main.status'), 'type' => 'select', 'required' => true, 'options' => $statusOptions, 'default' => 'active'],
+                    ['name' => 'notes', 'label' => __('main.notes'), 'type' => 'textarea'],
+                ],
+            ],
+        ][$resource] ?? null;
+    }
+
+    private function serviceSelectOptions(string $model, CompanySite $site, string $labelColumn, ?string $secondaryColumn = null): array
+    {
+        $query = $model::query()
+            ->where('company_site_id', $site->id);
+
+        if (in_array($model, [AccountingServiceCategory::class, AccountingServiceSubcategory::class, AccountingServiceUnit::class], true)) {
+            $query->orderByDesc('is_default');
+        }
+
+        return $query
+            ->orderBy($labelColumn)
+            ->get()
+            ->mapWithKeys(function (Model $record) use ($labelColumn, $secondaryColumn) {
+                $label = (string) data_get($record, $labelColumn);
+                $secondary = $secondaryColumn ? data_get($record, $secondaryColumn) : null;
+
+                return [$record->id => filled($secondary) ? "{$label} ({$secondary})" : $label];
+            })
+            ->all();
+    }
+
+    private function accountingServiceRules(CompanySite $site, string $resource): array
+    {
+        $existsForSite = fn (string $table) => Rule::exists($table, 'id')->where('company_site_id', $site->id);
+        $base = [
+            'form_mode' => ['nullable', Rule::in(['create', 'edit'])],
+            'record_id' => ['nullable', 'integer'],
+        ];
+
+        return array_merge($base, match ($resource) {
+            'price-list' => [
+                'category_id' => ['required', 'integer', $existsForSite('accounting_service_categories')],
+                'subcategory_id' => ['nullable', 'integer', $existsForSite('accounting_service_subcategories')],
+                'unit_id' => ['required', 'integer', $existsForSite('accounting_service_units')],
+                'name' => ['required', 'string', 'max:255'],
+                'billing_type' => ['required', Rule::in(AccountingService::billingTypes())],
+                'price' => ['required', 'numeric', 'min:0'],
+                'currency' => [
+                    'required',
+                    Rule::exists('accounting_currencies', 'code')
+                        ->where('company_site_id', $site->id)
+                        ->where('status', AccountingCurrency::STATUS_ACTIVE),
+                ],
+                'tax_rate' => ['required', 'numeric', 'min:0', 'max:100'],
+                'estimated_duration' => ['nullable', 'integer', 'min:0'],
+                'status' => ['required', Rule::in(['active', 'inactive'])],
+                'description' => ['nullable', 'string'],
+                'internal_notes' => ['nullable', 'string'],
+            ],
+            'categories' => [
+                'name' => ['required', 'string', 'max:255'],
+                'description' => ['nullable', 'string'],
+                'status' => ['required', Rule::in(['active', 'inactive'])],
+            ],
+            'subcategories' => [
+                'category_id' => ['required', 'integer', $existsForSite('accounting_service_categories')],
+                'name' => ['required', 'string', 'max:255'],
+                'description' => ['nullable', 'string'],
+                'status' => ['required', Rule::in(['active', 'inactive'])],
+            ],
+            'units' => [
+                'name' => ['required', 'string', 'max:255'],
+                'symbol' => ['required', 'string', 'max:30'],
+                'status' => ['required', Rule::in(['active', 'inactive'])],
+            ],
+            'recurring' => [
+                'service_id' => ['required', 'integer', $existsForSite('accounting_services')],
+                'name' => ['required', 'string', 'max:255'],
+                'frequency' => ['required', Rule::in(AccountingRecurringService::frequencies())],
+                'start_date' => ['nullable', 'date'],
+                'next_invoice_date' => ['nullable', 'date'],
+                'status' => ['required', Rule::in(['active', 'inactive'])],
+                'notes' => ['nullable', 'string'],
+            ],
+            default => [],
+        });
+    }
+
+    private function accountingServicePayload(array $validated, User&Authenticatable $user, bool $withCreator = true): array
+    {
+        unset($validated['form_mode'], $validated['record_id']);
+
+        if ($withCreator) {
+            $validated['created_by'] = $user->id;
+        }
+
+        return $validated;
+    }
+
+    private function isProtectedDefaultServiceResource(string $resource, Model $record): bool
+    {
+        return in_array($resource, ['categories', 'subcategories', 'units'], true)
+            && (bool) data_get($record, 'is_default');
+    }
+
+    private function serviceBillingTypeLabels(): array
+    {
+        return [
+            AccountingService::BILLING_FIXED => __('main.service_billing_fixed'),
+            AccountingService::BILLING_HOURLY => __('main.service_billing_hourly'),
+            AccountingService::BILLING_DAILY => __('main.service_billing_daily'),
+            AccountingService::BILLING_MONTHLY => __('main.service_billing_monthly'),
+            AccountingService::BILLING_YEARLY => __('main.service_billing_yearly'),
+        ];
+    }
+
+    private function serviceFrequencyLabels(): array
+    {
+        return [
+            AccountingRecurringService::FREQUENCY_MONTHLY => __('main.frequency_monthly'),
+            AccountingRecurringService::FREQUENCY_QUARTERLY => __('main.frequency_quarterly'),
+            AccountingRecurringService::FREQUENCY_YEARLY => __('main.frequency_yearly'),
+        ];
+    }
+
+    private function accountingCurrencyRules(CompanySite $site, ?AccountingCurrency $currency = null): array
+    {
+        return [
+            'code' => [
+                'required',
+                'string',
+                Rule::in(array_keys(CurrencyCatalog::all())),
+                Rule::unique('accounting_currencies', 'code')
+                    ->where('company_site_id', $site->id)
+                    ->ignore($currency?->id),
+            ],
+            'exchange_rate' => ['required', 'numeric', 'min:0.01'],
+            'status' => ['required', Rule::in([AccountingCurrency::STATUS_ACTIVE, AccountingCurrency::STATUS_INACTIVE])],
+        ];
+    }
+
+    private function accountingCurrencyPayload(array $validated, User&Authenticatable $user, bool $withCreator = true): array
+    {
+        $currency = CurrencyCatalog::all()[$validated['code']] ?? [];
+        $payload = [
+            'code' => $validated['code'],
+            'name' => $currency['name_fr'] ?? $validated['code'],
+            'symbol' => $currency['symbol'] ?? null,
+            'exchange_rate' => $validated['exchange_rate'],
+            'is_base' => false,
+            'is_default' => false,
+            'status' => $validated['status'],
+        ];
+
+        if ($withCreator) {
+            $payload['created_by'] = $user->id;
+        }
+
+        return $payload;
+    }
+
+    private function accountingCurrencyStatusLabels(): array
+    {
+        return [
+            AccountingCurrency::STATUS_ACTIVE => __('main.active'),
+            AccountingCurrency::STATUS_INACTIVE => __('main.inactive'),
+        ];
+    }
+
+    private function paymentMethodRules(CompanySite $site, ?AccountingPaymentMethod $method = null): array
+    {
+        return [
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('accounting_payment_methods', 'name')
+                    ->where('company_site_id', $site->id)
+                    ->ignore($method?->id),
+            ],
+            'type' => ['required', Rule::in(AccountingPaymentMethod::types())],
+            'currency_code' => ['required', 'string', Rule::exists('accounting_currencies', 'code')->where('company_site_id', $site->id)],
+            'code' => ['nullable', 'string', 'max:60'],
+            'bank_name' => ['nullable', 'string', 'max:255'],
+            'account_holder' => ['nullable', 'string', 'max:255'],
+            'account_number' => ['nullable', 'string', 'max:255'],
+            'iban' => ['nullable', 'string', 'max:255'],
+            'bic_swift' => ['nullable', 'string', 'max:255'],
+            'bank_address' => ['nullable', 'string'],
+            'description' => ['nullable', 'string'],
+            'is_default' => ['nullable', 'boolean'],
+            'status' => ['required', Rule::in([AccountingPaymentMethod::STATUS_ACTIVE, AccountingPaymentMethod::STATUS_INACTIVE])],
+        ];
+    }
+
+    private function paymentMethodPayload(array $validated, User&Authenticatable $user, bool $withCreator = true): array
+    {
+        $payload = [
+            'name' => $validated['name'],
+            'type' => $validated['type'],
+            'currency_code' => $validated['currency_code'],
+            'code' => $validated['code'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'is_default' => (bool) ($validated['is_default'] ?? false),
+            'is_system_default' => false,
+            'status' => $validated['status'],
+        ];
+
+        if ($validated['type'] === AccountingPaymentMethod::TYPE_BANK) {
+            $payload += [
+                'bank_name' => $validated['bank_name'] ?? null,
+                'account_holder' => $validated['account_holder'] ?? null,
+                'account_number' => $validated['account_number'] ?? null,
+                'iban' => $validated['iban'] ?? null,
+                'bic_swift' => $validated['bic_swift'] ?? null,
+                'bank_address' => $validated['bank_address'] ?? null,
+            ];
+        } else {
+            $payload += [
+                'bank_name' => null,
+                'account_holder' => null,
+                'account_number' => null,
+                'iban' => null,
+                'bic_swift' => null,
+                'bank_address' => null,
+            ];
+        }
+
+        if ($withCreator) {
+            $payload['created_by'] = $user->id;
+        }
+
+        return $payload;
+    }
+
+    private function paymentMethodTypeLabels(): array
+    {
+        return [
+            AccountingPaymentMethod::TYPE_CASH => __('main.payment_method_type_cash'),
+            AccountingPaymentMethod::TYPE_BANK => __('main.payment_method_type_bank'),
+            AccountingPaymentMethod::TYPE_MOBILE_MONEY => __('main.payment_method_type_mobile_money'),
+            AccountingPaymentMethod::TYPE_CARD => __('main.payment_method_type_card'),
+            AccountingPaymentMethod::TYPE_CHECK => __('main.payment_method_type_check'),
+            AccountingPaymentMethod::TYPE_CUSTOMER_CREDIT => __('main.payment_method_type_customer_credit'),
+            AccountingPaymentMethod::TYPE_OTHER => __('main.payment_method_type_other'),
+        ];
+    }
+
+    private function paymentMethodStatusLabels(): array
+    {
+        return [
+            AccountingPaymentMethod::STATUS_ACTIVE => __('main.active'),
+            AccountingPaymentMethod::STATUS_INACTIVE => __('main.inactive'),
+        ];
+    }
+
+    private function siteCurrencyOptions(CompanySite $site): array
+    {
+        return AccountingCurrency::query()
+            ->where('company_site_id', $site->id)
+            ->where('status', AccountingCurrency::STATUS_ACTIVE)
+            ->orderByDesc('is_base')
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(fn (AccountingCurrency $currency) => [$currency->code => CurrencyCatalog::label($currency->code)])
+            ->all();
+    }
+
+    private function proformaRules(CompanySite $site, bool $updating = false): array
+    {
+        $existsForSite = fn (string $table) => Rule::exists($table, 'id')->where('company_site_id', $site->id);
+
+        return [
+            'client_id' => ['required', 'integer', $existsForSite('accounting_clients')],
+            'title' => ['nullable', 'string', 'max:255'],
+            'issue_date' => ['required', 'date'],
+            'expiration_date' => ['required', 'date', 'after_or_equal:issue_date'],
+            'currency' => [
+                'required',
+                'string',
+                Rule::exists('accounting_currencies', 'code')
+                    ->where('company_site_id', $site->id)
+                    ->where('status', AccountingCurrency::STATUS_ACTIVE),
+            ],
+            'status' => [$updating ? 'required' : 'nullable', Rule::in(AccountingProformaInvoice::statuses())],
+            'payment_terms' => ['nullable', Rule::in(AccountingProformaInvoice::paymentTerms())],
+            'tax_rate' => ['required', 'numeric', 'min:0', 'max:100'],
+            'notes' => ['nullable', 'string'],
+            'terms' => ['nullable', 'string'],
+            'lines' => ['required', 'array', 'min:1'],
+            'lines.*.line_type' => ['required', Rule::in(AccountingProformaInvoiceLine::types())],
+            'lines.*.item_id' => ['nullable', 'integer', $existsForSite('accounting_stock_items')],
+            'lines.*.service_id' => ['nullable', 'integer', $existsForSite('accounting_services')],
+            'lines.*.description' => ['required', 'string', 'max:255'],
+            'lines.*.details' => ['nullable', 'string'],
+            'lines.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'lines.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'lines.*.discount_type' => ['nullable', Rule::in(AccountingProformaInvoiceLine::discountTypes())],
+            'lines.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
+        ];
+    }
+
+    private function proformaPayload(array $validated, User&Authenticatable $user, array $totals, bool $withCreator = true): array
+    {
+        $payload = [
+            'client_id' => $validated['client_id'],
+            'title' => $validated['title'] ?? null,
+            'issue_date' => $validated['issue_date'],
+            'expiration_date' => $validated['expiration_date'],
+            'currency' => $validated['currency'],
+            'status' => $validated['status'] ?? AccountingProformaInvoice::STATUS_DRAFT,
+            'payment_terms' => $validated['payment_terms'] ?? AccountingProformaInvoice::PAYMENT_TO_DISCUSS,
+            'subtotal' => $totals['subtotal'],
+            'discount_total' => $totals['discount_total'],
+            'total_ht' => $totals['total_ht'],
+            'tax_rate' => $validated['tax_rate'],
+            'tax_amount' => $totals['tax_amount'],
+            'total_ttc' => $totals['total_ttc'],
+            'notes' => $validated['notes'] ?? null,
+            'terms' => $validated['terms'] ?? null,
+        ];
+
+        if ($withCreator) {
+            $payload['created_by'] = $user->id;
+        }
+
+        return $payload;
+    }
+
+    private function calculateProformaTotals(array $lines, float $taxRate): array
+    {
+        $subtotal = 0;
+        $discountTotal = 0;
+        $totalHt = 0;
+
+        foreach ($lines as $line) {
+            $quantity = (float) ($line['quantity'] ?? 0);
+            $unitPrice = (float) ($line['unit_price'] ?? 0);
+            $rawTotal = $quantity * $unitPrice;
+            $discount = $this->proformaLineDiscountAmount($line, $rawTotal);
+            $lineTotal = max(0, $rawTotal - $discount);
+
+            $subtotal += $rawTotal;
+            $discountTotal += $discount;
+            $totalHt += $lineTotal;
+        }
+
+        $taxAmount = round($totalHt * ($taxRate / 100), 2);
+
+        return [
+            'subtotal' => round($subtotal, 2),
+            'discount_total' => round($discountTotal, 2),
+            'total_ht' => round($totalHt, 2),
+            'tax_amount' => $taxAmount,
+            'total_ttc' => round($totalHt + $taxAmount, 2),
+        ];
+    }
+
+    private function syncProformaLines(AccountingProformaInvoice $proforma, array $lines): void
+    {
+        $proforma->lines()->delete();
+
+        foreach ($lines as $line) {
+            $quantity = (float) ($line['quantity'] ?? 0);
+            $unitPrice = (float) ($line['unit_price'] ?? 0);
+            $discountType = $this->proformaLineDiscountType($line);
+            $discountValue = (float) ($line['discount_amount'] ?? 0);
+            $rawTotal = $quantity * $unitPrice;
+            $discount = $this->proformaLineDiscountAmount($line, $rawTotal);
+
+            $proforma->lines()->create([
+                'line_type' => $line['line_type'],
+                'item_id' => ($line['line_type'] === AccountingProformaInvoiceLine::TYPE_ITEM) ? ($line['item_id'] ?? null) : null,
+                'service_id' => ($line['line_type'] === AccountingProformaInvoiceLine::TYPE_SERVICE) ? ($line['service_id'] ?? null) : null,
+                'description' => $line['description'],
+                'details' => $line['details'] ?? null,
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
+                'discount_type' => $discountType,
+                'discount_amount' => $discountValue,
+                'line_total' => max(0, $rawTotal - $discount),
+            ]);
+        }
+    }
+
+    private function proformaLineDiscountAmount(array $line, float $rawTotal): float
+    {
+        $discountType = $this->proformaLineDiscountType($line);
+        $discountValue = max(0, (float) ($line['discount_amount'] ?? 0));
+
+        if ($discountType === AccountingProformaInvoiceLine::DISCOUNT_PERCENT) {
+            return round(min($discountValue, 100) * $rawTotal / 100, 2);
+        }
+
+        return round(min($discountValue, $rawTotal), 2);
+    }
+
+    private function proformaLineDiscountType(array $line): string
+    {
+        $discountType = $line['discount_type'] ?? AccountingProformaInvoiceLine::DISCOUNT_FIXED;
+
+        return in_array($discountType, AccountingProformaInvoiceLine::discountTypes(), true)
+            ? $discountType
+            : AccountingProformaInvoiceLine::DISCOUNT_FIXED;
+    }
+
+    private function proformaClientOptions(CompanySite $site): array
+    {
+        return AccountingClient::query()
+            ->where('company_site_id', $site->id)
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(fn (AccountingClient $client) => [$client->id => "{$client->name} ({$client->reference})"])
+            ->all();
+    }
+
+    private function proformaItemOptions(CompanySite $site): array
+    {
+        return AccountingStockItem::query()
+            ->where('company_site_id', $site->id)
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(fn (AccountingStockItem $item) => [$item->id => [
+                'label' => "{$item->name} ({$item->reference})",
+                'price' => (float) $item->sale_price,
+            ]])
+            ->all();
+    }
+
+    private function proformaServiceOptions(CompanySite $site): array
+    {
+        return AccountingService::query()
+            ->where('company_site_id', $site->id)
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(fn (AccountingService $service) => [$service->id => [
+                'label' => "{$service->name} ({$service->reference})",
+                'price' => (float) $service->price,
+            ]])
+            ->all();
+    }
+
+    private function proformaStatusLabels(): array
+    {
+        return [
+            AccountingProformaInvoice::STATUS_DRAFT => __('main.proforma_status_draft'),
+            AccountingProformaInvoice::STATUS_SENT => __('main.proforma_status_sent'),
+            AccountingProformaInvoice::STATUS_ACCEPTED => __('main.proforma_status_accepted'),
+            AccountingProformaInvoice::STATUS_REJECTED => __('main.proforma_status_rejected'),
+            AccountingProformaInvoice::STATUS_EXPIRED => __('main.proforma_status_expired'),
+            AccountingProformaInvoice::STATUS_CONVERTED => __('main.proforma_status_converted'),
+        ];
+    }
+
+    private function proformaLineTypeLabels(): array
+    {
+        return [
+            AccountingProformaInvoiceLine::TYPE_ITEM => __('main.proforma_line_item'),
+            AccountingProformaInvoiceLine::TYPE_SERVICE => __('main.proforma_line_service'),
+            AccountingProformaInvoiceLine::TYPE_FREE => __('main.proforma_line_free'),
+        ];
+    }
+
+    private function proformaPaymentTermLabels(): array
+    {
+        return [
+            AccountingProformaInvoice::PAYMENT_FULL_ORDER => __('main.payment_terms_full_order'),
+            AccountingProformaInvoice::PAYMENT_HALF_ORDER => __('main.payment_terms_half_order'),
+            AccountingProformaInvoice::PAYMENT_THIRTY_ORDER => __('main.payment_terms_thirty_order'),
+            AccountingProformaInvoice::PAYMENT_ON_DELIVERY => __('main.payment_terms_on_delivery'),
+            AccountingProformaInvoice::PAYMENT_AFTER_DELIVERY => __('main.payment_terms_after_delivery'),
+            AccountingProformaInvoice::PAYMENT_TO_DISCUSS => __('main.payment_terms_to_discuss'),
+        ];
+    }
+
+    private function qrCodeSvgDataUri(string $content): string
+    {
+        $renderer = new ImageRenderer(
+            new RendererStyle(108, 1),
+            new SvgImageBackEnd()
+        );
+
+        $svg = (new Writer($renderer))->writeString($content);
+
+        return 'data:image/svg+xml;base64,'.base64_encode($svg);
+    }
+
+    private function companyCountryVatRate(Company $company): float
+    {
+        $country = $company->country;
+
+        if (blank($country)) {
+            return 0.0;
+        }
+
+        foreach (config('countries') as $meta) {
+            if (in_array($country, [$meta['iso'], $meta['name'], $meta['name_fr'], $meta['name_en']], true)) {
+                return (float) $meta['vat_rate'];
+            }
+        }
+
+        return 0.0;
     }
 
     private function companyRules(): array

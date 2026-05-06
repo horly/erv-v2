@@ -9,6 +9,7 @@
     const submitButton = document.getElementById('prospectSubmit');
     const contactList = document.querySelector('[data-prospect-contact-list]');
     const contactTemplate = document.getElementById('prospectContactTemplate');
+    const addressWrapper = document.querySelector('[data-prospect-address-wrapper]');
     let contactIndex = contactList?.querySelectorAll('[data-prospect-contact-row]').length || 0;
 
     const fields = {
@@ -84,6 +85,12 @@
             fields.name.placeholder = typeSelect.value === 'company'
                 ? fields.name.dataset.placeholderCompany
                 : fields.name.dataset.placeholderIndividual;
+        }
+
+        const targetRow = document.querySelector(`[data-prospect-panel="${typeSelect.value}"] .row`);
+
+        if (addressWrapper && targetRow) {
+            targetRow.appendChild(addressWrapper);
         }
     };
 

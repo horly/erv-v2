@@ -880,6 +880,12 @@ a {
     color: #2563eb;
 }
 
+.table-button-print:hover {
+    border-color: rgba(37, 99, 235, .35);
+    background: #eff6ff;
+    color: #2563eb;
+}
+
 .table-button-delete:hover {
     border-color: rgba(239, 68, 68, .35);
     background: #fef2f2;
@@ -1304,11 +1310,17 @@ a {
 
 .modal-cancel,
 .modal-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-height: 56px;
     padding: 0 1.35rem;
     border: 0;
     border-radius: 10px;
     font-weight: 750;
+    line-height: 1;
+    text-align: center;
+    text-decoration: none;
 }
 
 .modal-cancel {
@@ -1317,9 +1329,6 @@ a {
 }
 
 .modal-submit {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     gap: .55rem;
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
     color: #ffffff;

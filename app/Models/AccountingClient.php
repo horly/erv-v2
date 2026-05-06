@@ -61,6 +61,11 @@ class AccountingClient extends Model
         return $this->hasMany(AccountingClientContact::class);
     }
 
+    public function proformaInvoices(): HasMany
+    {
+        return $this->hasMany(AccountingProformaInvoice::class, 'client_id');
+    }
+
     public function isCompany(): bool
     {
         return $this->type === self::TYPE_COMPANY;

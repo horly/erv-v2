@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light" class="accounting-module-root">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ $config['title'] }} | {{ config('app.name', 'EXAD ERP') }}</title>
+    <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet">
+    <style>{!! file_get_contents(resource_path('css/admin/dashboard.css')) !!}</style>
+    <style>{!! file_get_contents(resource_path('css/main.css')) !!}</style>
+</head>
+<body class="accounting-module-body">
+    @php
+        $currentLocale = app()->getLocale();
+        $moduleRoute = route('main.companies.sites.modules.show', [$company, $site, $module]);
+        $totalRecords = $records->total();
+        $hasResourceErrors = $errors->any();
+        $isEditingResource = old('form_mode') === 'edit' && old('record_id');
+        $formAction = $isEditingResource
+            ? route('main.accounting.services.update', [$company, $site, $resource, old('record_id')])
+            : route('main.accounting.services.store', [$company, $site, $resource]);
+        $cellValue = function ($record, array $column) {
+            $value = data_get($record, $column['key']);
+            $maps = [
+                'status' => ['active' => __('main.active'), 'inactive' => __('main.inactive')],
+                'service_billing' => [
+                    'fixed' => __('main.service_billing_fixed'),
+                    'hourly' => __('main.service_billing_hourly'),
+                    'daily' => __('main.service_billing_daily'),
+                    'monthly' => __('main.service_billing_monthly'),
+                    'yearly' => __('main.service_billing_yearly'),
+                ],
+                'service_frequency' => [
+                    'monthly' => __('main.frequency_monthly'),
+                    'quarterly' => __('main.frequency_quarterly'),
+                    'yearly' => __('main.frequency_yearly'),
+                ],
+            ];
+
+            if ($value instanceof \Carbon\CarbonInterface) {
+                return $value->translatedFormat('d M Y');
+            }
+
+            if (isset($maps[$column['type'] ?? ''][$value])) {
+                return $maps[$column['type']][$value];
+            }
+
+            if (($column['type'] ?? null) === 'money') {
+                return number_format((float) $value, 0, ',', ' ').' '.($record->currency ?? '');
+            }
+
+            if (($column['type'] ?? null) === 'number') {
+                return number_format((float) $value, 2, ',', ' ');
+            }
+
+            if (blank($value)) {
+                return '-';
+            }
+
+            return $value;
+        };
+        $recordPayload = function ($record, array $fields) {
+            $payload = [];
+
+            foreach ($fields as $field) {
+                $value = data_get($record, $field['name']);
+
+                if ($value instanceof \Carbon\CarbonInterface) {
+                    $value = $value->format('Y-m-d');
+                }
+
+                $payload[$field['name']] = $value;
+            }
+
+            return $payload;
+        };
+        $serviceSubcategoryServicesPayload = function ($record, bool $forCategory = false) {
+            return $record->services
+                ->map(function ($service) use ($forCategory) {
+                    $payload = [
+                        'reference' => $service->reference ?: '-',
+                        'name' => $service->name ?: '-',
+                        'unit' => $service->unit?->name ?: '-',
+                    ];
+
+                    if ($forCategory) {
+                        $payload['subcategory'] = $service->subcategory?->name ?: '-';
+                    } else {
+                        $payload['price'] = number_format((float) $service->price, 2, ',', ' ').' '.($service->currency ?: '');
+                    }
+
+                    return $payload;
+                })
+                ->values()
+                ->all();
+        };
+    @endphp
+
+    <div class="dashboard-shell main-shell accounting-shell" data-theme="light">
+        @include('main.modules.partials.accounting-sidebar', ['activeAccountingPage' => $config['active']])
+
+        <main class="dashboard-main">
+            <header class="dashboard-topbar">
+                <div>
+                    <h1>{{ $config['title'] }}</h1>
+                    <p>{{ $company->name }} / {{ $site->name }}</p>
+                </div>
+
+                <div class="header-actions">
+                    <button class="icon-button" type="button" id="themeButton" aria-label="{{ __('auth.theme_dark') }}" title="{{ __('auth.theme_dark') }}">
+                        <i class="bi bi-brightness-high-fill" aria-hidden="true"></i>
+                    </button>
+                    <div class="language-menu">
+                        <button class="language-button" type="button" id="languageButton" aria-label="{{ __('auth.language_switch') }}" aria-expanded="false" aria-controls="languageDropdown" title="{{ __('auth.language_switch') }}">
+                            <i class="bi bi-globe2" aria-hidden="true"></i>
+                            <span>{{ strtoupper($currentLocale) }}</span>
+                            <i class="bi bi-chevron-down language-chevron" aria-hidden="true"></i>
+                        </button>
+                        <div class="language-dropdown" id="languageDropdown" aria-labelledby="languageButton">
+                            <a class="language-option {{ $currentLocale === 'fr' ? 'active' : '' }}" href="{{ route('locale.switch', 'fr') }}">
+                                <span class="language-code">FR</span>
+                                <span class="language-name">{{ __('auth.language_fr') }}</span>
+                                @if ($currentLocale === 'fr')
+                                    <i class="bi bi-check-lg language-check" aria-hidden="true"></i>
+                                @endif
+                            </a>
+                            <a class="language-option {{ $currentLocale === 'en' ? 'active' : '' }}" href="{{ route('locale.switch', 'en') }}">
+                                <span class="language-code">EN</span>
+                                <span class="language-name">{{ __('auth.language_en') }}</span>
+                                @if ($currentLocale === 'en')
+                                    <i class="bi bi-check-lg language-check" aria-hidden="true"></i>
+                                @endif
+                            </a>
+                        </div>
+                    </div>
+                    <div class="profile-menu">
+                        <button class="profile-button" type="button" id="profileButton" aria-expanded="false" aria-controls="profileDropdown">
+                            @include('partials.user-avatar', ['avatarUser' => $user])
+                            <span class="profile-name">{{ $user->name }}</span>
+                            <i class="bi bi-chevron-down profile-chevron" aria-hidden="true"></i>
+                        </button>
+                        <div class="profile-dropdown" id="profileDropdown" aria-labelledby="profileButton">
+                            <div class="profile-summary">
+                                <strong>{{ $user->name }}</strong>
+                                <span>{{ $user->email }}</span>
+                                <em>{{ $user->role === 'admin' ? __('main.admin_badge') : strtoupper($user->role) }}</em>
+                            </div>
+                            <a href="{{ route('profile.edit') }}" class="profile-link">
+                                <i class="bi bi-person-circle" aria-hidden="true"></i>
+                                {{ __('main.profile') }}
+                            </a>
+                            @if ($user->isAdmin())
+                                <a href="{{ route('main.users') }}" class="profile-link">
+                                    <i class="bi bi-people" aria-hidden="true"></i>
+                                    {{ __('main.users') }}
+                                </a>
+                            @endif
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+                                <button class="profile-link logout-link" type="submit">
+                                    <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                                    {{ __('main.logout') }}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <section class="dashboard-content module-dashboard-page accounting-list-page">
+                <a class="back-link" href="{{ $moduleRoute }}">
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                    {{ __('main.accounting_dashboard') }}
+                </a>
+
+                <section class="page-heading">
+                    <div>
+                        <h1>{{ $config['title'] }}</h1>
+                        <p>{{ $config['subtitle'] }}</p>
+                    </div>
+                    @if ($servicePermissions['can_create'])
+                        <button class="primary-action" type="button" data-bs-toggle="modal" data-bs-target="#serviceResourceModal" data-service-mode="create">
+                            <i class="bi {{ $config['icon'] }}" aria-hidden="true"></i>
+                            {{ $config['new_label'] }}
+                        </button>
+                    @endif
+                </section>
+
+                @if (session('success'))
+                    <div class="flash-toast {{ session('toast_type') === 'danger' ? 'flash-toast-danger' : '' }}" role="status" aria-live="polite" data-autohide="15000">
+                        <span class="flash-icon"><i class="bi {{ session('toast_type') === 'danger' ? 'bi-trash3' : 'bi-check2-circle' }}" aria-hidden="true"></i></span>
+                        <span>{{ session('success') }}</span>
+                        <button type="button" class="flash-close" aria-label="{{ __('admin.close') }}"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                        <span class="flash-progress" aria-hidden="true"></span>
+                    </div>
+                @endif
+
+                <section class="table-tools" aria-label="{{ __('admin.search_tools') }}">
+                    <label class="search-box">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <input type="search" id="companySearch" placeholder="{{ __('admin.search') }}" autocomplete="off">
+                    </label>
+                    <span class="row-count">
+                        <strong id="visibleCount">{{ $records->count() }}</strong>
+                        /
+                        <strong>{{ $totalRecords }}</strong>
+                        {{ __('admin.rows') }}
+                    </span>
+                </section>
+
+                <section class="company-card">
+                    <div class="table-responsive">
+                        <table class="company-table service-resource-table" id="companyTable">
+                            <thead>
+                                <tr>
+                                    <th><button class="table-sort" type="button" data-sort-index="0" data-sort-type="number"># <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    @foreach ($config['columns'] as $index => $column)
+                                        <th @class(['text-end' => ($column['type'] ?? null) === 'money'])><button class="table-sort" type="button" data-sort-index="{{ $index + 1 }}" @if (($column['type'] ?? null) === 'number' || ($column['type'] ?? null) === 'money') data-sort-type="number" @endif>{{ $column['label'] }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    @endforeach
+                                    <th class="text-end">{{ __('admin.actions') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($records as $record)
+                                    <tr>
+                                        <td>{{ ($records->firstItem() ?? 1) + $loop->index }}</td>
+                                        @foreach ($config['columns'] as $column)
+                                            @php $value = $cellValue($record, $column); @endphp
+                                            <td @class(['amount-cell text-end' => ($column['type'] ?? null) === 'money']) @if (($column['type'] ?? null) === 'number' || ($column['type'] ?? null) === 'money') data-sort-value="{{ data_get($record, $column['key']) }}" @endif>
+                                                @if (str_contains($column['key'], 'status'))
+                                                    <span class="status-pill service-status-{{ data_get($record, $column['key']) }}">{{ $value }}</span>
+                                                @else
+                                                    {{ $value }}
+                                                @endif
+                                            </td>
+                                        @endforeach
+                                        <td>
+                                            @php
+                                                $isProtectedDefault = in_array($resource, ['categories', 'subcategories', 'units'], true) && (bool) data_get($record, 'is_default');
+                                            @endphp
+                                            @if ($servicePermissions['can_update'] || ($servicePermissions['can_delete'] && ! $isProtectedDefault))
+                                                <div class="table-actions">
+                                                    @if (in_array($resource, ['categories', 'subcategories'], true))
+                                                        <button type="button" class="table-button table-button-edit" data-bs-toggle="modal" data-bs-target="#serviceRelatedModal" data-service-related-kind="{{ $resource }}" data-service-related-title="{{ $resource === 'categories' ? __('main.category_services_title', ['name' => $record->name]) : __('main.subcategory_services_title', ['name' => $record->name]) }}" data-service-related-empty="{{ $resource === 'categories' ? __('main.no_category_services') : __('main.no_subcategory_services') }}" data-service-related-rows="{{ base64_encode(json_encode($serviceSubcategoryServicesPayload($record, $resource === 'categories'))) }}" aria-label="{{ $resource === 'categories' ? __('main.view_category_services') : __('main.view_subcategory_services') }}">
+                                                            <i class="bi bi-list-ul" aria-hidden="true"></i>
+                                                        </button>
+                                                    @endif
+                                                    @if ($servicePermissions['can_update'])
+                                                        <button type="button" class="table-button table-button-edit" data-bs-toggle="modal" data-bs-target="#serviceResourceModal" data-service-mode="edit" data-service-action="{{ route('main.accounting.services.update', [$company, $site, $resource, $record]) }}" data-service-id="{{ $record->id }}" data-service-values="{{ base64_encode(json_encode($recordPayload($record, $config['fields']))) }}" aria-label="{{ __('admin.edit') }}">
+                                                            <i class="bi bi-pencil" aria-hidden="true"></i>
+                                                        </button>
+                                                    @endif
+                                                    @if ($servicePermissions['can_delete'] && ! $isProtectedDefault)
+                                                        <form method="POST" action="{{ route('main.accounting.services.destroy', [$company, $site, $resource, $record]) }}">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="button" class="table-button table-button-delete" aria-label="{{ __('admin.delete') }}" data-delete-trigger data-delete-title="{{ __('main.delete_service_resource_title') }}" data-delete-text="{{ __('main.delete_service_resource_text', ['name' => data_get($record, 'name', data_get($record, 'reference'))]) }}" data-delete-confirm="{{ __('admin.delete_user_confirm') }}" data-delete-cancel="{{ __('admin.delete_user_cancel') }}">
+                                                                <i class="bi bi-trash" aria-hidden="true"></i>
+                                                            </button>
+                                                        </form>
+                                                    @endif
+                                                </div>
+                                            @else
+                                                <span class="muted-dash">-</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr class="empty-row"><td colspan="{{ count($config['columns']) + 2 }}">{{ $config['empty'] }}</td></tr>
+                                @endforelse
+                                <tr class="empty-row search-empty-row" hidden><td colspan="{{ count($config['columns']) + 2 }}">{{ __('admin.no_results') }}</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                @if ($records->hasPages())
+                    <section class="subscriptions-pagination" aria-label="{{ __('admin.pagination') }}">
+                        <span>{{ __('admin.showing') }} <strong>{{ $records->firstItem() ?? 0 }}</strong> {{ __('admin.to') }} <strong>{{ $records->lastItem() ?? 0 }}</strong> {{ __('admin.on') }} <strong>{{ $totalRecords }}</strong></span>
+                        <nav class="pagination-shell" aria-label="{{ __('admin.pagination') }}">
+                            @if ($records->onFirstPage())<span class="disabled">{{ __('admin.previous') }}</span>@else<a href="{{ $records->previousPageUrl() }}">{{ __('admin.previous') }}</a>@endif
+                            @foreach ($records->getUrlRange(1, $records->lastPage()) as $page => $url)
+                                @if ($page === $records->currentPage())<span class="active" aria-current="page">{{ $page }}</span>@else<a href="{{ $url }}">{{ $page }}</a>@endif
+                            @endforeach
+                            @if ($records->hasMorePages())<a href="{{ $records->nextPageUrl() }}">{{ __('admin.next') }}</a>@else<span class="disabled">{{ __('admin.next') }}</span>@endif
+                        </nav>
+                    </section>
+                @endif
+            </section>
+        </main>
+    </div>
+
+    <div class="modal fade subscription-modal accounting-service-modal" id="serviceResourceModal" tabindex="-1" aria-labelledby="serviceResourceModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content admin-form service-resource-form" method="POST" action="{{ $formAction }}" data-create-action="{{ route('main.accounting.services.store', [$company, $site, $resource]) }}" data-title-create="{{ $config['new_label'] }}" data-title-edit="{{ $config['edit_label'] }}" data-title-view="{{ __('main.view_service_resource', ['resource' => $config['singular_lower']]) }}" data-submit-create="{{ __('admin.create') }}" data-submit-edit="{{ __('admin.update') }}" data-cancel-label="{{ __('admin.cancel') }}" data-close-label="{{ __('admin.close') }}" data-icon="{{ $config['icon'] }}" novalidate>
+                @csrf
+                <input type="hidden" name="_method" id="serviceResourceMethod" value="PUT" @disabled(! $isEditingResource)>
+                <input type="hidden" name="form_mode" id="serviceResourceFormMode" value="{{ $isEditingResource ? 'edit' : 'create' }}">
+                <input type="hidden" name="record_id" id="serviceResourceId" value="{{ old('record_id') }}">
+                <div class="modal-body">
+                    <button type="button" class="modal-close" data-bs-dismiss="modal" aria-label="{{ __('admin.close') }}"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                    <h2 id="serviceResourceModalLabel"><i class="bi {{ $config['icon'] }}" aria-hidden="true"></i>{{ $isEditingResource ? $config['edit_label'] : $config['new_label'] }}</h2>
+
+                    <div class="row g-3">
+                        @foreach ($config['fields'] as $field)
+                            @php
+                                $fieldName = $field['name'];
+                                $fieldId = 'service_'.str_replace(['.', '[', ']'], '_', $fieldName);
+                                $default = old($fieldName, $field['default'] ?? '');
+                            @endphp
+                            <div class="{{ ($field['type'] ?? 'text') === 'textarea' ? 'col-12' : 'col-md-6' }}">
+                                <label for="{{ $fieldId }}" class="form-label">{{ $field['label'] }} @if($field['required'] ?? false)*@endif</label>
+                                @if (($field['type'] ?? 'text') === 'select')
+                                    <select id="{{ $fieldId }}" name="{{ $fieldName }}" class="form-select @error($fieldName) is-invalid @enderror" data-service-field data-default-value="{{ $field['default'] ?? '' }}">
+                                        <option value="">{{ __('admin.choose_subscription') }}</option>
+                                        @foreach (($field['options'] ?? []) as $optionValue => $optionLabel)
+                                            @php $optionAttributes = $field['option_attributes'][$optionValue] ?? []; @endphp
+                                            <option value="{{ $optionValue }}" @foreach ($optionAttributes as $attribute => $attributeValue) {{ $attribute }}="{{ $attributeValue }}" @endforeach @selected((string) $default === (string) $optionValue)>{{ $optionLabel }}</option>
+                                        @endforeach
+                                    </select>
+                                @elseif (($field['type'] ?? 'text') === 'textarea')
+                                    <textarea id="{{ $fieldId }}" name="{{ $fieldName }}" rows="3" class="form-control @error($fieldName) is-invalid @enderror" placeholder="{{ $field['label'] }}" data-service-field data-default-value="{{ $field['default'] ?? '' }}">{{ $default }}</textarea>
+                                @else
+                                    <input id="{{ $fieldId }}" name="{{ $fieldName }}" type="{{ $field['type'] ?? 'text' }}" @if (($field['type'] ?? 'text') === 'number') min="0" step="0.01" @endif class="form-control @error($fieldName) is-invalid @enderror" value="{{ $default }}" placeholder="{{ $field['label'] }}" data-service-field data-default-value="{{ $field['default'] ?? '' }}">
+                                @endif
+                                @error($fieldName)<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="modal-cancel" id="serviceResourceCancel" data-bs-dismiss="modal">{{ __('admin.cancel') }}</button>
+                        <button class="modal-submit" id="serviceResourceSubmit" type="submit">{{ $isEditingResource ? __('admin.update') : __('admin.create') }}</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @if (in_array($resource, ['categories', 'subcategories'], true))
+        <div class="modal fade subscription-modal related-table-modal" id="serviceRelatedModal" tabindex="-1" aria-labelledby="serviceRelatedModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content admin-form modal-table-dialog">
+                    <div class="modal-body">
+                        <button type="button" class="modal-close" data-bs-dismiss="modal" aria-label="{{ __('admin.close') }}"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                        <h2 id="serviceRelatedModalLabel"><i class="bi bi-card-list" aria-hidden="true"></i>{{ $resource === 'categories' ? __('main.view_category_services') : __('main.view_subcategory_services') }}</h2>
+
+                        <section class="table-tools modal-table-tools" aria-label="{{ __('admin.search_tools') }}">
+                            <label class="search-box">
+                                <i class="bi bi-search" aria-hidden="true"></i>
+                                <input type="search" data-related-search placeholder="{{ __('admin.search') }}" autocomplete="off">
+                            </label>
+                            <span class="row-count">
+                                <strong data-related-visible-count>0</strong>
+                                /
+                                <strong data-related-total-count>0</strong>
+                                {{ __('admin.rows') }}
+                            </span>
+                        </section>
+
+                        <div class="modal-table-frame">
+                            <table class="company-table modal-data-table" data-related-table>
+                                <thead>
+                                    <tr>
+                                        <th><button class="table-sort" type="button" data-related-sort="reference">{{ __('main.reference') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th><button class="table-sort" type="button" data-related-sort="name">{{ __('main.service') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th><button class="table-sort" type="button" data-related-sort="unit">{{ __('main.service_unit') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        @if ($resource === 'categories')
+                                            <th><button class="table-sort" type="button" data-related-sort="subcategory">{{ __('main.subcategory') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        @else
+                                            <th class="text-end"><button class="table-sort" type="button" data-related-sort="price">{{ __('main.sale_price') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        @endif
+                                    </tr>
+                                </thead>
+                                <tbody data-related-table-body></tbody>
+                            </table>
+                            <p class="modal-table-empty" data-related-empty hidden>{{ $resource === 'categories' ? __('main.no_category_services') : __('main.no_subcategory_services') }}</p>
+                        </div>
+
+                        <section class="subscriptions-pagination modal-table-pagination" data-related-pagination data-previous-label="{{ __('admin.previous') }}" data-next-label="{{ __('admin.next') }}" hidden aria-label="{{ __('admin.pagination') }}"></section>
+
+                        <div class="modal-actions">
+                            <button type="button" class="modal-cancel" data-bs-dismiss="modal">{{ __('admin.close') }}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    @if ($hasResourceErrors)
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('serviceResourceModal')).show();
+            });
+        </script>
+    @endif
+    <script>{!! file_get_contents(resource_path('js/main.js')) !!}</script>
+    <!-- resources/js/main/accounting-service-resource.js -->
+    <script>{!! file_get_contents(resource_path('js/main/accounting-service-resource.js')) !!}</script>
+</body>
+</html>

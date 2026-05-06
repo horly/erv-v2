@@ -1874,6 +1874,101 @@ Fichiers modifies :
 - `resources/css/admin/dashboard.css`
 - `docs/prompts/project-history.md`
 
+### 2026-05-05 - Devises proforma limitees aux devises du site
+
+Prompt utilisateur :
+
+```text
+Pour la selection de la devise merci de donner seulement la possibilité de choisir les devises du site
+```
+
+Correction appliquee :
+
+- La page de creation proforma et le modal proforma affichent uniquement les devises actives configurees sur le site.
+- La devise de base du site est creee/garantie avant affichage de la page.
+- La validation serveur refuse maintenant une devise qui n'est pas active sur le site.
+- Ajout d'un test pour verifier qu'une devise globale non configuree sur le site n'est ni affichee ni acceptee.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-05 - Recherche dans les selects Article et Service des proformas
+
+Prompt utilisateur :
+
+```text
+je souhaite que pour les articles et services que tu mettes un select avec possibilité de recherche
+```
+
+Correction appliquee :
+
+- Ajout d'un select recherche maison pour les champs Article et Service des lignes de facture proforma.
+- Conservation des champs select natifs pour la soumission et la validation Laravel.
+- Recherche insensible aux accents et a la casse, avec selection au clic ou via Entree sur le premier resultat visible.
+- Application automatique aux lignes existantes et aux lignes ajoutees dynamiquement.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/partials/proforma-line-row.blade.php`
+- `resources/js/main/accounting-proforma-invoices.js`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+### 2026-05-05 - Methode de remise sur les lignes proforma
+
+Prompt utilisateur :
+
+```text
+donne la possibilité à l'utilisateur de choisir la méthode d'application de la remise, soit brute ou en %
+```
+
+Correction appliquee :
+
+- Ajout d'un champ Methode remise sur chaque ligne de facture proforma.
+- Deux modes disponibles : Montant et %.
+- Les calculs JS et serveur prennent maintenant en charge les remises en pourcentage.
+- Les anciennes lignes restent compatibles : sans methode envoyee, la remise est traitee comme un montant.
+- Ajout de la colonne `discount_type` dans les lignes de proforma et mise a jour de l'export SQL.
+
+Fichiers modifies :
+
+- `app/Models/AccountingProformaInvoiceLine.php`
+- `app/Http/Controllers/MainController.php`
+- `database/migrations/2026_05_05_000001_add_discount_type_to_accounting_proforma_invoice_lines_table.php`
+- `database/exports/erp_database.sql`
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `resources/views/main/modules/partials/proforma-line-row.blade.php`
+- `resources/js/main/accounting-proforma-invoices.js`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-05 - Devises des articles et services limitees au site
+
+Prompt utilisateur :
+
+```text
+pareil pour les articles et services
+```
+
+Correction appliquee :
+
+- Les formulaires d'articles et de services affichent uniquement les devises actives configurees sur le site.
+- La devise de base du site est garantie avant affichage et validation des ressources stock/service.
+- La validation serveur refuse maintenant une devise non active ou non configuree sur le site pour les articles et les services.
+- Ajout de tests couvrant l'affichage des devises du site et le rejet d'une devise hors site.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
 Verification :
 
 - `php artisan view:clear` execute.
@@ -2542,6 +2637,212 @@ Fichiers modifies :
 
 - `resources/css/main.css`
 - `docs/prompts/project-history.md`
+
+### 2026-05-06 - Persistance adresse tiers entreprise
+
+Prompt utilisateur :
+
+```text
+j'ai modifié pour un client, fournisseur et prospectsles adresses mais elles ne sont pas enregistré
+```
+
+Correction appliquee :
+
+- Les payloads backend n'effacent plus l'adresse lorsque le tiers est de type entreprise.
+- L'adresse est maintenant conservee pour les clients, fournisseurs et prospects, quel que soit le type.
+- La conversion d'un prospect entreprise vers client conserve aussi l'adresse.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `tests/Feature/ExampleTest.php`
+
+Verification :
+
+- `php artisan test --filter=clients` passe.
+- `php artisan test --filter=suppliers` passe.
+- `php artisan test --filter=prospects` passe.
+
+### 2026-05-06 - Validite obligatoire des proformas
+
+Prompt utilisateur :
+
+```text
+lors de la création de la facture proforma, change date d'expiration en validité de l'offre et champ doit être obligatoire, par défaut mettre la date courante.
+pour les proforma déjà enregistré dont la date d'expiration est vide mettre la où la proforma a été enregistré
+```
+
+Correction appliquee :
+
+- Le libelle proforma `Date d'expiration` est remplace par `Validite de l'offre`.
+- Le champ `expiration_date` est maintenant obligatoire cote validation.
+- La date courante est preselectionnee par defaut sur la creation de proforma.
+- Une migration remplit les anciennes proformas sans validite avec leur date de creation.
+- Le PDF proforma et la liste utilisent le nouveau libelle.
+- L'export SQL a ete mis a jour avec la migration et le champ `expiration_date` non nul.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `lang/fr/validation.php`
+- `lang/en/validation.php`
+- `database/migrations/2026_05_06_000001_fill_proforma_offer_validity_dates.php`
+- `database/exports/erp_database.sql`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan migrate` execute.
+- `php artisan test --filter=proforma` passe.
+
+### 2026-05-06 - Retours ligne notes conditions PDF
+
+Prompt utilisateur :
+
+```text
+par rapport à note et condition, je souhaite que lorsqu'il y a un retour à la ligne que cela soit également applique sur l'aperçu de la facture
+```
+
+Correction appliquee :
+
+- Le rendu PDF des conditions/notes de proforma respecte maintenant les retours a la ligne saisis dans le formulaire.
+- Le texte est conserve tel quel et affiche avec `white-space: pre-line` dans l'apercu PDF.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - Position modalite paiement proforma
+
+Prompt utilisateur :
+
+```text
+lors de la création et la modification de proforma mettre modalité de paiement au dessus de notes et conditions
+```
+
+Correction appliquee :
+
+- Le champ `Modalite de paiement` a ete deplace dans la page de creation proforma.
+- Le meme deplacement a ete applique dans le modal de modification proforma.
+- Le champ est maintenant affiche juste au-dessus de `Notes` et `Conditions`.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - TVA proforma par defaut selon pays entreprise
+
+Prompt utilisateur :
+
+```text
+la tva par défaut qui doit etre appliqué est la tva du pays au qual appartient l'entreprise
+```
+
+Correction appliquee :
+
+- Le taux TVA par defaut des proformas est calcule depuis le pays de l'entreprise.
+- Le formulaire de creation proforma utilise ce taux au lieu de `0`.
+- Le modal de modification utilise aussi ce taux comme valeur par defaut lors d'une nouvelle proforma.
+- Les proformas existantes conservent leur propre taux lors de la modification.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test` passe avec 76 tests et 756 assertions.
+
+### 2026-05-01 - Articles et services rattaches aux categories
+
+Prompt utilisateur :
+
+```text
+pareil avec catégorie article/service la possibilité d'afficher tous les article/service appartenant à une catégorie
+```
+
+Correction appliquee :
+
+- Ajout du bouton d'affichage des articles rattaches sur les categories d'articles.
+- Ajout du bouton d'affichage des services rattaches sur les categories de services.
+- Reutilisation du meme modal standard que les sous-categories : recherche, tri, pagination et message vide centre.
+- Les titres et messages vides s'adaptent maintenant selon categorie ou sous-categorie.
+- Eager loading des relations `items.unit` et `services.unit` pour eviter les chargements multiples.
+- Ajout des traductions FR/EN pour les categories.
+- Ajout d'assertions pour verifier les payloads des categories stock et services.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `resources/views/main/modules/accounting-service-resource.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php -l resources/views/main/modules/accounting-stock-resource.blade.php` passe.
+- `php -l resources/views/main/modules/accounting-service-resource.blade.php` passe.
+- `php artisan test --filter=accounting_stock_pages` passe avec 1 test et 39 assertions.
+- `php artisan test --filter=accounting_service_pages` passe avec 1 test et 35 assertions.
+- `php artisan view:clear` execute.
+- `php artisan test` passe avec 76 tests et 764 assertions.
+- `php artisan view:clear` execute.
+- `php artisan test` passe avec 76 tests et 764 assertions.
+
+### 2026-05-01 - Sous-categorie dans les modals de categorie
+
+Prompt utilisateur :
+
+```text
+maintenant dans catégorie enleve prix de vente mets le sous catégorie correspondant
+```
+
+Correction appliquee :
+
+- Dans le modal des articles rattaches a une categorie, remplacement de la colonne `Prix de vente` par `Sous-categorie`.
+- Dans le modal des services rattaches a une categorie, remplacement de la colonne `Prix de vente` par `Sous-categorie`.
+- Les modals des sous-categories gardent le prix de vente.
+- Le payload des categories ne transporte plus le prix de vente, mais la sous-categorie correspondante.
+- Ajout du mode `categories` dans les scripts stock/services pour rendre la bonne derniere colonne selon le contexte.
+- Eager loading des sous-categories rattachees aux articles/services des categories.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `resources/views/main/modules/accounting-service-resource.blade.php`
+- `resources/js/main/accounting-stock-resource.js`
+- `resources/js/main/accounting-service-resource.js`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `node --check resources/js/main/accounting-stock-resource.js` passe.
+- `node --check resources/js/main/accounting-service-resource.js` passe.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php -l resources/views/main/modules/accounting-stock-resource.blade.php` passe.
+- `php -l resources/views/main/modules/accounting-service-resource.blade.php` passe.
+- `php artisan test --filter=accounting_stock_pages` passe avec 1 test et 39 assertions.
+- `php artisan test --filter=accounting_service_pages` passe avec 1 test et 35 assertions.
 
 ### 2026-04-30 - Alignement du bouton supprimer sur la ligne des inputs client
 
@@ -4085,6 +4386,488 @@ Verification :
 - `php artisan view:clear` execute.
 - `php artisan test --filter=accounting_module` passe avec 2 tests et 34 assertions.
 
+### 2026-05-05 - Ajustement entete PDF proforma
+
+Prompt utilisateur :
+
+```text
+agrandi legerement le logo et EXAD et EXAD KINSHASA enleve EXAD ERP
+```
+
+Correction appliquee :
+
+- Le logo et le bloc identite entreprise/site sont legerement agrandis dans le PDF proforma.
+- La mention de secours `EXAD ERP` sous le titre du document a ete retiree.
+- Le site web de l'entreprise reste affiche uniquement lorsqu'il est renseigne.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-05 - Adresse visible pour tous les types tiers
+
+Prompt utilisateur :
+
+```text
+pourquoi lors de l'ajout du clent; prospect et fournisseur quand on selectionne type entreprise tu supprime le champ adresse on a besoin des adresses des tous type de client
+```
+
+Correction appliquee :
+
+- Le champ adresse n'est plus limite au type particulier.
+- Le champ adresse reste visible et saisissable pour les clients, prospects et fournisseurs, que le type soit particulier ou entreprise.
+- Les erreurs de validation restent affichees sous le champ et les placeholders sont conserves.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/views/main/modules/accounting-prospects.blade.php`
+- `resources/views/main/modules/accounting-suppliers.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-05 - Adresse alignee avec site web
+
+Prompt utilisateur :
+
+```text
+adresse doit etre à coté de site web
+```
+
+Correction appliquee :
+
+- Le champ adresse se positionne maintenant a cote du champ site web lorsque le type entreprise est selectionne.
+- Pour le type particulier, le meme champ adresse reste dans la grille des informations personnelles.
+- La logique utilise un seul champ adresse par formulaire afin d'eviter les doublons soumis.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/views/main/modules/accounting-prospects.blade.php`
+- `resources/views/main/modules/accounting-suppliers.blade.php`
+- `resources/js/main/accounting-clients.js`
+- `resources/js/main/accounting-prospects.js`
+- `resources/js/main/accounting-suppliers.js`
+- `docs/prompts/project-history.md`
+
+### 2026-05-05 - Espacement sections formulaires tiers
+
+Prompt utilisateur :
+
+```text
+espace entre email et Numéros de compte etc
+```
+
+Correction appliquee :
+
+- Ajout d'un espacement plus confortable avant les sections `Numeros de compte` et `Suivi commercial`.
+- L'ajustement concerne les formulaires client, prospect et fournisseur sans modifier le reste des formulaires.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+### 2026-05-05 - Suppression redondance modalite PDF
+
+Prompt utilisateur :
+
+```text
+enleve ça c'est une redondance
+```
+
+Correction appliquee :
+
+- La modalite de paiement a ete retiree du bloc de metadonnees a droite du PDF proforma.
+- La section dediee `Modalite de paiement` reste affichee plus bas dans le document.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-05 - Agrandissement general des textes PDF
+
+Prompt utilisateur :
+
+```text
+AGRANDI LEGEREMENT les restes du texte aussi
+continue la dernière requette
+```
+
+Correction appliquee :
+
+- La taille generale du texte du PDF proforma a ete legerement augmentee.
+- Les blocs client, metadonnees, lignes de facture, totaux, modalites de paiement, conditions, signature et footer ont ete ajustes.
+- Le rendu conserve la police Courier/Courier New sur tous les textes.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-proforma-invoice-print.blade.php` passe.
+
+### 2026-05-05 - Agrandissement complementaire entete PDF
+
+Prompt utilisateur :
+
+```text
+LEGEREMENT ENCORE
+```
+
+Correction appliquee :
+
+- Le logo PDF proforma est passe de 60px a 66px.
+- Le nom de l'entreprise et le nom du site ont ete legerement agrandis.
+- L'espacement entre le logo et l'identite a ete ajuste.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-05 - Nettoyage des titres redondants sur la creation proforma
+
+Prompt utilisateur :
+
+```text
+dans facture proforma, enleve les titres encercles en rouge c'est redondant
+```
+
+Correction appliquee :
+
+- Suppression du titre de section duplique sous le lien de retour sur la page de creation d'une facture proforma.
+- Suppression du titre duplique dans la carte du formulaire proforma.
+- Conservation du titre principal de la barre haute et de la phrase descriptive de la page.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+### 2026-05-05 - Centrage du bouton Annuler
+
+Prompt utilisateur :
+
+```text
+centre bien le boutton annuler
+```
+
+Correction appliquee :
+
+- Uniformisation du centrage interne des boutons d'action de modal/page.
+- Les liens utilises comme bouton Annuler sont maintenant centres comme les boutons de soumission.
+
+Fichiers modifies :
+
+- `resources/css/admin/dashboard.css`
+- `docs/prompts/project-history.md`
+
+### 2026-05-01 - Alignement global des montants dans les tableaux
+
+Prompt utilisateur :
+
+```text
+dans tous les tableaux pas seulement celui-ci
+```
+
+Correction appliquee :
+
+- Generalisation de la classe `amount-cell` aux colonnes de montants des tableaux principaux.
+- Alignement a droite des montants dans les ressources stock et services via les colonnes `money`.
+- Alignement a droite des montants dans les tableaux creanciers, debiteurs, proformas, commerciaux et devises.
+- Ajout d'une regle CSS commune pour garder les montants en chiffres tabulaires et sans retour a la ligne.
+- Alignement a droite des boutons de tri dans les en-tetes de colonnes de montants.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `resources/views/main/modules/accounting-service-resource.blade.php`
+- `resources/views/main/modules/accounting-creditors.blade.php`
+- `resources/views/main/modules/accounting-debtors.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `resources/views/main/modules/accounting-sales-representatives.blade.php`
+- `resources/views/main/modules/accounting-currencies.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:clear` execute.
+- `php artisan test` passe avec 76 tests et 756 assertions.
+
+### 2026-05-01 - Colonnes simplifiees du modal des services rattaches
+
+Prompt utilisateur :
+
+```text
+pareill pour servuce, enleve type de facturation et status
+```
+
+Correction appliquee :
+
+- Retrait des colonnes `Type de facturation` et `Statut` dans le modal des services rattaches a une sous-categorie.
+- Le tableau du modal affiche maintenant uniquement : reference, service, unite de service et prix de vente.
+- Le payload envoye au modal et le rendu JS ont ete nettoyes pour ne plus transporter ces champs inutiles.
+- Le test du module services a ete ajuste sur le nouveau format du modal.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-service-resource.blade.php`
+- `resources/js/main/accounting-service-resource.js`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `node --check resources/js/main/accounting-service-resource.js` passe.
+- `php -l resources/views/main/modules/accounting-service-resource.blade.php` passe.
+- `php artisan test --filter=accounting_service_pages` passe avec 1 test et 31 assertions.
+
+### 2026-05-01 - Centrage des messages vides dans les tableaux de modal
+
+Prompt utilisateur :
+
+```text
+dans tous les tableaux du modal le message aucun....rattaché dois toujours etre au milieu
+```
+
+Correction appliquee :
+
+- Ajout d'une regle globale sur `.modal-table-empty`.
+- Les messages d'etat vide des tableaux en modal sont maintenant centres horizontalement et verticalement dans leur zone.
+- Le comportement s'applique aux modals actuels et aux futurs tableaux de modal qui utilisent ce standard.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+### 2026-05-01 - Modes de paiement du module comptabilité
+
+Prompt utilisateur :
+
+```text
+la devise est obligatoire par défaut séléctionner la devise d base.
+si le mode de paiement est une banque ajouter des champs pas obligatoire :
+- IBAN, Numéro de compte, BIC/Swift code etc...
+
+applique maintenant
+```
+
+Travail réalisé :
+
+- Ajout de la page `Modes de paiement` dans le module Comptabilité avec tableau standard, recherche, tri, pagination et actions.
+- Ajout des routes CRUD `main.accounting.payment-methods`.
+- Ajout d'un formulaire modal create/edit/view pour les modes de paiement.
+- La devise est obligatoire et présélectionnée sur la devise de base du site.
+- Ajout d'un mode système `Espèces` créé automatiquement pour chaque site comptable.
+- Le mode système est affiché en premier et protégé contre la modification/suppression.
+- Possibilité de définir un seul mode de paiement par défaut.
+- Si le type est `Banque`, affichage des champs facultatifs : banque, titulaire, numéro de compte, IBAN, BIC/Swift et adresse bancaire.
+- Si le type n'est pas `Banque`, les champs bancaires sont nettoyés automatiquement.
+- Ajout du lien `Modes de paiement` dans la sidebar comptabilité et le tableau de bord comptabilité.
+- Ajout du JS isolé `resources/js/main/accounting-payment-methods.js`.
+- Mise à jour de l'export SQL avec la table `accounting_payment_methods`.
+- Ajout des traductions FR/EN liées aux modes de paiement.
+
+Fichiers ajoutés ou modifiés :
+
+- `database/migrations/2026_05_01_000001_create_accounting_payment_methods_table.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingPaymentMethod.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-payment-methods.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-payment-methods.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l` passe sur le modèle, la migration, le contrôleur et les routes.
+- `node --check resources/js/main/accounting-payment-methods.js` passe.
+- `php artisan migrate --force` applique la migration des modes de paiement.
+- `php artisan test --filter=payment_methods` passe avec 1 test et 20 assertions.
+- `php artisan test` passe avec 75 tests et 702 assertions.
+
+### 2026-05-01 - Réorganisation du sous-menu Vente
+
+Prompt utilisateur :
+
+```text
+change juste l'ordre de sous-menu et ajoute ce que tu vient de dire mais ne rajoute pas encore les pages
+```
+
+Correction appliquée :
+
+- Réorganisation du sous-menu `Vente` dans le cycle logique : proforma, commande client, livraison, facture, encaissement, caisse, avoirs et autres entrées.
+- Ajout des entrées de navigation sans création de pages ni routes pour le moment :
+  - Commandes clients
+  - Encaissements
+  - Avoirs / Notes de crédit
+- Mise à jour de la sidebar comptabilité et de la sidebar intégrée du tableau de bord comptabilité.
+- Ajout des traductions FR/EN des nouveaux libellés.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan test --filter=accounting_module` passe avec 2 tests et 63 assertions.
+
+### 2026-05-01 - Factures proforma
+
+Prompt utilisateur :
+
+```text
+applique maintenant
+```
+
+Contexte retenu :
+
+- Les factures proforma sont des documents commerciaux non comptables.
+- Les lignes de proforma ne portent pas de TVA ligne par ligne.
+- La TVA s'applique globalement au document.
+
+Travail réalisé :
+
+- Ajout des tables `accounting_proforma_invoices` et `accounting_proforma_invoice_lines`.
+- Ajout des modèles `AccountingProformaInvoice` et `AccountingProformaInvoiceLine`.
+- Ajout des relations :
+  - `CompanySite::accountingProformaInvoices()`
+  - `AccountingClient::proformaInvoices()`
+- Ajout des routes CRUD `main.accounting.proforma-invoices`.
+- Ajout de la page `Factures proforma` avec le tableau standard, recherche, tri, pagination et actions.
+- Ajout du formulaire modal de création/modification.
+- Ajout des champs principaux : client, objet, date, expiration, devise, statut, notes et conditions.
+- Ajout des lignes dynamiques : article, service ou ligne libre.
+- Les lignes contiennent : désignation, description, quantité, prix unitaire, remise et total ligne.
+- Ajout du calcul serveur des totaux :
+  - sous-total
+  - remise totale
+  - total HT
+  - taux TVA global
+  - montant TVA
+  - total TTC
+- Ajout du calcul instantané côté interface via `resources/js/main/accounting-proforma-invoices.js`.
+- Ajout du lien `Factures proforma` dans le sous-menu Vente.
+- Mise à jour de l'export SQL.
+- Ajout des traductions FR/EN.
+
+Fichiers ajoutés ou modifiés :
+
+- `database/migrations/2026_05_01_000002_create_accounting_proforma_invoices_tables.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingProformaInvoice.php`
+- `app/Models/AccountingProformaInvoiceLine.php`
+- `app/Models/CompanySite.php`
+- `app/Models/AccountingClient.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `resources/views/main/modules/partials/proforma-line-row.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-proforma-invoices.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l` passe sur les nouveaux modèles, la migration et le contrôleur.
+- `node --check resources/js/main/accounting-proforma-invoices.js` passe.
+- `php artisan migrate --force` applique la migration proforma.
+- `php artisan test --filter=proforma` passe avec 1 test et 16 assertions.
+- `php artisan test` passe avec 76 tests et 718 assertions.
+
+### 2026-04-30 - Selection de l'entrepot dans le modal categorie stock
+
+Prompt utilisateur :
+
+```text
+^pourquoi lorsque je modifie la categorie par défaut je vois qui ne selectionne pas l'entrepro par defaut
+```
+
+Correction appliquee :
+
+- La base contenait bien la relation entre la categorie par defaut et l'entrepot par defaut.
+- Le probleme venait du transfert des valeurs de la ligne du tableau vers le modal d'edition.
+- Les valeurs du bouton modifier sont maintenant encodees en base64 pour eviter les problemes d'attribut HTML.
+- Le JS decode ces valeurs avant de remplir le formulaire.
+- Le remplissage des champs `select` force maintenant la selection de la bonne option et declenche un evenement `change`.
+- Ajout d'une assertion pour verifier que `warehouse_id` est bien present dans les donnees d'edition de la categorie.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `resources/js/main/accounting-stock-resource.js`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `node --check resources/js/main/accounting-stock-resource.js` passe.
+- `php -l resources/views/main/modules/accounting-stock-resource.blade.php` passe.
+- `php artisan test --filter=accounting_stock` passe avec 1 test et 27 assertions.
+- `php artisan test` passe avec 72 tests et 625 assertions.
+
+### 2026-04-30 - Elements stock par defaut en lecture seule
+
+Prompt utilisateur :
+
+```text
+les default tooivent toujours s'afficher en premier sur le tableau et ne doivent pas etre modifiable, mais on peut seulement voir les informations enleve le bouton modifier mets voir on affiche le modal sans possibilité de modifier
+```
+
+Correction appliquee :
+
+- Les categories, sous-categories et entrepots marques `is_default` s'affichent maintenant en premier dans leurs tableaux.
+- Les elements par defaut n'affichent plus le bouton modifier.
+- Le bouton d'action des elements par defaut devient un bouton `Voir`.
+- Le modal s'ouvre en mode lecture seule pour les elements par defaut.
+- Les champs du modal sont desactives en mode lecture seule.
+- Le bouton de soumission du modal est masque en mode lecture seule.
+- La modification backend des elements par defaut est bloquee, meme en cas de requete manuelle.
+- La suppression restait deja bloquee et le bouton supprimer reste masque.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `resources/js/main/accounting-stock-resource.js`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `node --check resources/js/main/accounting-stock-resource.js` passe.
+- `php -l resources/views/main/modules/accounting-stock-resource.blade.php` passe.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php artisan test --filter="company_sites|accounting_stock"` passe avec 2 tests et 60 assertions.
+- `php artisan test` passe avec 72 tests et 632 assertions.
+- Scan rapide des traductions et fichiers d'interface : aucun texte casse de type `Ã`, `Â` ou `�`.
+
 ### 2026-04-30 - Rubrique commerciaux du module comptabilite
 
 Prompt utilisateur :
@@ -4757,6 +5540,1125 @@ Verification :
 - `php artisan view:clear` execute.
 - `php artisan test --filter=accounting_module` passe avec 2 tests et 34 assertions.
 
+### 2026-05-06 - Ligne du footer PDF identique au bas de page
+
+Prompt utilisateur :
+
+```text
+la ligne du pied de page doit etre similaire à la ligne du bas de page
+```
+
+Correction appliquee :
+
+- La ligne du footer fixe utilise maintenant la meme structure bleu + gris que la ligne de bas de page.
+- La ligne conserve une hauteur coherente dans le PDF.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - QR proforma sans libelle
+
+Prompt utilisateur :
+
+```text
+enleve le texte scanner pour ouvrir ....
+agrandit legerement le qr code
+```
+
+Correction appliquee :
+
+- Suppression du texte sous le QR code dans le PDF proforma.
+- Agrandissement leger du QR code affiche dans le PDF.
+- Agrandissement de la taille SVG generee pour garder une meilleure nettete.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - QR code dans le PDF proforma
+
+Prompt utilisateur :
+
+```text
+j'ai besoin que dans chaque facture tu me genere un code QR qui s'affiche en bas de termes et condions.
+Ce code qui doit renvoyer vers le lien de cette facture pour ouvrir la proforma
+```
+
+Correction appliquee :
+
+- Generation d'un QR code SVG avec la librairie deja disponible `bacon/bacon-qr-code`.
+- Le QR code pointe vers le lien PDF de la proforma.
+- Le QR code est affiche sous les termes et conditions dans le PDF.
+- Ajout de libelles traduisibles pour l'alt et le texte sous le QR code.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php artisan test --filter=proforma` passe avec 1 test et 45 assertions.
+
+### 2026-05-06 - Signature PDF alignee a droite
+
+Prompt utilisateur :
+
+```text
+le texte doit etre ajusté à droite
+```
+
+Correction appliquee :
+
+- Le bloc signature du PDF proforma est maintenant aligne a droite.
+- La ligne de signature est egalement positionnee a droite pour rester coherente avec le texte.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - Signature utilisateur sur PDF proforma
+
+Prompt utilisateur :
+
+```text
+n'oublie pas l'utf-8 pour l'accentuation;
+Enleve signature de l'entreprise
+mets le Nom de l'utilisateur, et si le grade de l'utilisateur est rempli affiche le
+```
+
+Correction appliquee :
+
+- Le bloc signature du PDF proforma affiche maintenant le nom de l'utilisateur createur de la proforma.
+- Le grade de l'utilisateur s'affiche uniquement lorsqu'il est renseigne.
+- Le libelle `Signature de l'entreprise` a ete retire du PDF.
+- La traduction francaise `Facture générée par EXAD ERP` utilise maintenant les accents en UTF-8.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `lang/fr/main.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - Traduction du libelle de generation PDF
+
+Prompt utilisateur :
+
+```text
+Invoice generated by EXAD ERP doit etre traductible
+```
+
+Correction appliquee :
+
+- Ajout de la cle `invoice_generated_by` dans les traductions FR et EN.
+- Le footer PDF proforma utilise maintenant `__('main.invoice_generated_by')`.
+
+Fichiers modifies :
+
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - Footer fixe en bas du PDF proforma
+
+Prompt utilisateur :
+
+```text
+fixe le pied de page en bs, voici un exemple
+```
+
+Correction appliquee :
+
+- Le pied de page du PDF proforma est maintenant fixe en bas de page.
+- Ajout d'une ligne bleue et d'un bloc textuel avec les informations de l'entreprise.
+- Les anciennes icones du footer ont ete masquees pour eviter les soucis d'encodage dans DomPDF.
+- La marge basse du PDF a ete augmentee pour eviter que le contenu principal chevauche le footer.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - Objet place avant les lignes dans le PDF proforma
+
+Prompt utilisateur :
+
+```text
+l'objet doit s'afficher juste avant les items comme dans une lettre
+```
+
+Correction appliquee :
+
+- L'objet de la proforma a ete retire du bloc d'informations a droite.
+- L'objet s'affiche maintenant juste avant le tableau des lignes, avec un format de type lettre.
+- L'espace avant le tableau des lignes a ete ajuste.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - Objet affiche dans le PDF proforma
+
+Prompt utilisateur :
+
+```text
+tu dois également afficher l'objet de la facture
+```
+
+Correction appliquee :
+
+- Ajout de l'objet de la proforma dans le bloc d'informations du PDF.
+- La ligne `Objet` s'affiche uniquement lorsqu'un objet est renseigne sur la proforma.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - Taille uniforme du bloc client PDF proforma
+
+Prompt utilisateur :
+
+```text
+Facturé à et l'adresse du client doit avoir la meme taille que facture nà et le reste;
+```
+
+Correction appliquee :
+
+- Dans le PDF proforma, le libelle `Facture a` et l'adresse du client utilisent maintenant la meme taille que les informations de facture a droite.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - Date explicite et retrait du statut sur PDF proforma
+
+Prompt utilisateur :
+
+```text
+toujours dans le fichier pdf affiche :
+Date : la date
+enleve status
+```
+
+Correction appliquee :
+
+- Dans le PDF de facture proforma, la date est maintenant affichee avec le libelle `Date :`.
+- La ligne `Statut` a ete retiree du bloc d'informations de la facture.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - Adresse seule sous le client dans la proforma PDF
+
+Prompt utilisateur :
+
+```text
+dans la facture proforma Sous le nom du client, affiche seulement l'adresse et s'il n'y a pas d'adresse n'affiche pas
+```
+
+Correction appliquee :
+
+- Dans le PDF de facture proforma, le bloc client affiche maintenant le nom du client puis uniquement son adresse.
+- Le telephone, l'email et les tirets par defaut ont ete retires du bloc client.
+- Si le client n'a pas d'adresse, aucune ligne supplementaire n'est affichee sous son nom.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - Fond grise des lignes proforma
+
+Prompt utilisateur :
+
+```text
+cette ligne de proforma la card doit etre un peu grisatre
+```
+
+Correction appliquee :
+
+- Ajout d'un fond gris tres leger sur `.proforma-line-card`.
+- Le changement est limite aux lignes de proforma et ne modifie pas les cartes de contacts.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+### 2026-05-06 - Modification proforma sur page dediee
+
+Prompt utilisateur :
+
+```text
+la modification d'une proforma ne dois pas etre dans un modal, il doit etre dans une page à part comme c'est lors de la création
+```
+
+Correction appliquee :
+
+- Ajout de la route `main.accounting.proforma-invoices.edit`.
+- Ajout de la methode `editAccountingProformaInvoice` dans `MainController`.
+- La page `accounting-proforma-invoice-create.blade.php` sert maintenant a la creation et a la modification.
+- Le formulaire d'edition pre-remplit le client, les dates, la devise, le statut, les modalites de paiement, les notes, les conditions, la TVA et les lignes de proforma.
+- Dans la liste des proformas, le bouton modifier redirige maintenant vers la page dediee au lieu d'ouvrir un modal.
+- Suppression du modal de creation/modification proforma dans la liste, afin d'eviter deux comportements differents.
+
+Fichiers modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l routes/web.php` passe.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php artisan route:list --name=main.accounting.proforma-invoices` affiche la route `edit`.
+- `php artisan test --filter=proforma` passe avec 1 test et 45 assertions.
+- `php artisan view:clear` execute.
+- `php artisan test` passe avec 76 tests et 800 assertions.
+
+### 2026-05-05 - Impression PDF des factures proforma
+
+Prompt utilisateur :
+
+```text
+ajouter un bouton qui permet de d'imprimer la facture en pdf
+```
+
+Correction appliquee :
+
+- Ajout d'un bouton d'impression dans la colonne actions du tableau des factures proforma.
+- Ajout d'une route d'impression dediee pour chaque facture proforma.
+- Ajout d'une page imprimable A4 propre qui ouvre automatiquement la fenetre d'impression du navigateur.
+- La page d'impression affiche les informations de l'entreprise, du site, du client, les lignes, les remises, la TVA, les totaux et les zones de signature.
+- Ajout des traductions FR/EN pour les libelles d'impression.
+- Ajout d'un test pour verifier la presence du bouton et l'acces a la page imprimable.
+
+Fichiers ajoutes ou modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `resources/css/main.css`
+- `resources/css/admin/dashboard.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php -l routes/web.php` passe.
+- `php -l resources/views/main/modules/accounting-proforma-invoice-print.blade.php` passe.
+- `php artisan test --filter=proforma` passe avec 1 test et 33 assertions.
+
+### 2026-05-05 - Generation PDF serveur avec DomPDF
+
+Prompt utilisateur :
+
+```text
+il y pas moyen que tu utilises une vraie librairie pdf ?
+```
+
+Correction appliquee :
+
+- Installation de `barryvdh/laravel-dompdf`.
+- La route d'impression des factures proforma genere maintenant un vrai document PDF cote serveur.
+- La reponse HTTP de la route d'impression est maintenant en `application/pdf`.
+- La vue imprimable reste reutilisee comme gabarit PDF, avec les styles mobiles isoles pour ne pas casser le rendu DomPDF.
+- Le test proforma verifie maintenant que la route retourne bien un PDF.
+
+Fichiers ajoutes ou modifies :
+
+- `composer.json`
+- `composer.lock`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `composer require barryvdh/laravel-dompdf` execute avec succes.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php -l resources/views/main/modules/accounting-proforma-invoice-print.blade.php` passe.
+- `php artisan test --filter=proforma` passe avec 1 test et 31 assertions.
+
+### 2026-05-05 - Gabarit PDF professionnel pour proforma
+
+Prompt utilisateur :
+
+```text
+la facture est desordonnée fais moi une facture propre professionnel
+```
+
+Correction appliquee :
+
+- Remplacement du gabarit PDF par une mise en page plus stable pour DomPDF.
+- Suppression des styles modernes mal rendus en PDF (`grid`, `flex`, variables CSS, toolbar navigateur).
+- Mise en page professionnelle avec bandeau, entete entreprise/proforma, blocs client/details, tableau de lignes, totaux et signatures.
+- Alignement propre des montants et conservation de la devise sur chaque montant.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources/views/main/modules/accounting-proforma-invoice-print.blade.php` passe.
+- `php artisan test --filter=proforma` passe avec 1 test et 31 assertions.
+
+### 2026-05-05 - Gabarit PDF inspire du template fourni
+
+Prompt utilisateur :
+
+```text
+voici un template
+```
+
+Correction appliquee :
+
+- Refonte du gabarit PDF proforma pour reprendre la structure du template fourni.
+- Ajout d'un grand titre bleu a droite, identité de l'entreprise a gauche, séparateur bleu/gris, bloc client, bloc reference/date/statut.
+- Tableau de lignes avec entete bleu et lignes alternees.
+- Ajout d'une zone mode de paiement, totaux, grand total bleu, conditions et signature.
+- Ajout d'un pied de page avec telephone, email et adresse de l'entreprise.
+- Ajout des libelles FR/EN necessaires au nouveau template.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources/views/main/modules/accounting-proforma-invoice-print.blade.php` passe.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php artisan test --filter=proforma` passe avec 1 test et 31 assertions.
+
+### 2026-05-05 - Modalite de paiement sur les proformas
+
+Prompt utilisateur :
+
+```text
+ajoute lors dans l'ajout de la proforma une option modalité de paiement, on a plusieurs possibilités : 100% à la commande; 50% à la commande, etc... et à discuter avec le client
+```
+
+Correction appliquee :
+
+- Ajout du champ `payment_terms` sur les factures proforma.
+- Ajout d'une migration pour stocker la modalite de paiement.
+- Ajout des options : 100% a la commande, 50% a la commande, 30% a la commande, paiement a la livraison, paiement apres livraison et a discuter avec le client.
+- Ajout du select de modalite de paiement dans la page d'ajout et le formulaire de modification proforma.
+- Affichage de la modalite de paiement dans le PDF proforma.
+- Ajout des traductions FR/EN.
+- Mise a jour de l'export SQL.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_05_05_000002_add_payment_terms_to_accounting_proforma_invoices_table.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingProformaInvoice.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan migrate` execute et la migration est appliquee.
+- `php -l` passe sur le modele, le controleur, la migration et les vues proforma.
+- `php artisan test --filter=proforma` passe avec 1 test et 33 assertions.
+
+### 2026-05-05 - Libelle modalite de paiement dans le PDF
+
+Prompt utilisateur :
+
+```text
+dans le fichier pdf change mode de paiement en modalité de paiement
+continue
+```
+
+Correction appliquee :
+
+- Le bloc PDF affiche maintenant `Modalité de paiement` au lieu de `Mode de paiement`.
+- Le contenu du bloc affiche la modalite choisie sur la proforma.
+- Les coordonnees bancaires restent affichees uniquement si un compte d'entreprise est configure.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources/views/main/modules/accounting-proforma-invoice-print.blade.php` passe.
+- `php artisan test --filter=proforma` passe avec 1 test et 33 assertions.
+
+### 2026-05-05 - Police Courier New pour les factures PDF
+
+Prompt utilisateur :
+
+```text
+utilise courrier new comme police pour les factures
+```
+
+Correction appliquee :
+
+- Le gabarit PDF des factures proforma utilise maintenant `Courier New`.
+- Ajout de polices de secours compatibles DomPDF : `DejaVu Sans Mono`, puis `monospace`.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources/views/main/modules/accounting-proforma-invoice-print.blade.php` passe.
+- `php artisan test --filter=proforma` passe avec 1 test et 33 assertions.
+
+### 2026-05-05 - Courier New force sur tout le PDF
+
+Prompt utilisateur :
+
+```text
+tous les textes sauf rien
+```
+
+Correction appliquee :
+
+- La police `Courier New` est maintenant forcee sur tous les elements du gabarit PDF proforma.
+- Aucune zone du PDF n'a une police differente, sauf fallback technique DomPDF si Courier New n'est pas disponible.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources/views/main/modules/accounting-proforma-invoice-print.blade.php` passe.
+- `php artisan test --filter=proforma` passe avec 1 test et 33 assertions.
+
+### 2026-05-05 - Correction police des titres PDF
+
+Prompt utilisateur :
+
+```text
+certains text nêest pas en courrier new comme le titre par exemple
+```
+
+Correction appliquee :
+
+- Forcage explicite de la famille `Courier` / `Courier New` sur les titres, tableaux et textes du PDF.
+- Remplacement des poids trop forts (`800`, `900`) par `bold` pour eviter que DomPDF bascule certains titres vers une police serif.
+- Conservation de `DejaVu Sans Mono` comme fallback technique.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources/views/main/modules/accounting-proforma-invoice-print.blade.php` passe.
+- `php artisan test --filter=proforma` passe avec 1 test et 33 assertions.
+
+### 2026-05-01 - Page dediee pour l'ajout d'une facture proforma
+
+Prompt utilisateur :
+
+```text
+pour l'ajout d'une proforma je souhaite que tu cee une page a part
+```
+
+Correction appliquee :
+
+- Ajout d'une route GET dediee pour l'ouverture de la page de creation d'une facture proforma.
+- Ajout de la methode `createAccountingProformaInvoice` dans `MainController`.
+- Le bouton `Nouvelle proforma` redirige maintenant vers une page complete de creation au lieu d'ouvrir un modal.
+- Creation de la vue `main.modules.accounting-proforma-invoice-create`.
+- Conservation du modal pour la modification des proformas existantes.
+- Adaptation du script proforma pour fonctionner a la fois dans un modal et sur une page autonome.
+- Ajout d'un style dedie pour la carte de creation proforma.
+- Mise a jour du test proforma pour verifier la nouvelle route et la page de creation.
+
+Fichiers modifies ou ajoutes :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `resources/js/main/accounting-proforma-invoices.js`
+- `resources/css/main.css`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l routes\web.php` passe.
+- `node --check resources\js\main\accounting-proforma-invoices.js` passe.
+- `php artisan route:list --name=main.accounting-proforma-invoices` affiche bien la route `create`.
+- `php artisan test --filter=proforma` passe avec 1 test et 21 assertions.
+- `php artisan test` passe avec 76 tests et 723 assertions.
+
+### 2026-05-01 - Ajout du type Quantite pour les unites de stock
+
+Prompt utilisateur :
+
+```text
+revenons d'abord sur Unités coté stock nous allons revenir vers proforma plutad.
+Parmi les types des unités ajoute :
+- Quantité
+```
+
+Correction appliquee :
+
+- Ajout du type `quantity` dans le modele `AccountingStockUnit`.
+- Le type est maintenant accepte par la validation des unites de stock.
+- Ajout du libelle `Quantite` en francais et `Quantity` en anglais.
+- Ajout de l'affichage du type dans le tableau standard des unites.
+- Mise a jour du test stock pour creer une unite avec ce nouveau type.
+
+Fichiers modifies :
+
+- `app/Models/AccountingStockUnit.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Models\AccountingStockUnit.php` passe.
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan test --filter=accounting_stock_pages` passe avec 1 test et 27 assertions.
+- `php artisan test` passe avec 76 tests et 723 assertions.
+
+### 2026-05-01 - Modification autorisee des elements stock par defaut
+
+Prompt utilisateur :
+
+```text
+bon pour catégorie, sous catégorie et entreprot donne la possibilité de modifier et non de supprimer enleve voir
+```
+
+Correction appliquee :
+
+- Les entrepots, categories et sous-categories stock crees par defaut affichent maintenant le bouton `Modifier`.
+- Le modal s'ouvre en mode edition au lieu du mode consultation `Voir`.
+- Le controleur accepte maintenant la mise a jour de ces elements par defaut.
+- La suppression reste interdite pour ces elements par defaut.
+- Le test existant a ete ajuste pour verifier ce nouveau comportement.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-stock-resource.blade.php` passe.
+- `php artisan test --filter=admin_can_open_company_sites_and_create_site_with_assignments` passe avec 1 test et 38 assertions.
+- `php artisan test` passe avec 76 tests et 723 assertions.
+
+### 2026-05-01 - Unite de stock par defaut
+
+Prompt utilisateur :
+
+```text
+le système dois également avoir une unité par défaut :
+- Nom : Pièce
+- Symbole : pc
+- Type : Quantité
+- Status : Actif
+```
+
+Correction appliquee :
+
+- Ajout du champ `is_default` sur les unites de stock.
+- Ajout d'une migration pour creer automatiquement l'unite par defaut des sites comptabilite existants.
+- Ajout de la creation automatique de l'unite `Pièce` pour les nouveaux sites comptabilite.
+- L'unite par defaut utilise le symbole `pc`, le type `quantity` et le statut `active`.
+- Les unites par defaut s'affichent en premier dans le tableau des unites.
+- Les unites par defaut restent modifiables mais ne peuvent pas etre supprimees.
+- Mise a jour de l'export SQL.
+- Mise a jour du test de creation de site pour verifier l'unite par defaut et sa protection contre la suppression.
+
+Fichiers modifies ou ajoutes :
+
+- `app/Models/AccountingStockUnit.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `database/migrations/2026_05_01_000003_add_default_stock_unit.php`
+- `database/exports/erp_database.sql`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Models\AccountingStockUnit.php` passe.
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l database\migrations\2026_05_01_000003_add_default_stock_unit.php` passe.
+- `php -l resources\views\main\modules\accounting-stock-resource.blade.php` passe.
+- `php artisan test --filter=admin_can_open_company_sites_and_create_site_with_assignments` passe avec 1 test et 42 assertions.
+- `php artisan test` passe avec 76 tests et 727 assertions.
+- `php artisan migrate` execute et cree l'unite par defaut dans la base locale.
+- Verification en base : `Pièce`, symbole `pc`, type `quantity`, statut `active`, `is_default = true`.
+
+### 2026-05-01 - Synchronisation automatique categorie, sous-categorie et entrepot des articles
+
+Prompt utilisateur :
+
+```text
+lors de l'ajout de l'article, lorsque je séléctionne catégorie, automatiquement l'entrepot au quel cette catégorie est dedant se selectionne, pareil pour sous categorie lorsque je le selectionne automatique la categorie correspondate se selectionne
+```
+
+Correction appliquee :
+
+- Les options de categorie portent maintenant l'identifiant de leur entrepot via `data-warehouse-id`.
+- Les options de sous-categorie portent maintenant l'identifiant de leur categorie via `data-category-id`.
+- Dans le formulaire Article, le choix d'une categorie selectionne automatiquement l'entrepot correspondant.
+- Dans le formulaire Article, le choix d'une sous-categorie selectionne automatiquement la categorie correspondante.
+- La selection automatique declenche aussi la synchronisation categorie vers entrepot.
+- Le test stock verifie que ces relations sont presentes dans le formulaire Article.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `resources/js/main/accounting-stock-resource.js`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-stock-resource.blade.php` passe.
+- `node --check resources\js\main\accounting-stock-resource.js` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan test --filter=accounting_stock_pages` passe avec 1 test et 32 assertions.
+- `php artisan test` passe avec 76 tests et 732 assertions.
+
+### 2026-05-01 - Synchronisation automatique categorie et sous-categorie des services
+
+Prompt utilisateur :
+
+```text
+applique ça coté service aussi
+```
+
+Correction appliquee :
+
+- Les options de sous-categorie de service portent maintenant l'identifiant de leur categorie via `data-category-id`.
+- Dans le formulaire de grille tarifaire des services, le choix d'une sous-categorie selectionne automatiquement la categorie correspondante.
+- Le test services verifie que cette relation est bien presente dans le formulaire.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-service-resource.blade.php`
+- `resources/js/main/accounting-service-resource.js`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-service-resource.blade.php` passe.
+- `node --check resources\js\main\accounting-service-resource.js` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan test --filter=accounting_service_pages` passe avec 1 test et 28 assertions.
+- `php artisan test` passe avec 76 tests et 734 assertions.
+
+### 2026-05-01 - Modification autorisee des unites de service par defaut
+
+Prompt utilisateur :
+
+```text
+unité de service possibilité de modifier enleve voir seulement
+```
+
+Correction appliquee :
+
+- Les unites de service par defaut affichent maintenant le bouton `Modifier` au lieu du bouton `Voir`.
+- Le controleur autorise la mise a jour des unites de service par defaut.
+- Les categories et sous-categories de service par defaut restent en consultation seule.
+- La suppression des unites de service par defaut reste interdite.
+- Le test de creation de site verifie que l'unite de service par defaut est modifiable.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-service-resource.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-service-resource.blade.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan test --filter=admin_can_open_company_sites_and_create_site_with_assignments` passe avec 1 test et 48 assertions.
+- `php artisan test` passe avec 76 tests et 740 assertions.
+
+### 2026-05-01 - Modification autorisee des categories et sous-categories de service par defaut
+
+Prompt utilisateur :
+
+```text
+pareil pour catégorie et sous-catégorie
+```
+
+Correction appliquee :
+
+- Les categories de service par defaut affichent maintenant le bouton `Modifier`.
+- Les sous-categories de service par defaut affichent maintenant le bouton `Modifier`.
+- Le controleur autorise la mise a jour des categories et sous-categories de service par defaut.
+- La suppression des categories, sous-categories et unites de service par defaut reste interdite.
+- Le test de creation de site verifie que les categories et sous-categories de service par defaut sont modifiables.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-service-resource.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-service-resource.blade.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan test --filter=admin_can_open_company_sites_and_create_site_with_assignments` passe avec 1 test et 58 assertions.
+- `php artisan test` passe avec 76 tests et 750 assertions.
+
+### 2026-05-01 - Liste des articles et services par sous-categorie
+
+Prompt utilisateur :
+
+```text
+dans sous-catégorie d'article ou service, ajoute un boutton dans action qui affiche la liste des articles/services appartenant à cette dernière
+```
+
+Correction appliquee :
+
+- Ajout d'un bouton d'action dans le tableau des sous-categories d'articles.
+- Le bouton ouvre un modal listant les articles rattaches a la sous-categorie.
+- Ajout d'un bouton d'action dans le tableau des sous-categories de services.
+- Le bouton ouvre un modal listant les services rattaches a la sous-categorie.
+- Les modals utilisent un tableau avec recherche, tri, pagination client et etat vide propre.
+- Les relations `items.unit` et `services.unit` sont chargees avec les sous-categories.
+- Ajout des traductions FR/EN des titres, boutons et etats vides.
+- Les tests Stock et Services verifient la presence des boutons et des donnees rattachees.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `resources/views/main/modules/accounting-service-resource.blade.php`
+- `resources/js/main/accounting-stock-resource.js`
+- `resources/js/main/accounting-service-resource.js`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-stock-resource.blade.php` passe.
+- `php -l resources\views\main\modules\accounting-service-resource.blade.php` passe.
+- `node --check resources\js\main\accounting-stock-resource.js` passe.
+- `node --check resources\js\main\accounting-service-resource.js` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan test --filter=accounting_stock_pages` passe avec 1 test et 35 assertions.
+- `php artisan test --filter=accounting_service_pages` passe avec 1 test et 31 assertions.
+- `php artisan test` passe avec 76 tests et 756 assertions.
+
+### 2026-05-01 - Ajustement affichage des tableaux dans les modals de sous-categories
+
+Prompt utilisateur :
+
+```text
+arrange l'affichage du tableau
+```
+
+Correction appliquee :
+
+- Les modals listant les articles/services rattaches aux sous-categories utilisent maintenant une largeur dediee.
+- Le tableau reste contenu dans le modal et ne deborde plus hors du cadre.
+- Ajout d'un cadre propre autour du tableau avec scroll horizontal si necessaire.
+- Le titre du modal garde un espacement correct entre l'icone et le texte.
+- Le rendu reste responsive sur petits ecrans.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `resources/views/main/modules/accounting-service-resource.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-stock-resource.blade.php` passe.
+- `php -l resources\views\main\modules\accounting-service-resource.blade.php` passe.
+- `php artisan test --filter=accounting_service_pages` passe avec 1 test et 31 assertions.
+- `php artisan test --filter=accounting_stock_pages` passe avec 1 test et 35 assertions.
+- `php artisan test` passe avec 76 tests et 756 assertions.
+
+### 2026-05-01 - Colonnes simplifiees dans le modal des articles rattaches
+
+Prompt utilisateur :
+
+```text
+enleve stock actuel dans le modal et status
+```
+
+Correction appliquee :
+
+- Retrait de la colonne `Stock actuel` dans le modal des articles rattaches a une sous-categorie.
+- Retrait de la colonne `Statut` dans ce meme modal.
+- Les donnees envoyees au modal ne contiennent plus ces champs.
+- Le test stock a ete ajuste pour verifier le nouveau format de donnees.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `resources/js/main/accounting-stock-resource.js`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-stock-resource.blade.php` passe.
+- `node --check resources\js\main\accounting-stock-resource.js` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan test --filter=accounting_stock_pages` passe avec 1 test et 35 assertions.
+- `php artisan test` passe avec 76 tests et 756 assertions.
+
+### 2026-05-01 - Alignement a droite des montants
+
+Prompt utilisateur :
+
+```text
+les monants doivent toujours etres positions à droite
+```
+
+Correction appliquee :
+
+- Alignement a droite des colonnes de montants dans le modal des articles rattaches.
+- Alignement a droite des colonnes de montants dans le modal des services rattaches.
+- Ajout d'une classe `amount-cell` pour standardiser le rendu des montants.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `resources/views/main/modules/accounting-service-resource.blade.php`
+- `resources/js/main/accounting-stock-resource.js`
+- `resources/js/main/accounting-service-resource.js`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-stock-resource.blade.php` passe.
+- `php -l resources\views\main\modules\accounting-service-resource.blade.php` passe.
+- `node --check resources\js\main\accounting-stock-resource.js` passe.
+- `node --check resources\js\main\accounting-service-resource.js` passe.
+- `php artisan test --filter=accounting_stock_pages` passe avec 1 test et 35 assertions.
+- `php artisan test --filter=accounting_service_pages` passe avec 1 test et 31 assertions.
+- `php artisan test` passe avec 76 tests et 756 assertions.
+
+### 2026-04-30 - Module comptabilite : services
+
+Prompt utilisateur :
+
+```text
+fais moi une proprosition pour les servives et ne fais rien
+appliques ton idee
+```
+
+Implementation appliquee :
+
+- Ajout des tables du module services : unites, categories, sous-categories, grille tarifaire et services recurrents.
+- Ajout des modeles `AccountingServiceUnit`, `AccountingServiceCategory`, `AccountingServiceSubcategory`, `AccountingService` et `AccountingRecurringService`.
+- Ajout des relations services sur `CompanySite`.
+- Ajout de la creation automatique des valeurs par defaut pour chaque site comptabilite :
+  - unite par defaut `Forfait`
+  - categorie par defaut `Services generaux`
+  - sous-categorie par defaut `Prestations generales`
+- Protection des elements par defaut : affichage en premier, consultation possible, modification et suppression bloquees.
+- Ajout des routes CRUD generiques pour les ressources services.
+- Ajout de la page generique `accounting-service-resource` avec le style de tableau standard, recherche, tri, pagination, modal create/edit/view et erreurs sous les champs.
+- Ajout du JS isole `resources/js/main/accounting-service-resource.js`.
+- Raccordement de la sidebar et du tableau de bord comptabilite :
+  - Grille tarifaire
+  - Categories de services
+  - Sous-categories de services
+  - Unites de services
+  - Services recurrents
+- Ajout des traductions FR/EN liees au module services.
+- Mise a jour de `database/exports/erp_database.sql` avec les nouvelles tables et l'entree de migration.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_04_30_000013_create_accounting_services_tables.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingServiceUnit.php`
+- `app/Models/AccountingServiceCategory.php`
+- `app/Models/AccountingServiceSubcategory.php`
+- `app/Models/AccountingService.php`
+- `app/Models/AccountingRecurringService.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-service-resource.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-service-resource.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l` passe sur les routes, le controleur, les modeles, la migration et les tests.
+- `node --check resources/js/main/accounting-service-resource.js` passe.
+- `php artisan route:list --path=accounting/services` affiche les 4 routes services.
+- `php artisan migrate --force` applique la migration services.
+- `php artisan test --filter=accounting_service` passe avec 1 test et 26 assertions.
+- `php artisan test --filter=accounting_stock` passe avec 1 test et 27 assertions.
+- `php artisan test` passe avec 73 tests et 661 assertions.
+- Scan anti-mauvais caracteres (`Ã`, `Â`, `�`) execute sur les traductions, vues et JS : aucun fichier signale.
+
+### 2026-04-30 - Module comptabilite : devises
+
+Prompt utilisateur :
+
+```text
+appliques ton idée concernant les devises
+```
+
+Implementation appliquee :
+
+- Ajout d'une table `accounting_currencies` pour gerer les devises utilisees par chaque site de facturation.
+- Ajout du modele `AccountingCurrency` avec reference automatique `CUR-000001`, etc.
+- Ajout de la relation `CompanySite::accountingCurrencies()`.
+- Creation automatique de la devise de base du site lors de la creation/modification d'un site comptabilite.
+- La devise du site reste la devise de base, avec taux `1`, statut actif, et protection contre modification/suppression dans cette page.
+- Ajout d'une page `Devises` dans le module comptabilite avec :
+  - tableau standard
+  - recherche
+  - tri
+  - pagination
+  - modal creation/modification/consultation
+  - erreurs sous les champs
+- Ajout du JS isole `resources/js/main/accounting-currencies.js`.
+- Raccordement de la sidebar et du dashboard comptabilite vers la page Devises.
+- Ajout des traductions FR/EN liees aux devises.
+- Mise a jour de `database/exports/erp_database.sql`.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_04_30_000014_create_accounting_currencies_table.php`
+- `app/Models/AccountingCurrency.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-currencies.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-currencies.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `database/exports/erp_database.sql`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l` passe sur le modele, la migration, le controleur, les routes et les tests.
+- `node --check resources/js/main/accounting-currencies.js` passe.
+- `php artisan route:list --path=accounting/currencies` affiche les 4 routes Devises.
+- `php artisan migrate --force` applique la migration Devises.
+- `php artisan test --filter=accounting_currencies` passe avec 1 test et 19 assertions.
+- `php artisan test` passe avec 74 tests et 681 assertions.
+- Scan anti-mauvais caracteres (`Ã`, `Â`, `�`) execute sur les traductions, vues et JS : aucun fichier signale.
+
+### 2026-05-01 - Format du taux de change
+
+Prompt utilisateur :
+
+```text
+toujours afficher deux zero après la virgule
+```
+
+Correction appliquee :
+
+- Le taux de change de la page Devises s'affiche maintenant avec deux decimales dans le tableau.
+- Le champ du modal utilise aussi une valeur par defaut `1.00` avec un pas de saisie `0.01`.
+- La validation minimale du taux passe a `0.01`.
+- Les placeholders FR/EN du taux de change ont ete ajustes.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-currencies.blade.php`
+- `app/Http/Controllers/MainController.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php -l tests/Feature/ExampleTest.php` passe.
+- `php artisan test --filter=accounting_currencies` passe avec 1 test et 19 assertions.
+- `php artisan test` passe avec 74 tests et 681 assertions.
+
 ### 2026-04-30 - Module stock complet pour la comptabilite
 
 Prompt utilisateur :
@@ -4829,6 +6731,89 @@ Verification :
 - `php artisan test --filter=accounting` passe avec 11 tests et 222 assertions.
 - `php artisan test` passe avec 72 tests et 617 assertions.
 - Scan rapide des fichiers `resources`, `lang`, `app`, `routes` et migrations : aucun texte casse de type `Ã`, `Â` ou `�`.
+
+### 2026-04-30 - Enregistrements stock par defaut non supprimables
+
+Prompt utilisateur :
+
+```text
+je souhaite que dans le systeme qu'on ai à la base une entrepretot déjà précréé par defaut, une categorie par defaut et sous-catégorie par defaut qu'on ne peut pas supprimer
+```
+
+Travail realise :
+
+- Ajout d'un champ `is_default` sur :
+  - `accounting_stock_categories`
+  - `accounting_stock_subcategories`
+  - `accounting_stock_warehouses`
+- Creation automatique, pour chaque site qui contient le module comptabilite, de :
+  - `Categorie generale`
+  - `Sous-categorie generale`
+  - `Entrepot principal`
+- Creation automatique de ces valeurs lors de la creation ou modification d'un site contenant le module comptabilite.
+- Blocage de la suppression des categories, sous-categories et entrepots marques comme valeurs par defaut.
+- Masquage du bouton de suppression dans le tableau pour ces valeurs par defaut.
+- Mise a jour de l'export SQL.
+- Ajout de la traduction FR/EN du message de blocage.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_04_30_000011_add_default_stock_records.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingStockCategory.php`
+- `app/Models/AccountingStockSubcategory.php`
+- `app/Models/AccountingStockWarehouse.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan migrate` passe et applique la migration.
+- `php artisan test --filter="company_sites|accounting_stock"` passe avec 2 tests et 51 assertions.
+- `php artisan test` passe avec 72 tests et 623 assertions.
+- Scan rapide des traductions et fichiers d'interface : aucun texte casse de type `Ã`, `Â` ou `�`.
+
+### 2026-04-30 - Relation entrepot par defaut, categorie par defaut et sous-categorie par defaut
+
+Prompt utilisateur :
+
+```text
+une sous catégorie par défaut appartient à une catégorie par défault et une catégorie par défaut appartient à un entreprot par défaut
+```
+
+Travail realise :
+
+- Ajout de la relation `warehouse_id` sur `accounting_stock_categories`.
+- Une categorie de stock peut maintenant appartenir a un entrepot.
+- La categorie par defaut est rattachee automatiquement a l'entrepot par defaut.
+- La sous-categorie par defaut reste rattachee a la categorie par defaut.
+- La creation automatique des valeurs stock suit maintenant l'ordre :
+  - entrepot par defaut
+  - categorie par defaut liee a cet entrepot
+  - sous-categorie par defaut liee a cette categorie
+- La page des categories affiche et exige maintenant l'entrepot rattache.
+- Mise a jour de l'export SQL.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_04_30_000012_add_warehouse_to_stock_categories.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingStockCategory.php`
+- `app/Models/AccountingStockWarehouse.php`
+- `app/Http/Controllers/MainController.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan migrate` passe et applique la relation.
+- `php artisan test --filter="company_sites|accounting_stock"` passe avec 2 tests et 51 assertions.
+- `php artisan test` passe avec 72 tests et 623 assertions.
+- Scan rapide des traductions et fichiers d'interface : aucun texte casse de type `Ã`, `Â` ou `�`.
 
 ### 2026-04-30 - Gestion des prospects dans le module comptabilite
 

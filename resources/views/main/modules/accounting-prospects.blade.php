@@ -283,11 +283,6 @@
                                 <input id="prospectEmail" name="email" type="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" placeholder="{{ __('main.email') }}">
                                 @error('email')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-6">
-                                <label for="prospectAddress" class="form-label">{{ __('main.address') }}</label>
-                                <input id="prospectAddress" name="address" type="text" class="form-control @error('address') is-invalid @enderror" value="{{ old('address') }}" placeholder="{{ __('main.address') }}">
-                                @error('address')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                            </div>
                         </div>
                     </div>
 
@@ -362,6 +357,14 @@
                                 @endforeach
                             </div>
                         </section>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6" data-prospect-address-wrapper>
+                            <label for="prospectAddress" class="form-label">{{ __('main.address') }}</label>
+                            <input id="prospectAddress" name="address" type="text" class="form-control @error('address') is-invalid @enderror" value="{{ old('address') }}" placeholder="{{ __('main.address') }}">
+                            @error('address')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                        </div>
                     </div>
 
                     <section class="prospect-crm-section">

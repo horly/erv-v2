@@ -15,7 +15,14 @@ class AccountingStockWarehouse extends Model
 
     public const REFERENCE_PREFIX = 'DEP';
 
-    protected $fillable = ['company_site_id', 'created_by', 'reference', 'name', 'code', 'manager_name', 'address', 'status'];
+    protected $fillable = ['company_site_id', 'created_by', 'reference', 'name', 'code', 'manager_name', 'address', 'status', 'is_default'];
+
+    protected function casts(): array
+    {
+        return [
+            'is_default' => 'boolean',
+        ];
+    }
 
     public function site(): BelongsTo
     {
@@ -30,6 +37,11 @@ class AccountingStockWarehouse extends Model
     public function items(): HasMany
     {
         return $this->hasMany(AccountingStockItem::class, 'default_warehouse_id');
+    }
+
+    public function categories(): HasMany
+    {
+        return $this->hasMany(AccountingStockCategory::class, 'warehouse_id');
     }
 
     public function batches(): HasMany

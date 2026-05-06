@@ -34,6 +34,7 @@
                     'volume' => __('main.stock_unit_type_volume'),
                     'length' => __('main.stock_unit_type_length'),
                     'package' => __('main.stock_unit_type_package'),
+                    'quantity' => __('main.stock_unit_type_quantity'),
                 ],
                 'movement_type' => [
                     'entry' => __('main.stock_movement_type_entry'),
@@ -83,6 +84,26 @@
             }
 
             return $payload;
+        };
+        $stockSubcategoryItemsPayload = function ($record, bool $forCategory = false) {
+            return $record->items
+                ->map(function ($item) use ($forCategory) {
+                    $payload = [
+                        'reference' => $item->reference ?: '-',
+                        'name' => $item->name ?: '-',
+                        'unit' => $item->unit?->name ?: '-',
+                    ];
+
+                    if ($forCategory) {
+                        $payload['subcategory'] = $item->subcategory?->name ?: '-';
+                    } else {
+                        $payload['sale_price'] = number_format((float) $item->sale_price, 2, ',', ' ').' '.($item->currency ?: '');
+                    }
+
+                    return $payload;
+                })
+                ->values()
+                ->all();
         };
     @endphp
 
@@ -205,7 +226,7 @@
                                 <tr>
                                     <th><button class="table-sort" type="button" data-sort-index="0" data-sort-type="number"># <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     @foreach ($config['columns'] as $index => $column)
-                                        <th><button class="table-sort" type="button" data-sort-index="{{ $index + 1 }}" @if (($column['type'] ?? null) === 'number' || ($column['type'] ?? null) === 'money') data-sort-type="number" @endif>{{ $column['label'] }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th @class(['text-end' => ($column['type'] ?? null) === 'money'])><button class="table-sort" type="button" data-sort-index="{{ $index + 1 }}" @if (($column['type'] ?? null) === 'number' || ($column['type'] ?? null) === 'money') data-sort-type="number" @endif>{{ $column['label'] }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     @endforeach
                                     <th class="text-end">{{ __('admin.actions') }}</th>
                                 </tr>
@@ -216,7 +237,7 @@
                                         <td>{{ ($records->firstItem() ?? 1) + $loop->index }}</td>
                                         @foreach ($config['columns'] as $column)
                                             @php $value = $cellValue($record, $column); @endphp
-                                            <td @if (($column['type'] ?? null) === 'number' || ($column['type'] ?? null) === 'money') data-sort-value="{{ data_get($record, $column['key']) }}" @endif>
+                                            <td @class(['amount-cell text-end' => ($column['type'] ?? null) === 'money']) @if (($column['type'] ?? null) === 'number' || ($column['type'] ?? null) === 'money') data-sort-value="{{ data_get($record, $column['key']) }}" @endif>
                                                 @if (str_contains($column['key'], 'status'))
                                                     <span class="status-pill stock-status-{{ data_get($record, $column['key']) }}">{{ $value }}</span>
                                                 @else
@@ -225,14 +246,22 @@
                                             </td>
                                         @endforeach
                                         <td>
-                                            @if ($stockPermissions['can_update'] || $stockPermissions['can_delete'])
+                                            @php
+                                                $isProtectedDefault = in_array($resource, ['categories', 'subcategories', 'warehouses', 'units'], true) && (bool) data_get($record, 'is_default');
+                                            @endphp
+                                            @if ($stockPermissions['can_update'] || ($stockPermissions['can_delete'] && ! $isProtectedDefault))
                                                 <div class="table-actions">
+                                                    @if (in_array($resource, ['categories', 'subcategories'], true))
+                                                        <button type="button" class="table-button table-button-edit" data-bs-toggle="modal" data-bs-target="#stockRelatedModal" data-stock-related-kind="{{ $resource }}" data-stock-related-title="{{ $resource === 'categories' ? __('main.category_items_title', ['name' => $record->name]) : __('main.subcategory_items_title', ['name' => $record->name]) }}" data-stock-related-empty="{{ $resource === 'categories' ? __('main.no_category_items') : __('main.no_subcategory_items') }}" data-stock-related-rows="{{ base64_encode(json_encode($stockSubcategoryItemsPayload($record, $resource === 'categories'))) }}" aria-label="{{ $resource === 'categories' ? __('main.view_category_items') : __('main.view_subcategory_items') }}">
+                                                            <i class="bi bi-list-ul" aria-hidden="true"></i>
+                                                        </button>
+                                                    @endif
                                                     @if ($stockPermissions['can_update'])
-                                                        <button type="button" class="table-button table-button-edit" data-bs-toggle="modal" data-bs-target="#stockResourceModal" data-stock-mode="edit" data-stock-action="{{ route('main.accounting.stock.update', [$company, $site, $resource, $record]) }}" data-stock-id="{{ $record->id }}" data-stock-values="{{ e(json_encode($recordPayload($record, $config['fields']))) }}" aria-label="{{ __('admin.edit') }}">
+                                                        <button type="button" class="table-button table-button-edit" data-bs-toggle="modal" data-bs-target="#stockResourceModal" data-stock-mode="edit" data-stock-action="{{ route('main.accounting.stock.update', [$company, $site, $resource, $record]) }}" data-stock-id="{{ $record->id }}" data-stock-values="{{ base64_encode(json_encode($recordPayload($record, $config['fields']))) }}" aria-label="{{ __('admin.edit') }}">
                                                             <i class="bi bi-pencil" aria-hidden="true"></i>
                                                         </button>
                                                     @endif
-                                                    @if ($stockPermissions['can_delete'])
+                                                    @if ($stockPermissions['can_delete'] && ! $isProtectedDefault)
                                                         <form method="POST" action="{{ route('main.accounting.stock.destroy', [$company, $site, $resource, $record]) }}">
                                                             @csrf
                                                             @method('DELETE')
@@ -274,7 +303,7 @@
 
     <div class="modal fade subscription-modal accounting-stock-modal" id="stockResourceModal" tabindex="-1" aria-labelledby="stockResourceModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <form class="modal-content admin-form stock-resource-form" method="POST" action="{{ $formAction }}" data-create-action="{{ route('main.accounting.stock.store', [$company, $site, $resource]) }}" data-title-create="{{ $config['new_label'] }}" data-title-edit="{{ $config['edit_label'] }}" data-submit-create="{{ __('admin.create') }}" data-submit-edit="{{ __('admin.update') }}" data-icon="{{ $config['icon'] }}" novalidate>
+            <form class="modal-content admin-form stock-resource-form" method="POST" action="{{ $formAction }}" data-create-action="{{ route('main.accounting.stock.store', [$company, $site, $resource]) }}" data-title-create="{{ $config['new_label'] }}" data-title-edit="{{ $config['edit_label'] }}" data-title-view="{{ __('main.view_stock_resource', ['resource' => $config['singular_lower']]) }}" data-submit-create="{{ __('admin.create') }}" data-submit-edit="{{ __('admin.update') }}" data-cancel-label="{{ __('admin.cancel') }}" data-close-label="{{ __('admin.close') }}" data-icon="{{ $config['icon'] }}" novalidate>
                 @csrf
                 <input type="hidden" name="_method" id="stockResourceMethod" value="PUT" @disabled(! $isEditingResource)>
                 <input type="hidden" name="form_mode" id="stockResourceFormMode" value="{{ $isEditingResource ? 'edit' : 'create' }}">
@@ -296,7 +325,8 @@
                                     <select id="{{ $fieldId }}" name="{{ $fieldName }}" class="form-select @error($fieldName) is-invalid @enderror" data-stock-field data-default-value="{{ $field['default'] ?? '' }}">
                                         <option value="">{{ __('admin.choose_subscription') }}</option>
                                         @foreach (($field['options'] ?? []) as $optionValue => $optionLabel)
-                                            <option value="{{ $optionValue }}" @selected((string) $default === (string) $optionValue)>{{ $optionLabel }}</option>
+                                            @php $optionAttributes = $field['option_attributes'][$optionValue] ?? []; @endphp
+                                            <option value="{{ $optionValue }}" @foreach ($optionAttributes as $attribute => $attributeValue) {{ $attribute }}="{{ $attributeValue }}" @endforeach @selected((string) $default === (string) $optionValue)>{{ $optionLabel }}</option>
                                         @endforeach
                                     </select>
                                 @elseif (($field['type'] ?? 'text') === 'textarea')
@@ -310,13 +340,64 @@
                     </div>
 
                     <div class="modal-actions">
-                        <button type="button" class="modal-cancel" data-bs-dismiss="modal">{{ __('admin.cancel') }}</button>
+                        <button type="button" class="modal-cancel" id="stockResourceCancel" data-bs-dismiss="modal">{{ __('admin.cancel') }}</button>
                         <button class="modal-submit" id="stockResourceSubmit" type="submit">{{ $isEditingResource ? __('admin.update') : __('admin.create') }}</button>
                     </div>
                 </div>
             </form>
         </div>
     </div>
+
+    @if (in_array($resource, ['categories', 'subcategories'], true))
+        <div class="modal fade subscription-modal related-table-modal" id="stockRelatedModal" tabindex="-1" aria-labelledby="stockRelatedModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content admin-form modal-table-dialog">
+                    <div class="modal-body">
+                        <button type="button" class="modal-close" data-bs-dismiss="modal" aria-label="{{ __('admin.close') }}"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                        <h2 id="stockRelatedModalLabel"><i class="bi bi-box-seam" aria-hidden="true"></i>{{ $resource === 'categories' ? __('main.view_category_items') : __('main.view_subcategory_items') }}</h2>
+
+                        <section class="table-tools modal-table-tools" aria-label="{{ __('admin.search_tools') }}">
+                            <label class="search-box">
+                                <i class="bi bi-search" aria-hidden="true"></i>
+                                <input type="search" data-related-search placeholder="{{ __('admin.search') }}" autocomplete="off">
+                            </label>
+                            <span class="row-count">
+                                <strong data-related-visible-count>0</strong>
+                                /
+                                <strong data-related-total-count>0</strong>
+                                {{ __('admin.rows') }}
+                            </span>
+                        </section>
+
+                        <div class="modal-table-frame">
+                            <table class="company-table modal-data-table" data-related-table>
+                                <thead>
+                                    <tr>
+                                        <th><button class="table-sort" type="button" data-related-sort="reference">{{ __('main.reference') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th><button class="table-sort" type="button" data-related-sort="name">{{ __('main.item') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th><button class="table-sort" type="button" data-related-sort="unit">{{ __('main.stock_unit') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        @if ($resource === 'categories')
+                                            <th><button class="table-sort" type="button" data-related-sort="subcategory">{{ __('main.subcategory') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        @else
+                                            <th class="text-end"><button class="table-sort" type="button" data-related-sort="sale_price">{{ __('main.sale_price') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        @endif
+                                    </tr>
+                                </thead>
+                                <tbody data-related-table-body></tbody>
+                            </table>
+                            <p class="modal-table-empty" data-related-empty hidden>{{ $resource === 'categories' ? __('main.no_category_items') : __('main.no_subcategory_items') }}</p>
+                        </div>
+
+                        <section class="subscriptions-pagination modal-table-pagination" data-related-pagination data-previous-label="{{ __('admin.previous') }}" data-next-label="{{ __('admin.next') }}" hidden aria-label="{{ __('admin.pagination') }}"></section>
+
+                        <div class="modal-actions">
+                            <button type="button" class="modal-cancel" data-bs-dismiss="modal">{{ __('admin.close') }}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
     <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
     @if ($hasResourceErrors)

@@ -15,7 +15,14 @@ class AccountingStockSubcategory extends Model
 
     public const REFERENCE_PREFIX = 'SCA';
 
-    protected $fillable = ['company_site_id', 'category_id', 'created_by', 'reference', 'name', 'description', 'status'];
+    protected $fillable = ['company_site_id', 'category_id', 'created_by', 'reference', 'name', 'description', 'status', 'is_default'];
+
+    protected function casts(): array
+    {
+        return [
+            'is_default' => 'boolean',
+        ];
+    }
 
     public function site(): BelongsTo
     {

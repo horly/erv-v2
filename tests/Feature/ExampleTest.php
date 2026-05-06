@@ -4,13 +4,23 @@ namespace Tests\Feature;
 
 use App\Models\AccountingClient;
 use App\Models\AccountingCreditor;
+use App\Models\AccountingCurrency;
 use App\Models\AccountingDebtor;
+use App\Models\AccountingPaymentMethod;
 use App\Models\AccountingPartner;
+use App\Models\AccountingProformaInvoice;
+use App\Models\AccountingProformaInvoiceLine;
 use App\Models\AccountingProspect;
 use App\Models\AccountingSalesRepresentative;
+use App\Models\AccountingRecurringService;
+use App\Models\AccountingService;
+use App\Models\AccountingServiceCategory;
+use App\Models\AccountingServiceSubcategory;
+use App\Models\AccountingServiceUnit;
 use App\Models\AccountingStockCategory;
 use App\Models\AccountingStockItem;
 use App\Models\AccountingStockMovement;
+use App\Models\AccountingStockSubcategory;
 use App\Models\AccountingStockUnit;
 use App\Models\AccountingStockWarehouse;
 use App\Models\AccountingSupplier;
@@ -19,6 +29,7 @@ use App\Models\CompanySite;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Models\UserLoginHistory;
+use App\Support\CurrencyCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -184,6 +195,190 @@ class ExampleTest extends TestCase
         ]);
 
         $site = CompanySite::where('name', 'Kinshasa Site')->firstOrFail();
+
+        $defaultWarehouse = AccountingStockWarehouse::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_default', true)
+            ->firstOrFail();
+        $defaultCategory = AccountingStockCategory::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_default', true)
+            ->firstOrFail();
+        $defaultUnit = AccountingStockUnit::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_default', true)
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_stock_categories', [
+            'company_site_id' => $site->id,
+            'warehouse_id' => $defaultWarehouse->id,
+            'name' => 'Categorie generale',
+            'is_default' => true,
+        ]);
+        $this->assertDatabaseHas('accounting_stock_subcategories', [
+            'company_site_id' => $site->id,
+            'category_id' => $defaultCategory->id,
+            'name' => 'Sous-categorie generale',
+            'is_default' => true,
+        ]);
+        $this->assertDatabaseHas('accounting_stock_warehouses', [
+            'company_site_id' => $site->id,
+            'name' => 'Entrepot principal',
+            'is_default' => true,
+        ]);
+        $this->assertDatabaseHas('accounting_stock_units', [
+            'company_site_id' => $site->id,
+            'name' => 'Pièce',
+            'symbol' => 'pc',
+            'type' => AccountingStockUnit::TYPE_QUANTITY,
+            'status' => 'active',
+            'is_default' => true,
+        ]);
+
+        $defaultServiceCategory = AccountingServiceCategory::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_default', true)
+            ->firstOrFail();
+        $defaultServiceSubcategory = AccountingServiceSubcategory::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_default', true)
+            ->firstOrFail();
+        $defaultServiceUnit = AccountingServiceUnit::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_default', true)
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_service_units', [
+            'company_site_id' => $site->id,
+            'name' => 'Forfait',
+            'is_default' => true,
+        ]);
+
+        $serviceUnitsRoute = route('main.accounting.services.index', [$company, $site, 'units']);
+
+        $this->actingAs($admin)->get($serviceUnitsRoute)
+            ->assertOk()
+            ->assertSee('data-service-mode="edit"', false)
+            ->assertDontSee('data-service-mode="view"', false);
+
+        $this->actingAs($admin)
+            ->put(route('main.accounting.services.update', [$company, $site, 'units', $defaultServiceUnit]), [
+                'name' => 'Forfait modifie',
+                'symbol' => 'forfait',
+                'status' => 'active',
+            ])
+            ->assertRedirect($serviceUnitsRoute);
+
+        $this->assertDatabaseHas('accounting_service_units', [
+            'id' => $defaultServiceUnit->id,
+            'name' => 'Forfait modifie',
+            'is_default' => true,
+        ]);
+
+        $serviceCategoriesRoute = route('main.accounting.services.index', [$company, $site, 'categories']);
+
+        $this->actingAs($admin)->get($serviceCategoriesRoute)
+            ->assertOk()
+            ->assertSee('data-service-mode="edit"', false)
+            ->assertDontSee('data-service-mode="view"', false);
+
+        $this->actingAs($admin)
+            ->put(route('main.accounting.services.update', [$company, $site, 'categories', $defaultServiceCategory]), [
+                'name' => 'Services generaux modifies',
+                'status' => 'active',
+                'description' => 'Categorie par defaut modifiee.',
+            ])
+            ->assertRedirect($serviceCategoriesRoute);
+
+        $this->assertDatabaseHas('accounting_service_categories', [
+            'id' => $defaultServiceCategory->id,
+            'name' => 'Services generaux modifies',
+            'is_default' => true,
+        ]);
+
+        $serviceSubcategoriesRoute = route('main.accounting.services.index', [$company, $site, 'subcategories']);
+
+        $this->actingAs($admin)->get($serviceSubcategoriesRoute)
+            ->assertOk()
+            ->assertSee('data-service-mode="edit"', false)
+            ->assertDontSee('data-service-mode="view"', false);
+
+        $this->actingAs($admin)
+            ->put(route('main.accounting.services.update', [$company, $site, 'subcategories', $defaultServiceSubcategory]), [
+                'category_id' => $defaultServiceCategory->id,
+                'name' => 'Prestations generales modifiees',
+                'status' => 'active',
+                'description' => 'Sous-categorie par defaut modifiee.',
+            ])
+            ->assertRedirect($serviceSubcategoriesRoute);
+
+        $this->assertDatabaseHas('accounting_service_subcategories', [
+            'id' => $defaultServiceSubcategory->id,
+            'category_id' => $defaultServiceCategory->id,
+            'name' => 'Prestations generales modifiees',
+            'is_default' => true,
+        ]);
+        $this->assertDatabaseHas('accounting_currencies', [
+            'company_site_id' => $site->id,
+            'code' => 'CDF',
+            'exchange_rate' => 1,
+            'is_base' => true,
+            'is_default' => true,
+        ]);
+        $this->assertDatabaseHas('accounting_payment_methods', [
+            'company_site_id' => $site->id,
+            'name' => 'Espèces',
+            'type' => AccountingPaymentMethod::TYPE_CASH,
+            'currency_code' => 'CDF',
+            'is_default' => true,
+            'is_system_default' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('main.accounting.stock.destroy', [$company, $site, 'categories', $defaultCategory]))
+            ->assertRedirect(route('main.accounting.stock.index', [$company, $site, 'categories']));
+
+        $this->assertDatabaseHas('accounting_stock_categories', [
+            'id' => $defaultCategory->id,
+            'is_default' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('main.accounting.stock.destroy', [$company, $site, 'units', $defaultUnit]))
+            ->assertRedirect(route('main.accounting.stock.index', [$company, $site, 'units']));
+
+        $this->assertDatabaseHas('accounting_stock_units', [
+            'id' => $defaultUnit->id,
+            'is_default' => true,
+        ]);
+
+        AccountingStockCategory::create([
+            'company_site_id' => $site->id,
+            'warehouse_id' => $defaultWarehouse->id,
+            'created_by' => $admin->id,
+            'name' => 'Categorie secondaire',
+            'status' => AccountingStockCategory::STATUS_ACTIVE,
+        ]);
+
+        $categoriesResponse = $this->actingAs($admin)->get(route('main.accounting.stock.index', [$company, $site, 'categories']));
+        $categoriesResponse->assertOk();
+        $categoriesResponse->assertSee('data-stock-mode="edit"', false);
+        $categoriesResponse->assertDontSee('data-stock-mode="view"', false);
+        $categoriesResponse->assertSeeInOrder(['Categorie generale', 'Categorie secondaire']);
+
+        $this->actingAs($admin)
+            ->put(route('main.accounting.stock.update', [$company, $site, 'categories', $defaultCategory]), [
+                'warehouse_id' => $defaultWarehouse->id,
+                'name' => 'Categorie modifiee',
+                'status' => AccountingStockCategory::STATUS_ACTIVE,
+            ])
+            ->assertRedirect(route('main.accounting.stock.index', [$company, $site, 'categories']));
+
+        $this->assertDatabaseHas('accounting_stock_categories', [
+            'id' => $defaultCategory->id,
+            'name' => 'Categorie modifiee',
+            'is_default' => true,
+        ]);
 
         $this->assertDatabaseHas('company_site_user', [
             'company_site_id' => $site->id,
@@ -514,6 +709,7 @@ class ExampleTest extends TestCase
             'account_number' => '000123456789',
             'currency' => 'USD',
             'website' => 'https://client.example.test',
+            'address' => 'Gombe, Kinshasa',
             'contacts' => [
                 [
                     'full_name' => 'Marie Contact',
@@ -537,6 +733,7 @@ class ExampleTest extends TestCase
             'bank_name' => 'Rawbank',
             'account_number' => '000123456789',
             'currency' => 'USD',
+            'address' => 'Gombe, Kinshasa',
         ]);
 
         $this->actingAs($admin)->get($route)
@@ -627,6 +824,7 @@ class ExampleTest extends TestCase
             'account_number' => '000987654321',
             'currency' => 'USD',
             'website' => 'https://supplier.example.test',
+            'address' => 'Limete, Kinshasa',
             'status' => AccountingSupplier::STATUS_INACTIVE,
             'contacts' => [
                 [
@@ -645,6 +843,10 @@ class ExampleTest extends TestCase
             'accounting_supplier_id' => $supplier->id,
             'full_name' => 'Paul Contact',
             'position' => 'Responsable achats',
+        ]);
+        $this->assertDatabaseHas('accounting_suppliers', [
+            'name' => 'Supplier SARL',
+            'address' => 'Limete, Kinshasa',
         ]);
 
         $this->actingAs($admin)->get($route)
@@ -732,6 +934,7 @@ class ExampleTest extends TestCase
             'id_nat' => 'PRSID001',
             'nif' => 'PRSNIF001',
             'website' => 'https://prospect.example.test',
+            'address' => 'Avenue du Commerce, Kinshasa',
             'source' => AccountingProspect::SOURCE_CAMPAIGN,
             'status' => AccountingProspect::STATUS_QUALIFIED,
             'interest_level' => AccountingProspect::INTEREST_WARM,
@@ -747,6 +950,7 @@ class ExampleTest extends TestCase
         ])->assertRedirect($route);
 
         $prospect = AccountingProspect::query()->where('name', 'Prospect SARL')->firstOrFail();
+        $this->assertSame('Avenue du Commerce, Kinshasa', $prospect->address);
 
         $this->assertDatabaseHas('accounting_prospect_contacts', [
             'accounting_prospect_id' => $prospect->id,
@@ -765,6 +969,7 @@ class ExampleTest extends TestCase
             'company_site_id' => $site->id,
             'name' => 'Prospect SARL',
             'type' => AccountingProspect::TYPE_COMPANY,
+            'address' => 'Avenue du Commerce, Kinshasa',
         ]);
         $this->assertDatabaseHas('accounting_client_contacts', [
             'full_name' => 'Claire Prospect',
@@ -1210,6 +1415,18 @@ class ExampleTest extends TestCase
             'status' => CompanySite::STATUS_ACTIVE,
         ]);
 
+        AccountingCurrency::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'code' => 'USD',
+            'name' => 'Dollar americain',
+            'symbol' => '$',
+            'exchange_rate' => 2800,
+            'is_base' => false,
+            'is_default' => false,
+            'status' => AccountingCurrency::STATUS_ACTIVE,
+        ]);
+
         $categoriesRoute = route('main.accounting.stock.index', [$company, $site, 'categories']);
 
         $this->actingAs($admin)->get($categoriesRoute)
@@ -1218,35 +1435,6 @@ class ExampleTest extends TestCase
             ->assertSee(__('main.new_stock_category'), false)
             ->assertSee('id="companyTable"', false)
             ->assertSee('resources/js/main/accounting-stock-resource.js', false);
-
-        $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'categories']), [
-            'name' => 'Matieres premieres',
-            'description' => 'Articles de fabrication',
-            'status' => 'active',
-        ])->assertRedirect($categoriesRoute);
-
-        $category = AccountingStockCategory::query()->where('name', 'Matieres premieres')->firstOrFail();
-
-        $this->assertDatabaseHas('accounting_stock_categories', [
-            'company_site_id' => $site->id,
-            'reference' => 'CAT-000001',
-            'name' => 'Matieres premieres',
-        ]);
-
-        $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'units']), [
-            'name' => 'Piece',
-            'symbol' => 'pcs',
-            'type' => AccountingStockUnit::TYPE_UNIT,
-            'status' => 'active',
-        ])->assertRedirect(route('main.accounting.stock.index', [$company, $site, 'units']));
-
-        $unit = AccountingStockUnit::query()->where('symbol', 'pcs')->firstOrFail();
-
-        $this->assertDatabaseHas('accounting_stock_units', [
-            'company_site_id' => $site->id,
-            'reference' => 'UNT-000001',
-            'symbol' => 'pcs',
-        ]);
 
         $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'warehouses']), [
             'name' => 'Depot principal',
@@ -1263,10 +1451,84 @@ class ExampleTest extends TestCase
             'name' => 'Depot principal',
         ]);
 
+        $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'categories']), [
+            'warehouse_id' => $warehouse->id,
+            'name' => 'Matieres premieres',
+            'description' => 'Articles de fabrication',
+            'status' => 'active',
+        ])->assertRedirect($categoriesRoute);
+
+        $category = AccountingStockCategory::query()->where('name', 'Matieres premieres')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_stock_categories', [
+            'company_site_id' => $site->id,
+            'warehouse_id' => $warehouse->id,
+            'reference' => 'CAT-000001',
+            'name' => 'Matieres premieres',
+        ]);
+
+        $this->actingAs($admin)->get($categoriesRoute)
+            ->assertOk()
+            ->assertSee(base64_encode(json_encode([
+                'warehouse_id' => $warehouse->id,
+                'name' => 'Matieres premieres',
+                'status' => 'active',
+                'description' => 'Articles de fabrication',
+            ])), false);
+
+        $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'subcategories']), [
+            'category_id' => $category->id,
+            'name' => 'Ciments',
+            'description' => 'Articles ciment',
+            'status' => 'active',
+        ])->assertRedirect(route('main.accounting.stock.index', [$company, $site, 'subcategories']));
+
+        $subcategory = AccountingStockSubcategory::query()->where('name', 'Ciments')->firstOrFail();
+
+        $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'units']), [
+            'name' => 'Piece',
+            'symbol' => 'pcs',
+            'type' => AccountingStockUnit::TYPE_QUANTITY,
+            'status' => 'active',
+        ])->assertRedirect(route('main.accounting.stock.index', [$company, $site, 'units']));
+
+        $unit = AccountingStockUnit::query()->where('symbol', 'pcs')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_stock_units', [
+            'company_site_id' => $site->id,
+            'reference' => 'UNT-000001',
+            'symbol' => 'pcs',
+            'type' => AccountingStockUnit::TYPE_QUANTITY,
+        ]);
+
         $itemsRoute = route('main.accounting.stock.index', [$company, $site, 'items']);
+
+        $this->actingAs($admin)->get($itemsRoute)
+            ->assertOk()
+            ->assertSee('data-warehouse-id="'.$warehouse->id.'"', false)
+            ->assertSee('data-category-id="'.$category->id.'"', false)
+            ->assertSee(CurrencyCatalog::label('CDF'), false)
+            ->assertSee(CurrencyCatalog::label('USD'), false)
+            ->assertDontSee(CurrencyCatalog::label('EUR'), false);
 
         $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'items']), [
             'category_id' => $category->id,
+            'subcategory_id' => $subcategory->id,
+            'unit_id' => $unit->id,
+            'default_warehouse_id' => $warehouse->id,
+            'name' => 'Devise hors site',
+            'type' => AccountingStockItem::TYPE_PRODUCT,
+            'currency' => 'EUR',
+            'purchase_price' => 100,
+            'sale_price' => 120,
+            'current_stock' => 1,
+            'min_stock' => 0,
+            'status' => 'active',
+        ])->assertSessionHasErrors('currency');
+
+        $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'items']), [
+            'category_id' => $category->id,
+            'subcategory_id' => $subcategory->id,
             'unit_id' => $unit->id,
             'default_warehouse_id' => $warehouse->id,
             'name' => 'Ciment gris',
@@ -1287,6 +1549,27 @@ class ExampleTest extends TestCase
             'name' => 'Ciment gris',
             'current_stock' => 10,
         ]);
+
+        $this->actingAs($admin)->get(route('main.accounting.stock.index', [$company, $site, 'subcategories']))
+            ->assertOk()
+            ->assertSee('data-bs-target="#stockRelatedModal"', false)
+            ->assertSee(base64_encode(json_encode([[
+                'reference' => 'ART-000001',
+                'name' => 'Ciment gris',
+                'unit' => 'Piece',
+                'sale_price' => '15 000,00 CDF',
+            ]])), false);
+
+        $this->actingAs($admin)->get(route('main.accounting.stock.index', [$company, $site, 'categories']))
+            ->assertOk()
+            ->assertSee('data-bs-target="#stockRelatedModal"', false)
+            ->assertSee(__('main.category_items_title', ['name' => $category->name]))
+            ->assertSee(base64_encode(json_encode([[
+                'reference' => 'ART-000001',
+                'name' => 'Ciment gris',
+                'unit' => 'Piece',
+                'subcategory' => $subcategory->name,
+            ]])), false);
 
         $this->actingAs($admin)->post(route('main.accounting.stock.store', [$company, $site, 'movements']), [
             'item_id' => $item->id,
@@ -1312,6 +1595,649 @@ class ExampleTest extends TestCase
             ->assertSee('ART-000001', false)
             ->assertSee('Ciment gris')
             ->assertSee('15,00', false);
+    }
+
+    public function test_accounting_service_pages_manage_price_list_and_recurring_services(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Services',
+            'code' => 'ACCOUNTING_SERVICES',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'service admin',
+            'email' => 'service-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Service Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'service-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Service Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        AccountingCurrency::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'code' => 'USD',
+            'name' => 'Dollar americain',
+            'symbol' => '$',
+            'exchange_rate' => 2800,
+            'is_base' => false,
+            'is_default' => false,
+            'status' => AccountingCurrency::STATUS_ACTIVE,
+        ]);
+
+        $categoriesRoute = route('main.accounting.services.index', [$company, $site, 'categories']);
+
+        $this->actingAs($admin)->get($categoriesRoute)
+            ->assertOk()
+            ->assertSee(__('main.service_categories'), false)
+            ->assertSee(__('main.new_service_category'), false)
+            ->assertSee('id="companyTable"', false)
+            ->assertSee('resources/js/main/accounting-service-resource.js', false);
+
+        $this->actingAs($admin)->post(route('main.accounting.services.store', [$company, $site, 'units']), [
+            'name' => 'Heure',
+            'symbol' => 'h',
+            'status' => 'active',
+        ])->assertRedirect(route('main.accounting.services.index', [$company, $site, 'units']));
+
+        $unit = AccountingServiceUnit::query()->where('symbol', 'h')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_service_units', [
+            'company_site_id' => $site->id,
+            'reference' => 'SUN-000001',
+            'name' => 'Heure',
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.services.store', [$company, $site, 'categories']), [
+            'name' => 'Conseil',
+            'description' => 'Prestations de conseil',
+            'status' => 'active',
+        ])->assertRedirect($categoriesRoute);
+
+        $category = AccountingServiceCategory::query()->where('name', 'Conseil')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_service_categories', [
+            'company_site_id' => $site->id,
+            'reference' => 'SCA-000001',
+            'name' => 'Conseil',
+        ]);
+
+        $this->actingAs($admin)->get($categoriesRoute)
+            ->assertOk()
+            ->assertSee(base64_encode(json_encode([
+                'name' => 'Conseil',
+                'status' => 'active',
+                'description' => 'Prestations de conseil',
+            ])), false);
+
+        $this->actingAs($admin)->post(route('main.accounting.services.store', [$company, $site, 'subcategories']), [
+            'category_id' => $category->id,
+            'name' => 'Audit',
+            'description' => 'Audit de processus',
+            'status' => 'active',
+        ])->assertRedirect(route('main.accounting.services.index', [$company, $site, 'subcategories']));
+
+        $subcategory = AccountingServiceSubcategory::query()->where('name', 'Audit')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_service_subcategories', [
+            'company_site_id' => $site->id,
+            'reference' => 'SSC-000001',
+            'category_id' => $category->id,
+            'name' => 'Audit',
+        ]);
+
+        $priceListRoute = route('main.accounting.services.index', [$company, $site, 'price-list']);
+
+        $this->actingAs($admin)->get($priceListRoute)
+            ->assertOk()
+            ->assertSee('data-category-id="'.$category->id.'"', false)
+            ->assertSee(CurrencyCatalog::label('CDF'), false)
+            ->assertSee(CurrencyCatalog::label('USD'), false)
+            ->assertDontSee(CurrencyCatalog::label('EUR'), false);
+
+        $this->actingAs($admin)->post(route('main.accounting.services.store', [$company, $site, 'price-list']), [
+            'category_id' => $category->id,
+            'subcategory_id' => $subcategory->id,
+            'unit_id' => $unit->id,
+            'name' => 'Service devise hors site',
+            'billing_type' => AccountingService::BILLING_FIXED,
+            'price' => 500,
+            'currency' => 'EUR',
+            'tax_rate' => 16,
+            'estimated_duration' => 60,
+            'status' => 'active',
+        ])->assertSessionHasErrors('currency');
+
+        $this->actingAs($admin)->post(route('main.accounting.services.store', [$company, $site, 'price-list']), [
+            'category_id' => $category->id,
+            'subcategory_id' => $subcategory->id,
+            'unit_id' => $unit->id,
+            'name' => 'Audit financier',
+            'billing_type' => AccountingService::BILLING_FIXED,
+            'price' => 500000,
+            'currency' => 'CDF',
+            'tax_rate' => 16,
+            'estimated_duration' => 180,
+            'status' => 'active',
+            'description' => 'Audit complet',
+        ])->assertRedirect($priceListRoute);
+
+        $service = AccountingService::query()->where('name', 'Audit financier')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_services', [
+            'company_site_id' => $site->id,
+            'reference' => 'SRV-000001',
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'name' => 'Audit financier',
+        ]);
+
+        $this->actingAs($admin)->get(route('main.accounting.services.index', [$company, $site, 'subcategories']))
+            ->assertOk()
+            ->assertSee('data-bs-target="#serviceRelatedModal"', false)
+            ->assertSee(base64_encode(json_encode([[
+                'reference' => 'SRV-000001',
+                'name' => 'Audit financier',
+                'unit' => 'Heure',
+                'price' => '500 000,00 CDF',
+            ]])), false);
+
+        $this->actingAs($admin)->get(route('main.accounting.services.index', [$company, $site, 'categories']))
+            ->assertOk()
+            ->assertSee('data-bs-target="#serviceRelatedModal"', false)
+            ->assertSee(__('main.category_services_title', ['name' => $category->name]))
+            ->assertSee(base64_encode(json_encode([[
+                'reference' => 'SRV-000001',
+                'name' => 'Audit financier',
+                'unit' => 'Heure',
+                'subcategory' => $subcategory->name,
+            ]])), false);
+
+        $this->actingAs($admin)->post(route('main.accounting.services.store', [$company, $site, 'recurring']), [
+            'service_id' => $service->id,
+            'name' => 'Audit mensuel',
+            'frequency' => AccountingRecurringService::FREQUENCY_MONTHLY,
+            'start_date' => now()->format('Y-m-d'),
+            'next_invoice_date' => now()->addMonth()->format('Y-m-d'),
+            'status' => 'active',
+        ])->assertRedirect(route('main.accounting.services.index', [$company, $site, 'recurring']));
+
+        $this->assertDatabaseHas('accounting_recurring_services', [
+            'company_site_id' => $site->id,
+            'reference' => 'REC-000001',
+            'service_id' => $service->id,
+            'name' => 'Audit mensuel',
+        ]);
+
+        $this->actingAs($admin)->get($priceListRoute)
+            ->assertOk()
+            ->assertSee('SRV-000001', false)
+            ->assertSee('Audit financier')
+            ->assertSee('500 000 CDF', false);
+    }
+
+    public function test_accounting_currencies_page_manages_site_currencies(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Currencies',
+            'code' => 'ACCOUNTING_CURRENCIES',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'currency admin',
+            'email' => 'currency-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Currency Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'currency-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Currency Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $route = route('main.accounting.currencies', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.currencies'), false)
+            ->assertSee(__('main.new_currency'), false)
+            ->assertSee('resources/js/main/accounting-currencies.js', false)
+            ->assertSee('data-currency-mode="view"', false);
+
+        $this->assertDatabaseHas('accounting_currencies', [
+            'company_site_id' => $site->id,
+            'reference' => 'CUR-000001',
+            'code' => 'CDF',
+            'exchange_rate' => 1,
+            'is_base' => true,
+            'is_default' => true,
+        ]);
+
+        $baseCurrency = AccountingCurrency::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_default', true)
+            ->firstOrFail();
+
+        $this->actingAs($admin)
+            ->delete(route('main.accounting.currencies.destroy', [$company, $site, $baseCurrency]))
+            ->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_currencies', [
+            'id' => $baseCurrency->id,
+            'is_default' => true,
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.currencies.store', [$company, $site]), [
+            'code' => 'USD',
+            'exchange_rate' => 2800,
+            'status' => AccountingCurrency::STATUS_ACTIVE,
+        ])->assertRedirect($route);
+
+        $usd = AccountingCurrency::query()->where('code', 'USD')->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_currencies', [
+            'company_site_id' => $site->id,
+            'reference' => 'CUR-000002',
+            'code' => 'USD',
+            'name' => 'Dollar américain',
+            'symbol' => '$',
+            'exchange_rate' => 2800,
+            'is_base' => false,
+            'is_default' => false,
+        ]);
+
+        $this->actingAs($admin)->put(route('main.accounting.currencies.update', [$company, $site, $usd]), [
+            'code' => 'USD',
+            'exchange_rate' => 2850,
+            'status' => AccountingCurrency::STATUS_INACTIVE,
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_currencies', [
+            'id' => $usd->id,
+            'exchange_rate' => 2850,
+            'status' => AccountingCurrency::STATUS_INACTIVE,
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee('Dollar américain')
+            ->assertSee('2 850,00', false)
+            ->assertSeeInOrder(['Franc congolais', 'Dollar américain']);
+    }
+
+    public function test_accounting_payment_methods_page_manages_site_payment_methods(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Payment Methods',
+            'code' => 'ACCOUNTING_PAYMENT_METHODS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'payment admin',
+            'email' => 'payment-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Payment Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'payment-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Payment Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $route = route('main.accounting.payment-methods', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.payment_methods'), false)
+            ->assertSee(__('main.new_payment_method'), false)
+            ->assertSee('resources/js/main/accounting-payment-methods.js', false)
+            ->assertSee('data-payment-method-mode="view"', false);
+
+        $this->assertDatabaseHas('accounting_payment_methods', [
+            'company_site_id' => $site->id,
+            'reference' => 'PAY-000001',
+            'name' => 'Espèces',
+            'type' => AccountingPaymentMethod::TYPE_CASH,
+            'currency_code' => 'CDF',
+            'is_default' => true,
+            'is_system_default' => true,
+        ]);
+
+        $systemMethod = AccountingPaymentMethod::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_system_default', true)
+            ->firstOrFail();
+
+        $this->actingAs($admin)
+            ->delete(route('main.accounting.payment-methods.destroy', [$company, $site, $systemMethod]))
+            ->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_payment_methods', [
+            'id' => $systemMethod->id,
+            'is_system_default' => true,
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.payment-methods.store', [$company, $site]), [
+            'name' => 'Compte Rawbank',
+            'type' => AccountingPaymentMethod::TYPE_BANK,
+            'currency_code' => 'CDF',
+            'code' => 'RAW-CDF',
+            'bank_name' => 'Rawbank',
+            'account_holder' => 'Payment Company',
+            'account_number' => '000123456789',
+            'iban' => 'CD12 RAWB 0001',
+            'bic_swift' => 'RAWBCDKI',
+            'bank_address' => 'Kinshasa',
+            'description' => 'Compte principal',
+            'is_default' => '1',
+            'status' => AccountingPaymentMethod::STATUS_ACTIVE,
+        ])->assertRedirect($route);
+
+        $bankMethod = AccountingPaymentMethod::query()
+            ->where('company_site_id', $site->id)
+            ->where('type', AccountingPaymentMethod::TYPE_BANK)
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_payment_methods', [
+            'id' => $bankMethod->id,
+            'reference' => 'PAY-000002',
+            'name' => 'Compte Rawbank',
+            'currency_code' => 'CDF',
+            'bank_name' => 'Rawbank',
+            'account_number' => '000123456789',
+            'is_default' => true,
+        ]);
+
+        $this->assertDatabaseHas('accounting_payment_methods', [
+            'id' => $systemMethod->id,
+            'is_default' => false,
+        ]);
+
+        $this->actingAs($admin)->put(route('main.accounting.payment-methods.update', [$company, $site, $bankMethod]), [
+            'name' => 'Mobile money',
+            'type' => AccountingPaymentMethod::TYPE_MOBILE_MONEY,
+            'currency_code' => 'CDF',
+            'code' => 'MOBILE-CDF',
+            'is_default' => '1',
+            'status' => AccountingPaymentMethod::STATUS_INACTIVE,
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_payment_methods', [
+            'id' => $bankMethod->id,
+            'name' => 'Mobile money',
+            'type' => AccountingPaymentMethod::TYPE_MOBILE_MONEY,
+            'bank_name' => null,
+            'account_number' => null,
+            'status' => AccountingPaymentMethod::STATUS_INACTIVE,
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee('Mobile money')
+            ->assertSee(__('main.payment_method_type_mobile_money'), false)
+            ->assertSeeInOrder(['Espèces', 'Mobile money']);
+    }
+
+    public function test_accounting_proforma_invoices_page_manages_proformas_with_global_vat(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Proformas',
+            'code' => 'ACCOUNTING_PROFORMAS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'proforma admin',
+            'email' => 'proforma-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Proforma Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'proforma-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Proforma Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        AccountingCurrency::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'code' => 'USD',
+            'name' => 'Dollar americain',
+            'symbol' => '$',
+            'exchange_rate' => 2800,
+            'is_base' => false,
+            'is_default' => false,
+            'status' => AccountingCurrency::STATUS_ACTIVE,
+        ]);
+
+        $client = AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Client Proforma',
+        ]);
+
+        $route = route('main.accounting.proforma-invoices', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.proforma_invoices'), false)
+            ->assertSee(__('main.new_proforma_invoice'), false)
+            ->assertSee(route('main.accounting.proforma-invoices.create', [$company, $site]), false);
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.proforma-invoices.create', [$company, $site]))
+            ->assertOk()
+            ->assertSee(__('main.new_proforma_invoice'), false)
+            ->assertSee(CurrencyCatalog::label('CDF'), false)
+            ->assertSee(CurrencyCatalog::label('USD'), false)
+            ->assertDontSee(CurrencyCatalog::label('EUR'), false)
+            ->assertSee('data-default-value="16.00"', false)
+            ->assertSee(__('main.offer_validity'), false)
+            ->assertSee(__('main.payment_terms_half_order'), false)
+            ->assertSee(__('main.payment_terms_to_discuss'), false)
+            ->assertSee('data-proforma-line-list', false)
+            ->assertSee('resources/js/main/accounting-proforma-invoices.js', false);
+
+        $this->actingAs($admin)->post(route('main.accounting.proforma-invoices.store', [$company, $site]), [
+            'client_id' => $client->id,
+            'title' => 'Devise non configuree',
+            'issue_date' => '2026-05-01',
+            'currency' => 'EUR',
+            'status' => AccountingProformaInvoice::STATUS_DRAFT,
+            'tax_rate' => 16,
+            'lines' => [
+                [
+                    'line_type' => AccountingProformaInvoiceLine::TYPE_FREE,
+                    'description' => 'Maintenance applicative',
+                    'quantity' => 1,
+                    'unit_price' => 100,
+                    'discount_amount' => 0,
+                ],
+            ],
+        ])->assertSessionHasErrors(['currency', 'expiration_date']);
+
+        $this->actingAs($admin)->post(route('main.accounting.proforma-invoices.store', [$company, $site]), [
+            'client_id' => $client->id,
+            'title' => 'Offre maintenance',
+            'issue_date' => '2026-05-01',
+            'expiration_date' => '2026-05-15',
+            'currency' => 'CDF',
+            'status' => AccountingProformaInvoice::STATUS_DRAFT,
+            'payment_terms' => AccountingProformaInvoice::PAYMENT_HALF_ORDER,
+            'tax_rate' => 16,
+            'notes' => 'Validite de quinze jours.',
+            'terms' => 'Paiement a la commande.',
+            'lines' => [
+                [
+                    'line_type' => AccountingProformaInvoiceLine::TYPE_FREE,
+                    'description' => 'Maintenance applicative',
+                    'details' => 'Pack initial',
+                    'quantity' => 2,
+                    'unit_price' => 100,
+                    'discount_amount' => 10,
+                ],
+                [
+                    'line_type' => AccountingProformaInvoiceLine::TYPE_FREE,
+                    'description' => 'Support',
+                    'quantity' => 1,
+                    'unit_price' => 50,
+                    'discount_amount' => 0,
+                ],
+            ],
+        ])->assertRedirect($route);
+
+        $proforma = AccountingProformaInvoice::query()->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_proforma_invoices', [
+            'id' => $proforma->id,
+            'reference' => 'PRO-000001',
+            'client_id' => $client->id,
+            'payment_terms' => AccountingProformaInvoice::PAYMENT_HALF_ORDER,
+            'subtotal' => 250,
+            'discount_total' => 10,
+            'total_ht' => 240,
+            'tax_rate' => 16,
+            'tax_amount' => 38.4,
+            'total_ttc' => 278.4,
+        ]);
+        $this->assertSame('2026-05-15', $proforma->expiration_date->format('Y-m-d'));
+
+        $this->assertDatabaseHas('accounting_proforma_invoice_lines', [
+            'proforma_invoice_id' => $proforma->id,
+            'description' => 'Maintenance applicative',
+            'line_total' => 190,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.proforma-invoices.edit', [$company, $site, $proforma]))
+            ->assertOk()
+            ->assertSee(__('main.edit_proforma_invoice'), false)
+            ->assertSee(route('main.accounting.proforma-invoices.update', [$company, $site, $proforma]), false)
+            ->assertSee('Offre maintenance', false)
+            ->assertSee('2026-05-15', false)
+            ->assertSee('Maintenance applicative', false)
+            ->assertSee('resources/js/main/accounting-proforma-invoices.js', false);
+
+        $this->actingAs($admin)->put(route('main.accounting.proforma-invoices.update', [$company, $site, $proforma]), [
+            'client_id' => $client->id,
+            'title' => 'Offre maintenance acceptee',
+            'issue_date' => '2026-05-01',
+            'expiration_date' => '2026-05-20',
+            'currency' => 'CDF',
+            'status' => AccountingProformaInvoice::STATUS_ACCEPTED,
+            'payment_terms' => AccountingProformaInvoice::PAYMENT_FULL_ORDER,
+            'tax_rate' => 10,
+            'lines' => [
+                [
+                    'line_type' => AccountingProformaInvoiceLine::TYPE_FREE,
+                    'description' => 'Maintenance applicative',
+                    'quantity' => 1,
+                    'unit_price' => 200,
+                    'discount_type' => AccountingProformaInvoiceLine::DISCOUNT_PERCENT,
+                    'discount_amount' => 10,
+                ],
+            ],
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_proforma_invoices', [
+            'id' => $proforma->id,
+            'title' => 'Offre maintenance acceptee',
+            'status' => AccountingProformaInvoice::STATUS_ACCEPTED,
+            'payment_terms' => AccountingProformaInvoice::PAYMENT_FULL_ORDER,
+            'discount_total' => 20,
+            'total_ht' => 180,
+            'tax_amount' => 18,
+            'total_ttc' => 198,
+        ]);
+        $this->assertSame('2026-05-20', $proforma->fresh()->expiration_date->format('Y-m-d'));
+
+        $this->assertDatabaseHas('accounting_proforma_invoice_lines', [
+            'proforma_invoice_id' => $proforma->id,
+            'discount_type' => AccountingProformaInvoiceLine::DISCOUNT_PERCENT,
+            'discount_amount' => 10,
+            'line_total' => 180,
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee('PRO-000001')
+            ->assertSee('Client Proforma')
+            ->assertSee('198,00 CDF', false)
+            ->assertSee(route('main.accounting.proforma-invoices.print', [$company, $site, $proforma]), false)
+            ->assertSee(route('main.accounting.proforma-invoices.edit', [$company, $site, $proforma]), false)
+            ->assertSee(__('main.proforma_status_accepted'), false);
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.proforma-invoices.print', [$company, $site, $proforma]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
     }
 
     public function test_non_accounting_module_opens_under_development_page(): void

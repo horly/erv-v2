@@ -72,6 +72,7 @@ return [
         'country' => 'pays',
         'email' => 'e-mail',
         'expires_at' => 'date d’expiration',
+        'expiration_date' => 'validité de l’offre',
         'id_nat' => 'ID Nat.',
         'logo' => 'logo',
         'name' => 'nom',

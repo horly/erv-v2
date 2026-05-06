@@ -17,7 +17,14 @@ class AccountingStockCategory extends Model
     public const STATUS_ACTIVE = 'active';
     public const STATUS_INACTIVE = 'inactive';
 
-    protected $fillable = ['company_site_id', 'created_by', 'reference', 'name', 'description', 'status'];
+    protected $fillable = ['company_site_id', 'warehouse_id', 'created_by', 'reference', 'name', 'description', 'status', 'is_default'];
+
+    protected function casts(): array
+    {
+        return [
+            'is_default' => 'boolean',
+        ];
+    }
 
     public function site(): BelongsTo
     {
@@ -27,6 +34,11 @@ class AccountingStockCategory extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(AccountingStockWarehouse::class, 'warehouse_id');
     }
 
     public function subcategories(): HasMany

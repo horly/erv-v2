@@ -428,6 +428,21 @@ input {
     text-transform: uppercase;
 }
 
+.company-table .amount-cell,
+.company-table .text-end {
+    text-align: right;
+}
+
+.company-table .amount-cell {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.company-table th.text-end .table-sort {
+    justify-content: flex-end;
+    margin-left: auto;
+}
+
 .company-table tbody tr {
     border-bottom: 1px solid var(--line);
 }
@@ -498,6 +513,12 @@ input {
     border-color: rgba(16, 185, 129, .35);
     background: #ecfdf5;
     color: #059669;
+}
+
+.table-button-print:hover {
+    border-color: rgba(37, 99, 235, .35);
+    background: #eff6ff;
+    color: #2563eb;
 }
 
 .client-name,
@@ -891,12 +912,20 @@ input {
 .accounting-creditor-modal .modal-dialog,
 .accounting-debtor-modal .modal-dialog,
 .accounting-partner-modal .modal-dialog,
-.accounting-representative-modal .modal-dialog {
+.accounting-representative-modal .modal-dialog,
+.accounting-proforma-modal .modal-dialog {
     max-width: 760px;
 }
 
-.accounting-stock-modal .modal-dialog {
+.accounting-stock-modal .modal-dialog,
+.accounting-service-modal .modal-dialog,
+.accounting-currency-modal .modal-dialog,
+.accounting-payment-method-modal .modal-dialog {
     max-width: 780px;
+}
+
+.accounting-proforma-modal .modal-dialog {
+    max-width: 1180px;
 }
 
 .client-form h2,
@@ -905,28 +934,72 @@ input {
 .creditor-form h2,
 .debtor-form h2,
 .partner-form h2,
-.representative-form h2 {
+.representative-form h2,
+.proforma-form h2 {
     display: inline-flex;
     align-items: center;
     gap: .65rem;
 }
 
-.stock-resource-form h2 {
+.stock-resource-form h2,
+.service-resource-form h2,
+.currency-form h2,
+.payment-method-form h2 {
     display: inline-flex;
     align-items: center;
     gap: .65rem;
 }
 
 .stock-status-active,
-.stock-status-validated {
+.stock-status-validated,
+.service-status-active,
+.currency-status-active,
+.currency-status-base,
+.payment-method-status-active,
+.payment-method-status-default {
     background: #dcfce7;
     color: #047857;
 }
 
 .stock-status-inactive,
-.stock-status-draft {
+.stock-status-draft,
+.service-status-inactive,
+.currency-status-inactive,
+.currency-status-secondary,
+.payment-method-status-inactive,
+.payment-method-status-secondary {
     background: #f1f5f9;
     color: #475569;
+}
+
+.proforma-status-draft,
+.proforma-status-expired {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.proforma-status-sent {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.proforma-status-accepted,
+.proforma-status-converted {
+    background: #dcfce7;
+    color: #047857;
+}
+
+.proforma-status-rejected {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.payment-method-bank-section {
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--surface) 92%, #eff6ff 8%);
 }
 
 .stock-status-cancelled {
@@ -951,6 +1024,27 @@ input {
 .partner-relation-section,
 .representative-performance-section {
     margin-top: 1rem;
+}
+
+.proforma-lines-section,
+.proforma-summary-grid {
+    margin-top: 1rem;
+}
+
+.client-bank-section,
+.supplier-bank-section,
+.prospect-crm-section {
+    margin-top: 1.75rem;
+}
+
+.proforma-page-intro {
+    margin: .75rem 0 1.8rem;
+    color: var(--muted);
+    font-size: .92rem;
+}
+
+.proforma-page-card {
+    padding: 1.5rem;
 }
 
 .form-section-title {
@@ -991,13 +1085,151 @@ input {
     gap: .75rem;
 }
 
+.proforma-line-list {
+    display: grid;
+    gap: .75rem;
+}
+
+.proforma-search-select {
+    position: relative;
+}
+
+.proforma-native-select {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.proforma-search-select-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    width: 100%;
+    min-height: 48px;
+    background-image: none;
+    text-align: left;
+}
+
+.proforma-search-select-toggle span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.proforma-search-select-toggle .is-placeholder {
+    color: var(--muted);
+}
+
+.proforma-search-select-menu {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + .4rem);
+    right: 0;
+    left: 0;
+    padding: .55rem;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: 0 18px 45px rgba(15, 23, 42, .16);
+}
+
+.proforma-search-select-input {
+    min-height: 42px;
+    margin-bottom: .45rem;
+}
+
+.proforma-search-select-options {
+    display: grid;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.proforma-search-select-option {
+    width: 100%;
+    padding: .62rem .7rem;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink);
+    font-size: .86rem;
+    line-height: 1.35;
+    text-align: left;
+}
+
+.proforma-search-select-option:hover,
+.proforma-search-select-option:focus {
+    background: #edf4ff;
+    color: #0b55ff;
+    outline: 0;
+}
+
+.proforma-search-select-empty {
+    padding: .7rem;
+    color: var(--muted);
+    font-size: .82rem;
+    text-align: center;
+}
+
 .client-contact-card,
 .supplier-contact-card,
-.prospect-contact-card {
+.prospect-contact-card,
+.proforma-line-card {
     padding: 1rem;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: var(--surface);
+}
+
+.proforma-line-card {
+    background: #f8fafc;
+}
+
+.proforma-total-card {
+    display: grid;
+    gap: .75rem;
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.proforma-total-card dl {
+    display: grid;
+    gap: .55rem;
+    margin: 0;
+}
+
+.proforma-total-card dl div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-top: .55rem;
+    border-top: 1px dashed var(--line);
+}
+
+.proforma-total-card dt {
+    color: var(--muted);
+    font-size: .78rem;
+    font-weight: 850;
+}
+
+.proforma-total-card dd {
+    margin: 0;
+    color: var(--ink);
+    font-weight: 900;
+}
+
+.proforma-total-card .total {
+    align-items: center;
+}
+
+.proforma-total-card .total dd {
+    color: #0b55ff;
+    font-size: 1.1rem;
 }
 
 .client-contact-card .icon-light-button,
@@ -1192,6 +1424,84 @@ input {
 .subscription-modal .table-responsive:has(.modal-table) {
     border: 1px solid var(--line);
     border-radius: 10px;
+}
+
+.subscription-modal.related-table-modal .modal-dialog {
+    max-width: min(920px, calc(100vw - 2rem));
+}
+
+.subscription-modal .modal-table-dialog .modal-body {
+    padding: 2rem;
+}
+
+.subscription-modal .modal-table-dialog h2 {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: .6rem;
+    max-width: calc(100% - 3rem);
+    margin-bottom: 1.25rem;
+    line-height: 1.25;
+}
+
+.modal-table-frame {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.modal-data-table {
+    width: 100%;
+    min-width: 760px;
+}
+
+.modal-data-table th,
+.modal-data-table td {
+    padding: .85rem 1rem;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.modal-data-table .amount-cell,
+.modal-data-table .text-end {
+    text-align: right;
+}
+
+.modal-data-table th {
+    background: var(--table-head);
+}
+
+.modal-table-empty {
+    display: flex;
+    min-height: 58px;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-weight: 700;
+    text-align: center;
+}
+
+.modal-table-pagination {
+    margin-top: 1rem;
+}
+
+@media (max-width: 640px) {
+    .subscription-modal.related-table-modal .modal-dialog {
+        max-width: calc(100vw - 1rem);
+        margin-inline: .5rem;
+    }
+
+    .subscription-modal .modal-table-dialog .modal-body {
+        padding: 1.5rem;
+    }
+
+    .modal-data-table {
+        min-width: 700px;
+    }
 }
 
 .login-history-footer .pagination-shell {

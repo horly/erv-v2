@@ -146,7 +146,7 @@
                                     <th><button class="table-sort" type="button" data-sort-index="1">{{ __('main.reference') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="2">{{ __('main.debtor') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="3">{{ __('main.type') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    <th><button class="table-sort" type="button" data-sort-index="4" data-sort-type="number">{{ __('main.amount_receivable') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th class="text-end"><button class="table-sort" type="button" data-sort-index="4" data-sort-type="number">{{ __('main.amount_receivable') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="5">{{ __('main.due_date') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="6">{{ __('main.status') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th class="text-end">{{ __('admin.actions') }}</th>
@@ -169,7 +169,7 @@
                                             </span>
                                         </td>
                                         <td><span class="status-pill debtor-type-{{ $debtor->type }}">{{ $typeLabels[$debtor->type] ?? $debtor->type }}</span></td>
-                                        <td data-sort-value="{{ $debtor->balanceReceivable() }}">{{ $formatMoney($debtor->balanceReceivable(), $debtor->currency) }}</td>
+                                        <td class="amount-cell text-end" data-sort-value="{{ $debtor->balanceReceivable() }}">{{ $formatMoney($debtor->balanceReceivable(), $debtor->currency) }}</td>
                                         <td>{{ $debtor->due_date ? $debtor->due_date->translatedFormat('d M Y') : '-' }}</td>
                                         <td><span class="status-pill debtor-status-{{ $debtor->status }}">{{ $statusLabels[$debtor->status] ?? $debtor->status }}</span></td>
                                         <td>

@@ -81,6 +81,11 @@ class CompanySite extends Model
         return $this->hasMany(AccountingProspect::class);
     }
 
+    public function accountingProformaInvoices(): HasMany
+    {
+        return $this->hasMany(AccountingProformaInvoice::class);
+    }
+
     public function accountingCreditors(): HasMany
     {
         return $this->hasMany(AccountingCreditor::class);
@@ -99,6 +104,16 @@ class CompanySite extends Model
     public function accountingSalesRepresentatives(): HasMany
     {
         return $this->hasMany(AccountingSalesRepresentative::class);
+    }
+
+    public function accountingCurrencies(): HasMany
+    {
+        return $this->hasMany(AccountingCurrency::class);
+    }
+
+    public function accountingPaymentMethods(): HasMany
+    {
+        return $this->hasMany(AccountingPaymentMethod::class);
     }
 
     public function accountingStockCategories(): HasMany
@@ -149,6 +164,31 @@ class CompanySite extends Model
     public function accountingStockAlerts(): HasMany
     {
         return $this->hasMany(AccountingStockAlert::class);
+    }
+
+    public function accountingServiceUnits(): HasMany
+    {
+        return $this->hasMany(AccountingServiceUnit::class);
+    }
+
+    public function accountingServiceCategories(): HasMany
+    {
+        return $this->hasMany(AccountingServiceCategory::class);
+    }
+
+    public function accountingServiceSubcategories(): HasMany
+    {
+        return $this->hasMany(AccountingServiceSubcategory::class);
+    }
+
+    public function accountingServices(): HasMany
+    {
+        return $this->hasMany(AccountingService::class);
+    }
+
+    public function accountingRecurringServices(): HasMany
+    {
+        return $this->hasMany(AccountingRecurringService::class);
     }
 
     public static function types(): array

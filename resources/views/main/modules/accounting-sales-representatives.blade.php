@@ -148,7 +148,7 @@
                                     <th><button class="table-sort" type="button" data-sort-index="2">{{ __('main.sales_representative') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="3">{{ __('main.type') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="4">{{ __('main.sales_area') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    <th><button class="table-sort" type="button" data-sort-index="5" data-sort-type="number">{{ __('main.monthly_target') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th class="text-end"><button class="table-sort" type="button" data-sort-index="5" data-sort-type="number">{{ __('main.monthly_target') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="6" data-sort-type="number">{{ __('main.commission_rate') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="7">{{ __('main.status') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th class="text-end">{{ __('admin.actions') }}</th>
@@ -172,7 +172,7 @@
                                         </td>
                                         <td><span class="status-pill representative-type-{{ $representative->type }}">{{ $typeLabels[$representative->type] ?? $representative->type }}</span></td>
                                         <td>{{ $representative->sales_area ?: '-' }}</td>
-                                        <td data-sort-value="{{ $representative->monthly_target }}">{{ $formatMoney($representative->monthly_target, $representative->currency) }}</td>
+                                        <td class="amount-cell text-end" data-sort-value="{{ $representative->monthly_target }}">{{ $formatMoney($representative->monthly_target, $representative->currency) }}</td>
                                         <td data-sort-value="{{ $representative->commission_rate }}">{{ number_format((float) $representative->commission_rate, 2, ',', ' ') }}%</td>
                                         <td><span class="status-pill representative-status-{{ $representative->status }}">{{ $statusLabels[$representative->status] ?? $representative->status }}</span></td>
                                         <td>
