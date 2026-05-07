@@ -8,6 +8,7 @@
     $debtorsRoute = route('main.accounting.debtors', [$company, $site]);
     $partnersRoute = route('main.accounting.partners', [$company, $site]);
     $salesRepresentativesRoute = route('main.accounting.sales-representatives', [$company, $site]);
+    $customerOrdersRoute = route('main.accounting.customer-orders', [$company, $site]);
     $stockRoute = fn (string $resource) => route('main.accounting.stock.index', [$company, $site, $resource]);
     $serviceRoute = fn (string $resource) => route('main.accounting.services.index', [$company, $site, $resource]);
     $navigationGroups = [
@@ -54,7 +55,7 @@
     ];
     $salesItems = [
         ['label' => __('main.proforma_invoices'), 'icon' => 'bi-file-earmark-richtext', 'href' => route('main.accounting.proforma-invoices', [$company, $site]), 'active' => $activeAccountingPage === 'proforma-invoices'],
-        ['label' => __('main.customer_orders'), 'icon' => 'bi-clipboard-check'],
+        ['label' => __('main.customer_orders'), 'icon' => 'bi-clipboard-check', 'href' => $customerOrdersRoute, 'active' => $activeAccountingPage === 'customer-orders'],
         ['label' => __('main.delivery_notes'), 'icon' => 'bi-box-arrow-up'],
         ['label' => __('main.sales_invoices'), 'icon' => 'bi-receipt'],
         ['label' => __('main.payments_received'), 'icon' => 'bi-cash-coin'],

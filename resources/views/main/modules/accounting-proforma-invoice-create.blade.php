@@ -156,7 +156,7 @@
                 <p class="proforma-page-intro">{{ __('main.proforma_invoices_subtitle') }}</p>
 
                 <section class="company-card proforma-page-card">
-                    <form class="admin-form proforma-form proforma-page-form" method="POST" action="{{ $formAction }}" data-create-action="{{ route('main.accounting.proforma-invoices.store', [$company, $site]) }}" data-title-create="{{ __('main.new_proforma_invoice') }}" data-title-edit="{{ __('main.edit_proforma_invoice') }}" data-submit-create="{{ __('admin.create') }}" data-submit-edit="{{ __('admin.update') }}" novalidate>
+                    <form class="admin-form proforma-form proforma-page-form" method="POST" action="{{ $formAction }}" enctype="multipart/form-data" data-create-action="{{ route('main.accounting.proforma-invoices.store', [$company, $site]) }}" data-title-create="{{ __('main.new_proforma_invoice') }}" data-title-edit="{{ __('main.edit_proforma_invoice') }}" data-submit-create="{{ __('admin.create') }}" data-submit-edit="{{ __('admin.update') }}" novalidate>
                         @csrf
                         @if ($isEditingProforma)
                             @method('PUT')
@@ -209,6 +209,37 @@
                                 @error('status')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                             </div>
                         </div>
+
+                        @if (! $isEditingProforma)
+                            <section class="proforma-lines-section supplier-quote-import-section">
+                                <div class="form-section-title">
+                                    <span><i class="bi bi-file-earmark-arrow-up" aria-hidden="true"></i> {{ __('main.import_supplier_quote') }}</span>
+                                </div>
+
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-lg-6">
+                                        <label for="supplierQuoteFile" class="form-label">{{ __('main.supplier_quote_file') }}</label>
+                                        <input id="supplierQuoteFile" name="supplier_quote_file" type="file" class="form-control @error('supplier_quote_file') is-invalid @enderror" accept=".csv,.txt,.xlsx,.pdf,.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff">
+                                        <small class="form-text text-muted">{{ __('main.supplier_quote_file_hint') }}</small>
+                                        @error('supplier_quote_file')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                                    </div>
+                                    <div class="col-lg-4">
+                                        <label class="form-check customer-order-stock-check">
+                                            <input type="hidden" name="supplier_quote_create_stock_items" value="0">
+                                            <input class="form-check-input" type="checkbox" name="supplier_quote_create_stock_items" value="1" @checked((bool) old('supplier_quote_create_stock_items'))>
+                                            <span class="form-check-label">{{ __('main.create_imported_items_in_stock') }}</span>
+                                        </label>
+                                        <small class="form-text text-muted">{{ __('main.create_imported_items_in_stock_hint') }}</small>
+                                    </div>
+                                    <div class="col-lg-2">
+                                        <button type="submit" class="light-action w-100 justify-content-center" formaction="{{ route('main.accounting.proforma-invoices.import-quote', [$company, $site]) }}" formmethod="POST" formenctype="multipart/form-data">
+                                            <i class="bi bi-upload" aria-hidden="true"></i>
+                                            {{ __('main.import_lines') }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </section>
+                        @endif
 
                         <section class="proforma-lines-section">
                             <div class="form-section-title">

@@ -10,6 +10,8 @@ use BaconQrCode\Writer;
 use App\Models\AccountingClient;
 use App\Models\AccountingCreditor;
 use App\Models\AccountingCurrency;
+use App\Models\AccountingCustomerOrder;
+use App\Models\AccountingCustomerOrderLine;
 use App\Models\AccountingDebtor;
 use App\Models\AccountingPaymentMethod;
 use App\Models\AccountingPartner;
@@ -44,6 +46,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -1430,6 +1433,68 @@ class MainController extends Controller
         ]);
     }
 
+    public function importAccountingProformaQuote(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.proforma-invoices', [$company, $site]);
+        }
+
+        $validated = $request->validate([
+            'supplier_quote_file' => ['required', 'file', 'max:5120'],
+            'supplier_quote_create_stock_items' => ['nullable', 'boolean'],
+        ]);
+
+        $file = $validated['supplier_quote_file'];
+        $extension = strtolower($file->getClientOriginalExtension());
+
+        if (! in_array($extension, ['csv', 'txt', 'xlsx', 'pdf', 'jpg', 'jpeg', 'png', 'webp', 'bmp', 'tif', 'tiff'], true)) {
+            return redirect()
+                ->route('main.accounting.proforma-invoices.create', [$company, $site])
+                ->withErrors(['supplier_quote_file' => __('main.supplier_quote_unsupported')])
+                ->withInput($request->except('supplier_quote_file'));
+        }
+
+        if ($this->isSupplierQuoteImageExtension($extension) && ! $this->hasTesseractOcr()) {
+            return redirect()
+                ->route('main.accounting.proforma-invoices.create', [$company, $site])
+                ->withErrors(['supplier_quote_file' => __('main.supplier_quote_image_ocr_unavailable')])
+                ->withInput($request->except('supplier_quote_file'));
+        }
+
+        $importedLines = $this->parseSupplierQuoteFile($file);
+
+        if ($importedLines === []) {
+            return redirect()
+                ->route('main.accounting.proforma-invoices.create', [$company, $site])
+                ->withErrors(['supplier_quote_file' => __('main.supplier_quote_no_lines')])
+                ->withInput($request->except('supplier_quote_file'));
+        }
+
+        $createStockItems = $request->boolean('supplier_quote_create_stock_items');
+        $importedLines = array_map(function (array $line) use ($createStockItems): array {
+            $line['create_stock_item'] = $createStockItems ? '1' : '0';
+
+            return $line;
+        }, $importedLines);
+
+        $input = $request->except('supplier_quote_file');
+        $input['supplier_quote_create_stock_items'] = $createStockItems ? '1' : '0';
+        $input['lines'] = $this->mergeImportedProformaLines((array) ($input['lines'] ?? []), $importedLines);
+
+        return redirect()
+            ->route('main.accounting.proforma-invoices.create', [$company, $site])
+            ->withInput($input)
+            ->with('success', __('main.supplier_quote_imported', ['count' => count($importedLines)]));
+    }
+
     public function editAccountingProformaInvoice(Company $company, CompanySite $site, AccountingProformaInvoice $proforma): View|RedirectResponse
     {
         $access = $this->accountingAccess($company, $site);
@@ -1490,13 +1555,14 @@ class MainController extends Controller
         }
 
         $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingStockRecords($site);
 
         $validated = $request->validate($this->proformaRules($site));
 
         DB::transaction(function () use ($site, $user, $validated): void {
             $totals = $this->calculateProformaTotals($validated['lines'], (float) $validated['tax_rate']);
             $proforma = $site->accountingProformaInvoices()->create($this->proformaPayload($validated, $user, $totals));
-            $this->syncProformaLines($proforma, $validated['lines']);
+            $this->syncProformaLines($proforma, $site, $user, $validated['lines'], $validated['currency']);
         });
 
         return redirect()
@@ -1530,13 +1596,14 @@ class MainController extends Controller
         }
 
         $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingStockRecords($site);
 
         $validated = $request->validate($this->proformaRules($site, true));
 
-        DB::transaction(function () use ($proforma, $user, $validated): void {
+        DB::transaction(function () use ($proforma, $site, $user, $validated): void {
             $totals = $this->calculateProformaTotals($validated['lines'], (float) $validated['tax_rate']);
             $proforma->update($this->proformaPayload($validated, $user, $totals, false));
-            $this->syncProformaLines($proforma, $validated['lines']);
+            $this->syncProformaLines($proforma, $site, $user, $validated['lines'], $validated['currency']);
         });
 
         return redirect()
@@ -1584,6 +1651,95 @@ class MainController extends Controller
         ])->setPaper('a4')->stream($filename);
     }
 
+    public function convertAccountingProformaToCustomerOrder(Company $company, CompanySite $site, AccountingProformaInvoice $proforma): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ($proforma->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.proforma-invoices', [$company, $site]);
+        }
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.proforma-invoices', [$company, $site]);
+        }
+
+        $existingOrder = AccountingCustomerOrder::query()
+            ->where('company_site_id', $site->id)
+            ->where('proforma_invoice_id', $proforma->id)
+            ->first();
+
+        if ($existingOrder) {
+            $proforma->update(['status' => AccountingProformaInvoice::STATUS_CONVERTED]);
+
+            return redirect()
+                ->route('main.accounting.customer-orders', [$company, $site])
+                ->with('success', __('main.proforma_already_converted_to_order', ['reference' => $existingOrder->reference]));
+        }
+
+        if ($proforma->status === AccountingProformaInvoice::STATUS_CONVERTED) {
+            return redirect()
+                ->route('main.accounting.proforma-invoices', [$company, $site])
+                ->with('success', __('main.proforma_already_converted'))
+                ->with('toast_type', 'danger');
+        }
+
+        if ($proforma->status !== AccountingProformaInvoice::STATUS_ACCEPTED) {
+            return redirect()
+                ->route('main.accounting.proforma-invoices', [$company, $site])
+                ->with('success', __('main.proforma_must_be_accepted_before_conversion'))
+                ->with('toast_type', 'danger');
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+
+        DB::transaction(function () use ($proforma, $site, $user): void {
+            $proforma->load(['lines.item', 'lines.service']);
+
+            $lines = $proforma->lines
+                ->map(fn (AccountingProformaInvoiceLine $line): array => $this->customerOrderLineFromProformaLine($line))
+                ->all();
+
+            $totals = $this->calculateCustomerOrderTotals($lines, (float) $proforma->tax_rate);
+
+            $order = $site->accountingCustomerOrders()->create([
+                'client_id' => $proforma->client_id,
+                'proforma_invoice_id' => $proforma->id,
+                'created_by' => $user->id,
+                'title' => $proforma->title,
+                'order_date' => now()->toDateString(),
+                'expected_delivery_date' => $proforma->expiration_date?->toDateString(),
+                'currency' => $proforma->currency,
+                'status' => AccountingCustomerOrder::STATUS_CONFIRMED,
+                'payment_terms' => $proforma->payment_terms,
+                'subtotal' => $totals['subtotal'],
+                'cost_total' => $totals['cost_total'],
+                'margin_total' => $totals['margin_total'],
+                'margin_rate' => $totals['margin_rate'],
+                'discount_total' => $totals['discount_total'],
+                'total_ht' => $totals['total_ht'],
+                'tax_rate' => $proforma->tax_rate,
+                'tax_amount' => $totals['tax_amount'],
+                'total_ttc' => $totals['total_ttc'],
+                'notes' => $proforma->notes,
+                'terms' => $proforma->terms,
+            ]);
+
+            $this->syncCustomerOrderLines($order, $site, $user, $lines, $proforma->currency);
+
+            $proforma->update(['status' => AccountingProformaInvoice::STATUS_CONVERTED]);
+        });
+
+        return redirect()
+            ->route('main.accounting.customer-orders', [$company, $site])
+            ->with('success', __('main.proforma_converted_to_order'));
+    }
+
     public function destroyAccountingProformaInvoice(Company $company, CompanySite $site, AccountingProformaInvoice $proforma): RedirectResponse
     {
         $access = $this->accountingAccess($company, $site);
@@ -1610,6 +1766,193 @@ class MainController extends Controller
         return redirect()
             ->route('main.accounting.proforma-invoices', [$company, $site])
             ->with('success', __('main.converted_proforma_cannot_delete'))
+            ->with('toast_type', 'danger');
+    }
+
+    public function accountingCustomerOrders(Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+
+        return view('main.modules.accounting-customer-orders', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'orderPermissions' => $this->sitePermissionFlags($user, $site),
+            'orders' => AccountingCustomerOrder::query()
+                ->with(['client', 'lines'])
+                ->where('company_site_id', $site->id)
+                ->latest('order_date')
+                ->latest()
+                ->paginate(5)
+                ->withQueryString(),
+            'statusLabels' => $this->customerOrderStatusLabels(),
+        ]);
+    }
+
+    public function createAccountingCustomerOrder(Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.customer-orders', [$company, $site]);
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+
+        return view('main.modules.accounting-customer-order-create', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'clients' => $this->proformaClientOptions($site),
+            'items' => $this->customerOrderItemOptions($site),
+            'services' => $this->customerOrderServiceOptions($site),
+            'currencies' => $this->siteCurrencyOptions($site),
+            'statusLabels' => $this->customerOrderStatusLabels(),
+            'lineTypeLabels' => $this->customerOrderLineTypeLabels(),
+            'paymentTermLabels' => $this->proformaPaymentTermLabels(),
+            'defaultTaxRate' => $this->companyCountryVatRate($company),
+        ]);
+    }
+
+    public function editAccountingCustomerOrder(Company $company, CompanySite $site, AccountingCustomerOrder $order): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        if ($order->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.customer-orders', [$company, $site]);
+        }
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.customer-orders', [$company, $site]);
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+
+        return view('main.modules.accounting-customer-order-create', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'order' => $order->load('lines'),
+            'clients' => $this->proformaClientOptions($site),
+            'items' => $this->customerOrderItemOptions($site),
+            'services' => $this->customerOrderServiceOptions($site),
+            'currencies' => $this->siteCurrencyOptions($site),
+            'statusLabels' => $this->customerOrderStatusLabels(),
+            'lineTypeLabels' => $this->customerOrderLineTypeLabels(),
+            'paymentTermLabels' => $this->proformaPaymentTermLabels(),
+            'defaultTaxRate' => $this->companyCountryVatRate($company),
+        ]);
+    }
+
+    public function storeAccountingCustomerOrder(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.customer-orders', [$company, $site]);
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingStockRecords($site);
+        $validated = $request->validate($this->customerOrderRules($site));
+
+        DB::transaction(function () use ($site, $user, $validated): void {
+            $totals = $this->calculateCustomerOrderTotals($validated['lines'], (float) $validated['tax_rate']);
+            $order = $site->accountingCustomerOrders()->create($this->customerOrderPayload($validated, $user, $totals));
+            $this->syncCustomerOrderLines($order, $site, $user, $validated['lines'], $validated['currency']);
+        });
+
+        return redirect()
+            ->route('main.accounting.customer-orders', [$company, $site])
+            ->with('success', __('main.customer_order_saved'));
+    }
+
+    public function updateAccountingCustomerOrder(Request $request, Company $company, CompanySite $site, AccountingCustomerOrder $order): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ($order->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.customer-orders', [$company, $site]);
+        }
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.customer-orders', [$company, $site]);
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingStockRecords($site);
+        $validated = $request->validate($this->customerOrderRules($site, true));
+
+        DB::transaction(function () use ($order, $site, $user, $validated): void {
+            $totals = $this->calculateCustomerOrderTotals($validated['lines'], (float) $validated['tax_rate']);
+            $order->update($this->customerOrderPayload($validated, $user, $totals, false));
+            $this->syncCustomerOrderLines($order, $site, $user, $validated['lines'], $validated['currency']);
+        });
+
+        return redirect()
+            ->route('main.accounting.customer-orders', [$company, $site])
+            ->with('success', __('main.customer_order_updated'));
+    }
+
+    public function destroyAccountingCustomerOrder(Company $company, CompanySite $site, AccountingCustomerOrder $order): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_delete']) {
+            return redirect()->route('main.accounting.customer-orders', [$company, $site]);
+        }
+
+        if ($order->company_site_id === $site->id) {
+            $order->delete();
+        }
+
+        return redirect()
+            ->route('main.accounting.customer-orders', [$company, $site])
+            ->with('success', __('main.customer_order_deleted'))
             ->with('toast_type', 'danger');
     }
 
@@ -4429,10 +4772,386 @@ class MainController extends Controller
             'lines.*.description' => ['required', 'string', 'max:255'],
             'lines.*.details' => ['nullable', 'string'],
             'lines.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'lines.*.cost_price' => ['nullable', 'numeric', 'min:0'],
             'lines.*.unit_price' => ['required', 'numeric', 'min:0'],
             'lines.*.discount_type' => ['nullable', Rule::in(AccountingProformaInvoiceLine::discountTypes())],
             'lines.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'lines.*.create_stock_item' => ['nullable', 'boolean'],
         ];
+    }
+
+    private function parseSupplierQuoteFile(UploadedFile $file): array
+    {
+        $path = $file->getRealPath();
+
+        if (! $path) {
+            return [];
+        }
+
+        $rows = match (strtolower($file->getClientOriginalExtension())) {
+            'csv', 'txt' => $this->readDelimitedQuoteFile($path),
+            'xlsx' => $this->readXlsxQuoteFile($path),
+            'pdf' => $this->readPdfQuoteFile($path),
+            'jpg', 'jpeg', 'png', 'webp', 'bmp', 'tif', 'tiff' => $this->readImageQuoteFile($path),
+            default => [],
+        };
+
+        return $this->supplierQuoteRowsToProformaLines($rows);
+    }
+
+    private function isSupplierQuoteImageExtension(string $extension): bool
+    {
+        return in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'tif', 'tiff'], true);
+    }
+
+    private function readDelimitedQuoteFile(string $path): array
+    {
+        $content = file_get_contents($path);
+
+        if ($content === false) {
+            return [];
+        }
+
+        $content = preg_replace('/^\xEF\xBB\xBF/', '', $content) ?? $content;
+        $lines = array_values(array_filter(preg_split('/\r\n|\r|\n/', $content) ?: [], fn (string $line): bool => trim($line) !== ''));
+        $delimiters = ["\t", ';', ','];
+        $delimiter = ';';
+        $bestScore = -1;
+
+        foreach ($delimiters as $candidate) {
+            $score = 0;
+            foreach (array_slice($lines, 0, 10) as $line) {
+                $score += substr_count($line, $candidate);
+            }
+
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $delimiter = $candidate;
+            }
+        }
+
+        return array_map(fn (string $line): array => str_getcsv($line, $delimiter), $lines);
+    }
+
+    private function readXlsxQuoteFile(string $path): array
+    {
+        if (! class_exists(\ZipArchive::class)) {
+            return [];
+        }
+
+        $zip = new \ZipArchive();
+
+        if ($zip->open($path) !== true) {
+            return [];
+        }
+
+        $sharedStrings = [];
+        $sharedXml = $zip->getFromName('xl/sharedStrings.xml');
+
+        if (is_string($sharedXml)) {
+            $shared = simplexml_load_string($sharedXml);
+
+            if ($shared !== false) {
+                foreach ($shared->si as $item) {
+                    if (isset($item->t)) {
+                        $sharedStrings[] = (string) $item->t;
+                        continue;
+                    }
+
+                    $text = '';
+                    foreach ($item->r as $run) {
+                        $text .= (string) $run->t;
+                    }
+                    $sharedStrings[] = $text;
+                }
+            }
+        }
+
+        $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+
+        if (! is_string($sheetXml)) {
+            return [];
+        }
+
+        $sheet = simplexml_load_string($sheetXml);
+
+        if ($sheet === false) {
+            return [];
+        }
+
+        $rows = [];
+
+        foreach ($sheet->sheetData->row as $xmlRow) {
+            $row = [];
+
+            foreach ($xmlRow->c as $cell) {
+                $attributes = $cell->attributes();
+                $reference = (string) ($attributes['r'] ?? '');
+                $type = (string) ($attributes['t'] ?? '');
+                $column = $this->xlsxColumnIndex($reference);
+                $value = '';
+
+                if ($type === 's') {
+                    $value = $sharedStrings[(int) $cell->v] ?? '';
+                } elseif ($type === 'inlineStr') {
+                    $value = (string) ($cell->is->t ?? '');
+                } else {
+                    $value = (string) ($cell->v ?? '');
+                }
+
+                if ($column !== null) {
+                    $row[$column] = $value;
+                }
+            }
+
+            if ($row !== []) {
+                ksort($row);
+                $rows[] = array_values($row);
+            }
+        }
+
+        return $rows;
+    }
+
+    private function xlsxColumnIndex(string $reference): ?int
+    {
+        if (! preg_match('/^([A-Z]+)/i', $reference, $matches)) {
+            return null;
+        }
+
+        $letters = strtoupper($matches[1]);
+        $index = 0;
+
+        foreach (str_split($letters) as $letter) {
+            $index = ($index * 26) + (ord($letter) - 64);
+        }
+
+        return $index - 1;
+    }
+
+    private function readImageQuoteFile(string $path): array
+    {
+        $text = $this->extractTextFromImage($path);
+
+        return $text === '' ? [] : $this->quoteTextToRows($text);
+    }
+
+    private function extractTextFromImage(string $path): string
+    {
+        if (! $this->hasTesseractOcr()) {
+            return '';
+        }
+
+        $output = shell_exec('tesseract ' . escapeshellarg($path) . ' stdout -l fra+eng --psm 6 2>&1');
+
+        return is_string($output) ? trim($output) : '';
+    }
+
+    private function hasTesseractOcr(): bool
+    {
+        $output = shell_exec('tesseract --version 2>&1');
+
+        return is_string($output) && str_contains(strtolower($output), 'tesseract');
+    }
+
+    private function readPdfQuoteFile(string $path): array
+    {
+        $content = file_get_contents($path);
+
+        if ($content === false) {
+            return [];
+        }
+
+        $text = preg_replace('/[^\P{C}\r\n\t ]+/u', ' ', $content) ?? $content;
+
+        return $this->quoteTextToRows($text);
+    }
+
+    private function quoteTextToRows(string $text): array
+    {
+        $lines = preg_split('/\r\n|\r|\n/', $text) ?: [];
+        $rows = [];
+
+        foreach ($lines as $line) {
+            $line = trim(preg_replace('/\s+/', ' ', $line) ?? $line);
+
+            if ($line === '') {
+                continue;
+            }
+
+            if (preg_match('/^(.+?)\s+([0-9]+(?:[,.][0-9]+)?)\s+([0-9][0-9\s.,]*)$/u', $line, $matches)) {
+                $rows[] = [$matches[1], $matches[2], $matches[3]];
+                continue;
+            }
+
+            $parts = preg_split('/\s{2,}|\t+/', $line) ?: [];
+            if (count($parts) >= 3) {
+                $rows[] = $parts;
+            }
+        }
+
+        return $rows;
+    }
+
+    private function supplierQuoteRowsToProformaLines(array $rows): array
+    {
+        $rows = array_values(array_filter(array_map(function (array $row): array {
+            return array_values(array_map(fn ($value): string => trim((string) $value), $row));
+        }, $rows), fn (array $row): bool => collect($row)->contains(fn (string $value): bool => $value !== '')));
+
+        if ($rows === []) {
+            return [];
+        }
+
+        [$headerIndex, $columns] = $this->detectSupplierQuoteHeader($rows);
+        $dataRows = $headerIndex >= 0 ? array_slice($rows, $headerIndex + 1) : $rows;
+        $lines = [];
+
+        foreach ($dataRows as $row) {
+            $description = $this->quoteCell($row, $columns['description'] ?? 0);
+            $quantity = $this->localizedNumber($this->quoteCell($row, $columns['quantity'] ?? 1));
+            $unitPrice = $this->localizedNumber($this->quoteCell($row, $columns['unit_price'] ?? 2));
+            $total = isset($columns['total']) ? $this->localizedNumber($this->quoteCell($row, $columns['total'])) : 0;
+
+            if ($quantity <= 0) {
+                $quantity = 1;
+            }
+
+            if ($unitPrice <= 0 && $total > 0) {
+                $unitPrice = round($total / $quantity, 2);
+            }
+
+            if ($description === '' || $this->looksLikeQuoteHeader($description)) {
+                continue;
+            }
+
+            $lines[] = [
+                'line_type' => AccountingProformaInvoiceLine::TYPE_FREE,
+                'item_id' => '',
+                'service_id' => '',
+                'description' => Str::limit($description, 255, ''),
+                'details' => isset($columns['reference'])
+                    ? trim(__('main.reference') . ' : ' . $this->quoteCell($row, $columns['reference']))
+                    : '',
+                'quantity' => number_format($quantity, 2, '.', ''),
+                'cost_price' => number_format($unitPrice, 2, '.', ''),
+                'unit_price' => number_format($unitPrice, 2, '.', ''),
+                'discount_type' => AccountingProformaInvoiceLine::DISCOUNT_FIXED,
+                'discount_amount' => '0',
+                'create_stock_item' => '0',
+            ];
+        }
+
+        return $lines;
+    }
+
+    private function detectSupplierQuoteHeader(array $rows): array
+    {
+        $bestIndex = -1;
+        $bestColumns = [];
+        $bestScore = 0;
+
+        foreach (array_slice($rows, 0, 10, true) as $index => $row) {
+            $columns = [];
+            $score = 0;
+
+            foreach ($row as $column => $label) {
+                $key = $this->quoteHeaderKey($label);
+
+                if (in_array($key, ['designation', 'description', 'article', 'item', 'produit', 'product', 'service', 'libelle', 'libellearticle', 'nom', 'name'], true)) {
+                    $columns['description'] = $column;
+                    $score += 2;
+                } elseif (in_array($key, ['quantite', 'quantity', 'qty', 'qte', 'nombre'], true)) {
+                    $columns['quantity'] = $column;
+                    $score += 1;
+                } elseif (in_array($key, ['prixunitaire', 'unitprice', 'unitcost', 'price', 'prix', 'pu', 'rate', 'coutunitaire'], true)) {
+                    $columns['unit_price'] = $column;
+                    $score += 1;
+                } elseif (in_array($key, ['total', 'montant', 'amount', 'linetotal'], true)) {
+                    $columns['total'] = $column;
+                    $score += 1;
+                } elseif (in_array($key, ['reference', 'ref', 'sku', 'code'], true)) {
+                    $columns['reference'] = $column;
+                }
+            }
+
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestIndex = (int) $index;
+                $bestColumns = $columns;
+            }
+        }
+
+        return $bestScore >= 2
+            ? [$bestIndex, $bestColumns]
+            : [-1, ['description' => 0, 'quantity' => 1, 'unit_price' => 2]];
+    }
+
+    private function quoteHeaderKey(string $value): string
+    {
+        return Str::of($value)
+            ->ascii()
+            ->lower()
+            ->replaceMatches('/[^a-z0-9]+/', '')
+            ->toString();
+    }
+
+    private function quoteCell(array $row, int $index): string
+    {
+        return trim((string) ($row[$index] ?? ''));
+    }
+
+    private function localizedNumber(string $value): float
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return 0.0;
+        }
+
+        $value = preg_replace('/[^0-9,.\-]/', '', str_replace(["\xc2\xa0", ' '], '', $value)) ?? '';
+
+        if ($value === '' || $value === '-') {
+            return 0.0;
+        }
+
+        $lastComma = strrpos($value, ',');
+        $lastDot = strrpos($value, '.');
+
+        if ($lastComma !== false && $lastDot !== false) {
+            $decimal = $lastComma > $lastDot ? ',' : '.';
+            $thousands = $decimal === ',' ? '.' : ',';
+            $value = str_replace($thousands, '', $value);
+            $value = str_replace($decimal, '.', $value);
+        } elseif ($lastComma !== false) {
+            $value = str_replace(',', '.', $value);
+        }
+
+        return (float) $value;
+    }
+
+    private function looksLikeQuoteHeader(string $value): bool
+    {
+        return in_array($this->quoteHeaderKey($value), ['designation', 'description', 'article', 'produit', 'service'], true);
+    }
+
+    private function mergeImportedProformaLines(array $currentLines, array $importedLines): array
+    {
+        $currentLines = array_values(array_filter($currentLines, function ($line): bool {
+            return is_array($line) && ! $this->isBlankProformaLine($line);
+        }));
+
+        return array_values([...$currentLines, ...$importedLines]);
+    }
+
+    private function isBlankProformaLine(array $line): bool
+    {
+        return blank($line['description'] ?? null)
+            && blank($line['item_id'] ?? null)
+            && blank($line['service_id'] ?? null)
+            && blank($line['details'] ?? null)
+            && (float) ($line['unit_price'] ?? 0) <= 0;
     }
 
     private function proformaPayload(array $validated, User&Authenticatable $user, array $totals, bool $withCreator = true): array
@@ -4491,7 +5210,7 @@ class MainController extends Controller
         ];
     }
 
-    private function syncProformaLines(AccountingProformaInvoice $proforma, array $lines): void
+    private function syncProformaLines(AccountingProformaInvoice $proforma, CompanySite $site, User&Authenticatable $user, array $lines, string $currency): void
     {
         $proforma->lines()->delete();
 
@@ -4502,11 +5221,19 @@ class MainController extends Controller
             $discountValue = (float) ($line['discount_amount'] ?? 0);
             $rawTotal = $quantity * $unitPrice;
             $discount = $this->proformaLineDiscountAmount($line, $rawTotal);
+            $lineType = $line['line_type'];
+            $itemId = ($lineType === AccountingProformaInvoiceLine::TYPE_ITEM) ? ($line['item_id'] ?? null) : null;
+
+            if ($lineType === AccountingProformaInvoiceLine::TYPE_FREE && (bool) ($line['create_stock_item'] ?? false)) {
+                $item = $this->createStockItemFromFreeLine($site, $user, $line, $currency);
+                $lineType = AccountingProformaInvoiceLine::TYPE_ITEM;
+                $itemId = $item->id;
+            }
 
             $proforma->lines()->create([
-                'line_type' => $line['line_type'],
-                'item_id' => ($line['line_type'] === AccountingProformaInvoiceLine::TYPE_ITEM) ? ($line['item_id'] ?? null) : null,
-                'service_id' => ($line['line_type'] === AccountingProformaInvoiceLine::TYPE_SERVICE) ? ($line['service_id'] ?? null) : null,
+                'line_type' => $lineType,
+                'item_id' => $itemId,
+                'service_id' => ($lineType === AccountingProformaInvoiceLine::TYPE_SERVICE) ? ($line['service_id'] ?? null) : null,
                 'description' => $line['description'],
                 'details' => $line['details'] ?? null,
                 'quantity' => $quantity,
@@ -4516,6 +5243,45 @@ class MainController extends Controller
                 'line_total' => max(0, $rawTotal - $discount),
             ]);
         }
+    }
+
+    private function customerOrderLineFromProformaLine(AccountingProformaInvoiceLine $line): array
+    {
+        $lineType = $line->line_type;
+        $itemId = $line->item_id;
+        $serviceId = $line->service_id;
+
+        if ($lineType === AccountingProformaInvoiceLine::TYPE_ITEM && blank($itemId)) {
+            $lineType = AccountingProformaInvoiceLine::TYPE_FREE;
+        }
+
+        if ($lineType === AccountingProformaInvoiceLine::TYPE_SERVICE && blank($serviceId)) {
+            $lineType = AccountingProformaInvoiceLine::TYPE_FREE;
+        }
+
+        $costPrice = $lineType === AccountingProformaInvoiceLine::TYPE_ITEM
+            ? (float) ($line->item?->purchase_price ?? 0)
+            : 0;
+
+        $quantity = (float) $line->quantity;
+        $lineTotal = (float) $line->line_total;
+        $costTotal = $quantity * $costPrice;
+
+        return [
+            'line_type' => $lineType,
+            'item_id' => $lineType === AccountingProformaInvoiceLine::TYPE_ITEM ? $itemId : null,
+            'service_id' => $lineType === AccountingProformaInvoiceLine::TYPE_SERVICE ? $serviceId : null,
+            'description' => $line->description,
+            'details' => $line->details,
+            'quantity' => $quantity,
+            'cost_price' => $costPrice,
+            'unit_price' => (float) $line->unit_price,
+            'margin_type' => AccountingCustomerOrderLine::MARGIN_FIXED,
+            'margin_value' => max(0, $lineTotal - $costTotal),
+            'discount_type' => $line->discount_type,
+            'discount_amount' => (float) $line->discount_amount,
+            'create_stock_item' => 0,
+        ];
     }
 
     private function proformaLineDiscountAmount(array $line, float $rawTotal): float
@@ -4605,6 +5371,274 @@ class MainController extends Controller
             AccountingProformaInvoice::PAYMENT_ON_DELIVERY => __('main.payment_terms_on_delivery'),
             AccountingProformaInvoice::PAYMENT_AFTER_DELIVERY => __('main.payment_terms_after_delivery'),
             AccountingProformaInvoice::PAYMENT_TO_DISCUSS => __('main.payment_terms_to_discuss'),
+        ];
+    }
+
+    private function customerOrderRules(CompanySite $site, bool $updating = false): array
+    {
+        $existsForSite = fn (string $table) => Rule::exists($table, 'id')->where('company_site_id', $site->id);
+
+        return [
+            'client_id' => ['required', 'integer', $existsForSite('accounting_clients')],
+            'title' => ['nullable', 'string', 'max:255'],
+            'order_date' => ['required', 'date'],
+            'expected_delivery_date' => ['nullable', 'date', 'after_or_equal:order_date'],
+            'currency' => [
+                'required',
+                'string',
+                Rule::exists('accounting_currencies', 'code')
+                    ->where('company_site_id', $site->id)
+                    ->where('status', AccountingCurrency::STATUS_ACTIVE),
+            ],
+            'status' => [$updating ? 'required' : 'nullable', Rule::in(AccountingCustomerOrder::statuses())],
+            'payment_terms' => ['nullable', Rule::in(AccountingProformaInvoice::paymentTerms())],
+            'tax_rate' => ['required', 'numeric', 'min:0', 'max:100'],
+            'notes' => ['nullable', 'string'],
+            'terms' => ['nullable', 'string'],
+            'lines' => ['required', 'array', 'min:1'],
+            'lines.*.line_type' => ['required', Rule::in(AccountingCustomerOrderLine::types())],
+            'lines.*.item_id' => ['nullable', 'integer', $existsForSite('accounting_stock_items')],
+            'lines.*.service_id' => ['nullable', 'integer', $existsForSite('accounting_services')],
+            'lines.*.description' => ['required', 'string', 'max:255'],
+            'lines.*.details' => ['nullable', 'string'],
+            'lines.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'lines.*.cost_price' => ['required', 'numeric', 'min:0'],
+            'lines.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'lines.*.margin_type' => ['nullable', Rule::in(AccountingCustomerOrderLine::marginTypes())],
+            'lines.*.margin_value' => ['nullable', 'numeric', 'min:0'],
+            'lines.*.discount_type' => ['nullable', Rule::in(AccountingCustomerOrderLine::discountTypes())],
+            'lines.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'lines.*.create_stock_item' => ['nullable', 'boolean'],
+        ];
+    }
+
+    private function customerOrderPayload(array $validated, User&Authenticatable $user, array $totals, bool $withCreator = true): array
+    {
+        $payload = [
+            'client_id' => $validated['client_id'],
+            'title' => $validated['title'] ?? null,
+            'order_date' => $validated['order_date'],
+            'expected_delivery_date' => $validated['expected_delivery_date'] ?? null,
+            'currency' => $validated['currency'],
+            'status' => $validated['status'] ?? AccountingCustomerOrder::STATUS_DRAFT,
+            'payment_terms' => $validated['payment_terms'] ?? AccountingProformaInvoice::PAYMENT_TO_DISCUSS,
+            'subtotal' => $totals['subtotal'],
+            'cost_total' => $totals['cost_total'],
+            'margin_total' => $totals['margin_total'],
+            'margin_rate' => $totals['margin_rate'],
+            'discount_total' => $totals['discount_total'],
+            'total_ht' => $totals['total_ht'],
+            'tax_rate' => $validated['tax_rate'],
+            'tax_amount' => $totals['tax_amount'],
+            'total_ttc' => $totals['total_ttc'],
+            'notes' => $validated['notes'] ?? null,
+            'terms' => $validated['terms'] ?? null,
+        ];
+
+        if ($withCreator) {
+            $payload['created_by'] = $user->id;
+        }
+
+        return $payload;
+    }
+
+    private function calculateCustomerOrderTotals(array $lines, float $taxRate): array
+    {
+        $subtotal = 0;
+        $costTotal = 0;
+        $discountTotal = 0;
+        $totalHt = 0;
+
+        foreach ($lines as $line) {
+            $quantity = (float) ($line['quantity'] ?? 0);
+            $costPrice = (float) ($line['cost_price'] ?? 0);
+            $unitPrice = (float) ($line['unit_price'] ?? 0);
+            $rawTotal = $quantity * $unitPrice;
+            $lineCostTotal = $quantity * $costPrice;
+            $discount = $this->customerOrderLineDiscountAmount($line, $rawTotal);
+            $lineTotal = max(0, $rawTotal - $discount);
+
+            $subtotal += $rawTotal;
+            $costTotal += $lineCostTotal;
+            $discountTotal += $discount;
+            $totalHt += $lineTotal;
+        }
+
+        $marginTotal = $totalHt - $costTotal;
+        $taxAmount = round($totalHt * ($taxRate / 100), 2);
+
+        return [
+            'subtotal' => round($subtotal, 2),
+            'cost_total' => round($costTotal, 2),
+            'margin_total' => round($marginTotal, 2),
+            'margin_rate' => $costTotal > 0 ? round(($marginTotal / $costTotal) * 100, 2) : 0,
+            'discount_total' => round($discountTotal, 2),
+            'total_ht' => round($totalHt, 2),
+            'tax_amount' => $taxAmount,
+            'total_ttc' => round($totalHt + $taxAmount, 2),
+        ];
+    }
+
+    private function syncCustomerOrderLines(AccountingCustomerOrder $order, CompanySite $site, User&Authenticatable $user, array $lines, string $currency): void
+    {
+        $order->lines()->delete();
+
+        foreach ($lines as $line) {
+            $quantity = (float) ($line['quantity'] ?? 0);
+            $costPrice = (float) ($line['cost_price'] ?? 0);
+            $unitPrice = (float) ($line['unit_price'] ?? 0);
+            $discountType = $this->customerOrderLineDiscountType($line);
+            $discountValue = (float) ($line['discount_amount'] ?? 0);
+            $rawTotal = $quantity * $unitPrice;
+            $costTotal = $quantity * $costPrice;
+            $discount = $this->customerOrderLineDiscountAmount($line, $rawTotal);
+            $lineTotal = max(0, $rawTotal - $discount);
+            $lineType = $line['line_type'];
+            $itemId = ($lineType === AccountingCustomerOrderLine::TYPE_ITEM) ? ($line['item_id'] ?? null) : null;
+
+            if ($lineType === AccountingCustomerOrderLine::TYPE_FREE && (bool) ($line['create_stock_item'] ?? false)) {
+                $item = $this->createStockItemFromFreeLine($site, $user, $line, $currency);
+                $lineType = AccountingCustomerOrderLine::TYPE_ITEM;
+                $itemId = $item->id;
+            }
+
+            $order->lines()->create([
+                'line_type' => $lineType,
+                'item_id' => $itemId,
+                'service_id' => ($lineType === AccountingCustomerOrderLine::TYPE_SERVICE) ? ($line['service_id'] ?? null) : null,
+                'description' => $line['description'],
+                'details' => $line['details'] ?? null,
+                'quantity' => $quantity,
+                'cost_price' => $costPrice,
+                'unit_price' => $unitPrice,
+                'margin_type' => $this->customerOrderLineMarginType($line),
+                'margin_value' => (float) ($line['margin_value'] ?? 0),
+                'discount_type' => $discountType,
+                'discount_amount' => $discountValue,
+                'cost_total' => $costTotal,
+                'margin_total' => $lineTotal - $costTotal,
+                'line_total' => $lineTotal,
+            ]);
+        }
+    }
+
+    private function createStockItemFromFreeLine(CompanySite $site, User&Authenticatable $user, array $line, string $currency): AccountingStockItem
+    {
+        $this->ensureDefaultAccountingStockRecords($site);
+
+        $warehouse = AccountingStockWarehouse::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_default', true)
+            ->firstOrFail();
+
+        $category = AccountingStockCategory::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_default', true)
+            ->firstOrFail();
+
+        $subcategory = AccountingStockSubcategory::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_default', true)
+            ->first();
+
+        $unit = AccountingStockUnit::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_default', true)
+            ->firstOrFail();
+
+        return $site->accountingStockItems()->create([
+            'category_id' => $category->id,
+            'subcategory_id' => $subcategory?->id,
+            'unit_id' => $unit->id,
+            'default_warehouse_id' => $warehouse->id,
+            'created_by' => $user->id,
+            'name' => $line['description'],
+            'type' => AccountingStockItem::TYPE_PRODUCT,
+            'purchase_price' => (float) ($line['cost_price'] ?? 0),
+            'sale_price' => (float) ($line['unit_price'] ?? 0),
+            'current_stock' => 0,
+            'min_stock' => 0,
+            'currency' => $currency,
+            'status' => AccountingStockCategory::STATUS_ACTIVE,
+            'description' => $line['details'] ?? null,
+        ]);
+    }
+
+    private function customerOrderLineDiscountAmount(array $line, float $rawTotal): float
+    {
+        $discountType = $this->customerOrderLineDiscountType($line);
+        $discountValue = max(0, (float) ($line['discount_amount'] ?? 0));
+
+        if ($discountType === AccountingCustomerOrderLine::DISCOUNT_PERCENT) {
+            return round(min($discountValue, 100) * $rawTotal / 100, 2);
+        }
+
+        return round(min($discountValue, $rawTotal), 2);
+    }
+
+    private function customerOrderLineDiscountType(array $line): string
+    {
+        $discountType = $line['discount_type'] ?? AccountingCustomerOrderLine::DISCOUNT_FIXED;
+
+        return in_array($discountType, AccountingCustomerOrderLine::discountTypes(), true)
+            ? $discountType
+            : AccountingCustomerOrderLine::DISCOUNT_FIXED;
+    }
+
+    private function customerOrderLineMarginType(array $line): string
+    {
+        $marginType = $line['margin_type'] ?? AccountingCustomerOrderLine::MARGIN_FIXED;
+
+        return in_array($marginType, AccountingCustomerOrderLine::marginTypes(), true)
+            ? $marginType
+            : AccountingCustomerOrderLine::MARGIN_FIXED;
+    }
+
+    private function customerOrderItemOptions(CompanySite $site): array
+    {
+        return AccountingStockItem::query()
+            ->where('company_site_id', $site->id)
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(fn (AccountingStockItem $item) => [$item->id => [
+                'label' => "{$item->name} ({$item->reference})",
+                'price' => (float) $item->sale_price,
+                'cost' => (float) $item->purchase_price,
+            ]])
+            ->all();
+    }
+
+    private function customerOrderServiceOptions(CompanySite $site): array
+    {
+        return AccountingService::query()
+            ->where('company_site_id', $site->id)
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(fn (AccountingService $service) => [$service->id => [
+                'label' => "{$service->name} ({$service->reference})",
+                'price' => (float) $service->price,
+                'cost' => 0,
+            ]])
+            ->all();
+    }
+
+    private function customerOrderStatusLabels(): array
+    {
+        return [
+            AccountingCustomerOrder::STATUS_DRAFT => __('main.customer_order_status_draft'),
+            AccountingCustomerOrder::STATUS_CONFIRMED => __('main.customer_order_status_confirmed'),
+            AccountingCustomerOrder::STATUS_IN_PROGRESS => __('main.customer_order_status_in_progress'),
+            AccountingCustomerOrder::STATUS_DELIVERED => __('main.customer_order_status_delivered'),
+            AccountingCustomerOrder::STATUS_CANCELLED => __('main.customer_order_status_cancelled'),
+        ];
+    }
+
+    private function customerOrderLineTypeLabels(): array
+    {
+        return [
+            AccountingCustomerOrderLine::TYPE_ITEM => __('main.proforma_line_item'),
+            AccountingCustomerOrderLine::TYPE_SERVICE => __('main.proforma_line_service'),
+            AccountingCustomerOrderLine::TYPE_FREE => __('main.proforma_line_free'),
         ];
     }
 

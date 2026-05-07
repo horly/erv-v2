@@ -158,7 +158,15 @@
                                                 <a class="table-button table-button-print" href="{{ route('main.accounting.proforma-invoices.print', [$company, $site, $proforma]) }}" target="_blank" rel="noopener" aria-label="{{ __('main.print_pdf') }}" title="{{ __('main.print_pdf') }}">
                                                     <i class="bi bi-printer" aria-hidden="true"></i>
                                                 </a>
-                                                @if ($proformaPermissions['can_update'])
+                                                @if ($proformaPermissions['can_create'] && $proforma->status === \App\Models\AccountingProformaInvoice::STATUS_ACCEPTED)
+                                                    <form method="POST" action="{{ route('main.accounting.proforma-invoices.convert-to-order', [$company, $site, $proforma]) }}">
+                                                        @csrf
+                                                        <button type="submit" class="table-button table-button-edit" aria-label="{{ __('main.convert_to_customer_order') }}" title="{{ __('main.convert_to_customer_order') }}">
+                                                            <i class="bi bi-arrow-right-circle" aria-hidden="true"></i>
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                                @if ($proformaPermissions['can_update'] && $proforma->status !== \App\Models\AccountingProformaInvoice::STATUS_CONVERTED)
                                                     <a class="table-button table-button-edit" href="{{ route('main.accounting.proforma-invoices.edit', [$company, $site, $proforma]) }}" aria-label="{{ __('admin.edit') }}">
                                                         <i class="bi bi-pencil" aria-hidden="true"></i>
                                                     </a>

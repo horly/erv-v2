@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\AccountingClient;
 use App\Models\AccountingCreditor;
 use App\Models\AccountingCurrency;
+use App\Models\AccountingCustomerOrder;
+use App\Models\AccountingCustomerOrderLine;
 use App\Models\AccountingDebtor;
 use App\Models\AccountingPaymentMethod;
 use App\Models\AccountingPartner;
@@ -31,6 +33,7 @@ use App\Models\User;
 use App\Models\UserLoginHistory;
 use App\Support\CurrencyCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Fortify\Fortify;
@@ -2102,8 +2105,56 @@ class ExampleTest extends TestCase
             ->assertSee(__('main.offer_validity'), false)
             ->assertSee(__('main.payment_terms_half_order'), false)
             ->assertSee(__('main.payment_terms_to_discuss'), false)
+            ->assertSee(__('main.create_stock_item_from_free_line'), false)
+            ->assertSee(__('main.import_supplier_quote'), false)
+            ->assertSee('.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff', false)
+            ->assertSee(route('main.accounting.proforma-invoices.import-quote', [$company, $site]), false)
             ->assertSee('data-proforma-line-list', false)
             ->assertSee('resources/js/main/accounting-proforma-invoices.js', false);
+
+        $importResponse = $this->actingAs($admin)->post(route('main.accounting.proforma-invoices.import-quote', [$company, $site]), [
+            'client_id' => $client->id,
+            'title' => 'Offre depuis quotation',
+            'issue_date' => '2026-05-01',
+            'expiration_date' => '2026-05-15',
+            'currency' => 'CDF',
+            'status' => AccountingProformaInvoice::STATUS_DRAFT,
+            'payment_terms' => AccountingProformaInvoice::PAYMENT_TO_DISCUSS,
+            'tax_rate' => 16,
+            'supplier_quote_create_stock_items' => '1',
+            'supplier_quote_file' => UploadedFile::fake()->createWithContent('supplier-quote.csv', "Description;Quantity;Unit Price\nRouteur fournisseur;2;125\nSupport premium;1;80\n"),
+            'lines' => [
+                [
+                    'line_type' => AccountingProformaInvoiceLine::TYPE_FREE,
+                    'description' => '',
+                    'quantity' => 1,
+                    'unit_price' => 0,
+                    'discount_amount' => 0,
+                ],
+            ],
+        ]);
+
+        $importResponse
+            ->assertRedirect(route('main.accounting.proforma-invoices.create', [$company, $site]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('Routeur fournisseur', session()->getOldInput('lines.0.description'));
+        $this->assertSame('2.00', session()->getOldInput('lines.0.quantity'));
+        $this->assertSame('125.00', session()->getOldInput('lines.0.cost_price'));
+        $this->assertSame('1', session()->getOldInput('lines.0.create_stock_item'));
+        $this->assertSame('Support premium', session()->getOldInput('lines.1.description'));
+
+        $this->actingAs($admin)->post(route('main.accounting.proforma-invoices.import-quote', [$company, $site]), [
+            'client_id' => $client->id,
+            'title' => 'Offre depuis image',
+            'issue_date' => '2026-05-01',
+            'expiration_date' => '2026-05-15',
+            'currency' => 'CDF',
+            'status' => AccountingProformaInvoice::STATUS_DRAFT,
+            'payment_terms' => AccountingProformaInvoice::PAYMENT_TO_DISCUSS,
+            'tax_rate' => 16,
+            'supplier_quote_file' => UploadedFile::fake()->createWithContent('supplier-quote.png', 'fake-image-content'),
+        ])->assertSessionHasErrors(['supplier_quote_file']);
 
         $this->actingAs($admin)->post(route('main.accounting.proforma-invoices.store', [$company, $site]), [
             'client_id' => $client->id,
@@ -2146,9 +2197,11 @@ class ExampleTest extends TestCase
                 [
                     'line_type' => AccountingProformaInvoiceLine::TYPE_FREE,
                     'description' => 'Support',
+                    'details' => 'Article propose hors catalogue',
                     'quantity' => 1,
                     'unit_price' => 50,
                     'discount_amount' => 0,
+                    'create_stock_item' => 1,
                 ],
             ],
         ])->assertRedirect($route);
@@ -2173,6 +2226,29 @@ class ExampleTest extends TestCase
             'proforma_invoice_id' => $proforma->id,
             'description' => 'Maintenance applicative',
             'line_total' => 190,
+        ]);
+
+        $createdItem = AccountingStockItem::query()
+            ->where('company_site_id', $site->id)
+            ->where('name', 'Support')
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_stock_items', [
+            'id' => $createdItem->id,
+            'company_site_id' => $site->id,
+            'name' => 'Support',
+            'purchase_price' => 0,
+            'sale_price' => 50,
+            'current_stock' => 0,
+            'currency' => 'CDF',
+        ]);
+
+        $this->assertDatabaseHas('accounting_proforma_invoice_lines', [
+            'proforma_invoice_id' => $proforma->id,
+            'line_type' => AccountingProformaInvoiceLine::TYPE_ITEM,
+            'item_id' => $createdItem->id,
+            'description' => 'Support',
+            'line_total' => 50,
         ]);
 
         $this->actingAs($admin)
@@ -2232,12 +2308,257 @@ class ExampleTest extends TestCase
             ->assertSee('198,00 CDF', false)
             ->assertSee(route('main.accounting.proforma-invoices.print', [$company, $site, $proforma]), false)
             ->assertSee(route('main.accounting.proforma-invoices.edit', [$company, $site, $proforma]), false)
+            ->assertSee(route('main.accounting.proforma-invoices.convert-to-order', [$company, $site, $proforma]), false)
             ->assertSee(__('main.proforma_status_accepted'), false);
+
+        $this->actingAs($admin)
+            ->post(route('main.accounting.proforma-invoices.convert-to-order', [$company, $site, $proforma]))
+            ->assertRedirect(route('main.accounting.customer-orders', [$company, $site]));
+
+        $order = AccountingCustomerOrder::query()
+            ->where('proforma_invoice_id', $proforma->id)
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_customer_orders', [
+            'id' => $order->id,
+            'reference' => 'CMD-000001',
+            'client_id' => $client->id,
+            'proforma_invoice_id' => $proforma->id,
+            'status' => AccountingCustomerOrder::STATUS_CONFIRMED,
+            'payment_terms' => AccountingProformaInvoice::PAYMENT_FULL_ORDER,
+            'subtotal' => 200,
+            'discount_total' => 20,
+            'total_ht' => 180,
+            'tax_amount' => 18,
+            'total_ttc' => 198,
+        ]);
+
+        $this->assertDatabaseHas('accounting_customer_order_lines', [
+            'customer_order_id' => $order->id,
+            'line_type' => AccountingCustomerOrderLine::TYPE_FREE,
+            'description' => 'Maintenance applicative',
+            'quantity' => 1,
+            'unit_price' => 200,
+            'discount_type' => AccountingCustomerOrderLine::DISCOUNT_PERCENT,
+            'discount_amount' => 10,
+            'line_total' => 180,
+            'margin_total' => 180,
+        ]);
+
+        $this->assertSame(AccountingProformaInvoice::STATUS_CONVERTED, $proforma->fresh()->status);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(route('main.accounting.proforma-invoices.print', [$company, $site, $proforma]), false)
+            ->assertDontSee(route('main.accounting.proforma-invoices.edit', [$company, $site, $proforma]), false)
+            ->assertDontSee(route('main.accounting.proforma-invoices.convert-to-order', [$company, $site, $proforma]), false)
+            ->assertSee(__('main.proforma_status_converted'), false);
 
         $this->actingAs($admin)
             ->get(route('main.accounting.proforma-invoices.print', [$company, $site, $proforma]))
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');
+    }
+
+    public function test_accounting_customer_orders_page_manages_orders_with_item_margins(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Orders',
+            'code' => 'ACCOUNTING_ORDERS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'order admin',
+            'email' => 'order-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Order Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'order-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Order Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $currency = AccountingCurrency::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'code' => 'CDF',
+            'name' => 'Franc congolais',
+            'symbol' => 'FC',
+            'exchange_rate' => 1,
+            'is_base' => true,
+            'is_default' => true,
+            'status' => AccountingCurrency::STATUS_ACTIVE,
+        ]);
+
+        $client = AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Client Commande',
+        ]);
+
+        $unit = AccountingStockUnit::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Piece',
+            'symbol' => 'pc',
+            'type' => AccountingStockUnit::TYPE_QUANTITY,
+            'status' => 'active',
+        ]);
+
+        $warehouse = AccountingStockWarehouse::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Entrepot test',
+            'code' => 'DEP-TEST',
+            'status' => 'active',
+        ]);
+
+        $category = AccountingStockCategory::create([
+            'company_site_id' => $site->id,
+            'warehouse_id' => $warehouse->id,
+            'created_by' => $admin->id,
+            'name' => 'Materiel',
+            'status' => 'active',
+        ]);
+
+        $item = AccountingStockItem::create([
+            'company_site_id' => $site->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'default_warehouse_id' => $warehouse->id,
+            'created_by' => $admin->id,
+            'name' => 'Routeur',
+            'type' => AccountingStockItem::TYPE_PRODUCT,
+            'purchase_price' => 80,
+            'sale_price' => 100,
+            'currency' => $currency->code,
+            'status' => 'active',
+        ]);
+
+        $route = route('main.accounting.customer-orders', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.customer_orders'), false)
+            ->assertSee(__('main.new_customer_order'), false)
+            ->assertSee(route('main.accounting.customer-orders.create', [$company, $site]), false);
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.customer-orders.create', [$company, $site]))
+            ->assertOk()
+            ->assertSee(__('main.customer_order_lines'), false)
+            ->assertSee(__('main.margin_method'), false)
+            ->assertSee(__('main.create_stock_item_from_free_line'), false)
+            ->assertSee('resources/js/main/accounting-customer-orders.js', false);
+
+        $this->actingAs($admin)->post(route('main.accounting.customer-orders.store', [$company, $site]), [
+            'client_id' => $client->id,
+            'title' => 'Commande reseau',
+            'order_date' => '2026-05-07',
+            'expected_delivery_date' => '2026-05-15',
+            'currency' => 'CDF',
+            'status' => AccountingCustomerOrder::STATUS_CONFIRMED,
+            'payment_terms' => AccountingProformaInvoice::PAYMENT_FULL_ORDER,
+            'tax_rate' => 16,
+            'lines' => [
+                [
+                    'line_type' => AccountingCustomerOrderLine::TYPE_ITEM,
+                    'item_id' => $item->id,
+                    'description' => 'Routeur',
+                    'quantity' => 2,
+                    'cost_price' => 80,
+                    'unit_price' => 100,
+                    'margin_type' => AccountingCustomerOrderLine::MARGIN_PERCENT,
+                    'margin_value' => 25,
+                    'discount_type' => AccountingCustomerOrderLine::DISCOUNT_FIXED,
+                    'discount_amount' => 10,
+                ],
+                [
+                    'line_type' => AccountingCustomerOrderLine::TYPE_FREE,
+                    'description' => 'Switch non catalogue',
+                    'details' => 'Article a creer depuis la commande',
+                    'quantity' => 1,
+                    'cost_price' => 30,
+                    'unit_price' => 50,
+                    'margin_type' => AccountingCustomerOrderLine::MARGIN_FIXED,
+                    'margin_value' => 20,
+                    'discount_type' => AccountingCustomerOrderLine::DISCOUNT_FIXED,
+                    'discount_amount' => 0,
+                    'create_stock_item' => 1,
+                ],
+            ],
+        ])->assertRedirect($route);
+
+        $order = AccountingCustomerOrder::query()->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_customer_orders', [
+            'id' => $order->id,
+            'reference' => 'CMD-000001',
+            'client_id' => $client->id,
+            'subtotal' => 250,
+            'cost_total' => 190,
+            'discount_total' => 10,
+            'total_ht' => 240,
+            'margin_total' => 50,
+            'tax_amount' => 38.4,
+            'total_ttc' => 278.4,
+        ]);
+
+        $this->assertDatabaseHas('accounting_customer_order_lines', [
+            'customer_order_id' => $order->id,
+            'item_id' => $item->id,
+            'cost_price' => 80,
+            'margin_type' => AccountingCustomerOrderLine::MARGIN_PERCENT,
+            'margin_value' => 25,
+            'line_total' => 190,
+            'margin_total' => 30,
+        ]);
+
+        $createdItem = AccountingStockItem::query()
+            ->where('company_site_id', $site->id)
+            ->where('name', 'Switch non catalogue')
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_customer_order_lines', [
+            'customer_order_id' => $order->id,
+            'line_type' => AccountingCustomerOrderLine::TYPE_ITEM,
+            'item_id' => $createdItem->id,
+            'description' => 'Switch non catalogue',
+            'line_total' => 50,
+            'margin_total' => 20,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.customer-orders.edit', [$company, $site, $order]))
+            ->assertOk()
+            ->assertSee(__('main.edit_customer_order'), false)
+            ->assertSee('Commande reseau', false)
+            ->assertSee('Routeur', false);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee('CMD-000001')
+            ->assertSee('Client Commande')
+            ->assertSee('50,00 CDF', false)
+            ->assertSee('278,40 CDF', false);
     }
 
     public function test_non_accounting_module_opens_under_development_page(): void

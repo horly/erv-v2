@@ -5540,6 +5540,352 @@ Verification :
 - `php artisan view:clear` execute.
 - `php artisan test --filter=accounting_module` passe avec 2 tests et 34 assertions.
 
+### 2026-05-07 - Import quotation fournisseur vers proforma
+
+Prompt utilisateur :
+
+```text
+peux-tu m'ajouter cette option ?
+```
+
+Contexte :
+
+- L'utilisateur souhaite pouvoir importer un fichier de quotation fournisseur pour pre-remplir une facture proforma.
+- Le fichier peut servir de base a la proforma et, si l'utilisateur le choisit, creer aussi les lignes importees dans le stock.
+
+Changements appliques :
+
+- Ajout d'une route POST dediee pour importer une quotation fournisseur depuis la page de creation proforma.
+- Ajout d'une section "Importer une quotation fournisseur" dans la creation de proforma.
+- L'import accepte CSV, TXT, XLSX simple et PDF texte en lecture best-effort.
+- Les lignes importees sont ajoutees comme lignes libres de proforma et restent modifiables avant validation.
+- Ajout d'une option permettant de creer automatiquement les lignes importees comme articles de stock lors de la validation de la proforma.
+- Le prix fournisseur importe est conserve comme prix de revient/cache interne, puis utilise comme prix d'achat de l'article de stock cree.
+- Ajout des traductions FR/EN pour l'import.
+- Ajout d'un test couvrant l'import CSV et la conservation des lignes importees dans l'ancien input du formulaire.
+
+Fichiers modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `resources/views/main/modules/partials/proforma-line-row.blade.php`
+- `resources/js/main/accounting-proforma-invoices.js`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` OK.
+- `php -l resources\views\main\modules\accounting-proforma-invoice-create.blade.php` OK.
+- `php -l resources\views\main\modules\partials\proforma-line-row.blade.php` OK.
+- `node --check resources\js\main\accounting-proforma-invoices.js` OK.
+- `php artisan route:list --name=main.accounting.proforma-invoices.import-quote` OK.
+- `php artisan test --filter=proforma` passe avec 1 test et 69 assertions.
+- `php artisan test --filter=accounting_customer_orders` passe avec 1 test et 23 assertions.
+- `php artisan test` passe avec 77 tests et 847 assertions.
+
+### 2026-05-07 - Formats image pour import quotation fournisseur
+
+Prompt utilisateur :
+
+```text
+ajoute les formats des images aussi
+```
+
+Changements appliques :
+
+- Les imports de quotation fournisseur acceptent maintenant aussi les images `JPG`, `JPEG`, `PNG`, `WEBP`, `BMP`, `TIF` et `TIFF`.
+- Le champ fichier du formulaire proforma affiche ces extensions dans la liste des formats acceptes.
+- Le backend tente une extraction OCR via `Tesseract` lorsque le serveur le permet.
+- Si `Tesseract` n'est pas installe sur le serveur, un message d'erreur clair est affiche pour les images afin d'eviter un echec silencieux.
+- Les traductions FR/EN ont ete mises a jour.
+- Le test proforma verifie que les formats image sont proposes et que l'absence d'OCR est geree proprement.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` OK.
+- `php -l resources\views\main\modules\accounting-proforma-invoice-create.blade.php` OK.
+- `php artisan test --filter=proforma` passe avec 1 test et 72 assertions.
+- `php artisan test` passe avec 77 tests et 850 assertions.
+
+### 2026-05-07 - Commandes clients avec marges beneficiaires
+
+Prompt utilisateur :
+
+```text
+maintenant nous allons travailler sur commandes clients. Donne moi ton idee professionnel et ne fais encore rien.
+```
+
+Puis :
+
+```text
+lorsqu'on a une commande je souhaite que tu donnes aussi la possibilite d'ajouter des marges beneficiaires sur les items qu'en penses tu ?
+```
+
+Puis :
+
+```text
+applique tout ca
+```
+
+Travail realise :
+
+- Ajout du module "Commandes clients" dans le sous-menu Vente du module Comptabilite.
+- Creation des tables `accounting_customer_orders` et `accounting_customer_order_lines`.
+- Ajout des modeles `AccountingCustomerOrder` et `AccountingCustomerOrderLine`.
+- Ajout des routes CRUD des commandes clients.
+- Ajout des pages liste, creation et modification des commandes clients.
+- Ajout des lignes de commande avec article, service ou ligne libre.
+- Ajout du prix de revient, de la methode de marge, de la valeur de marge, de la remise et des totaux par ligne.
+- Calcul automatique du cout total, de la marge totale, du taux de marge, de la remise, du total HT, de la TVA et du total TTC.
+- Restriction des devises aux devises actives du site.
+- Ajout des traductions FR/EN.
+- Mise a jour de l'export `database/exports/erp_database.sql`.
+- Ajout d'un test fonctionnel couvrant la creation d'une commande client avec marge sur article.
+
+Fichiers modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `app/Models/CompanySite.php`
+- `app/Models/AccountingCustomerOrder.php`
+- `app/Models/AccountingCustomerOrderLine.php`
+- `database/migrations/2026_05_07_000001_create_accounting_customer_orders_tables.php`
+- `database/exports/erp_database.sql`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/partials/accounting-topbar.blade.php`
+- `resources/views/main/modules/accounting-customer-orders.blade.php`
+- `resources/views/main/modules/accounting-customer-order-create.blade.php`
+- `resources/views/main/modules/partials/customer-order-line-row.blade.php`
+- `resources/js/main/accounting-customer-orders.js`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app/Http/Controllers/MainController.php` OK.
+- `php -l app/Models/AccountingCustomerOrder.php` OK.
+- `php -l app/Models/AccountingCustomerOrderLine.php` OK.
+- `php -l database/migrations/2026_05_07_000001_create_accounting_customer_orders_tables.php` OK.
+- `php artisan route:list --name=customer-orders` OK.
+- `php artisan view:clear` execute.
+- `php artisan test --filter=customer_orders` passe.
+- `php artisan test --filter=accounting` passe avec 16 tests et 388 assertions.
+- `php artisan test` passe avec 77 tests et 821 assertions.
+
+### 2026-05-07 - Correction table manquante commandes clients
+
+Prompt utilisateur :
+
+```text
+lorsque je clique sur commandes clients j'ai cette erreur
+```
+
+Erreur constatee :
+
+- `SQLSTATE[42S02]: Base table or view not found: 1146 Table 'erp_database.accounting_customer_orders' doesn't exist`.
+
+Cause :
+
+- La migration `2026_05_07_000001_create_accounting_customer_orders_tables` etait encore en attente dans la base locale.
+
+Correction appliquee :
+
+- Execution de `php artisan migrate`.
+- La migration est maintenant marquee comme executee en batch 30.
+
+Verification :
+
+- `php artisan migrate:status | Select-String "customer_orders"` confirme `[30] Ran`.
+- `php artisan test --filter=customer_orders` passe avec 1 test et 21 assertions.
+
+### 2026-05-07 - Ligne libre de commande convertible en article de stock
+
+Prompt utilisateur :
+
+```text
+Pour les lignes libres libres lors de l'ajout de la commande est-ce possible de'entregistrer un item qui n'existe pas dans le stock ? réponds juste ne fais rien
+```
+
+Puis :
+
+```text
+applique ton idée
+```
+
+Travail realise :
+
+- Ajout d'une option sur les lignes libres de commande client pour creer aussi l'element dans le stock.
+- L'option s'affiche uniquement quand le type de ligne est "ligne libre".
+- Si l'option est cochee, la ligne libre cree automatiquement un article de stock avec les categorie, sous-categorie, unite et entrepot par defaut du site.
+- La ligne de commande est ensuite rattachee a l'article cree, tout en conservant les calculs de cout, marge, remise et total.
+- Si l'option n'est pas cochee, la ligne libre reste une simple ligne de commande sans impact sur le stock.
+- Ajout des traductions FR/EN et du style du champ.
+- Le test commandes clients couvre maintenant la conversion d'une ligne libre en article de stock.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/partials/customer-order-line-row.blade.php`
+- `resources/js/main/accounting-customer-orders.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app/Http/Controllers/MainController.php` OK.
+- `php -l resources/views/main/modules/partials/customer-order-line-row.blade.php` OK.
+- `php artisan test --filter=customer_orders` passe avec 1 test et 23 assertions.
+- `php artisan test --filter=accounting` passe avec 16 tests et 390 assertions.
+
+### 2026-05-07 - Ligne libre de proforma convertible en article de stock
+
+Prompt utilisateur :
+
+```text
+peux(tu appliquer également la logique dans la proforma comme tu l'avais expliqué ?
+```
+
+Travail realise :
+
+- Ajout de la meme logique que les commandes clients sur les factures proforma.
+- Sur une ligne de proforma de type "ligne libre", l'utilisateur peut cocher une option pour creer aussi l'element dans le stock.
+- L'option reste masquee pour les lignes de type article ou service.
+- Si l'option est cochee, le systeme cree un article de stock rattache aux categorie, sous-categorie, unite et entrepot par defaut du site.
+- La ligne de proforma est ensuite rattachee a l'article cree.
+- Si l'option n'est pas cochee, la ligne libre reste une ligne purement commerciale sans impact sur le stock.
+- La logique de creation d'article depuis une ligne libre est maintenant partagee entre proformas et commandes clients.
+- Le test proforma couvre la creation d'un article de stock depuis une ligne libre.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/partials/proforma-line-row.blade.php`
+- `resources/js/main/accounting-proforma-invoices.js`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app/Http/Controllers/MainController.php` OK.
+- `php -l resources/views/main/modules/partials/proforma-line-row.blade.php` OK.
+- `php artisan test --filter=proforma` passe avec 1 test et 48 assertions.
+- `php artisan test --filter=accounting` passe avec 16 tests et 393 assertions.
+
+### 2026-05-07 - Masquage du bouton modifier sur proforma convertie
+
+Prompt utilisateur :
+
+```text
+il serait mieux de ne pas afficher le bouton modifié sur une proforma convertie
+```
+
+Correction appliquee :
+
+- Le bouton de modification n'est plus affiche pour les proformas avec le statut converti.
+- Le bouton d'impression PDF reste disponible.
+- Le test proforma confirme qu'une proforma convertie n'affiche plus le lien de modification.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources/views/main/modules/accounting-proforma-invoices.blade.php` OK.
+- `php artisan test --filter=proforma` passe avec 1 test et 52 assertions.
+- `php artisan test --filter=accounting` passe avec 16 tests et 397 assertions.
+
+### 2026-05-07 - Conversion d'une proforma acceptee en commande client
+
+Prompt utilisateur :
+
+```text
+peux-tu appliquer ça ?
+```
+
+Contexte :
+
+- Le bouton "Convertir en commande client" doit permettre de transformer une proforma acceptee en commande client sans ressaisie.
+
+Travail realise :
+
+- Ajout d'une route POST de conversion proforma vers commande client.
+- Ajout d'une action controleur `convertAccountingProformaToCustomerOrder`.
+- Affichage du bouton de conversion uniquement pour les proformas acceptees et si l'utilisateur peut creer.
+- La conversion cree une commande client liee a la proforma d'origine via `proforma_invoice_id`.
+- Les informations reprises sont le client, l'objet, les dates, la devise, la modalite de paiement, les notes, les conditions, la TVA et les totaux.
+- Les lignes de proforma sont reprises dans la commande client.
+- Pour les lignes article, le prix de revient est repris depuis l'article afin de calculer la marge.
+- Pour les lignes service ou libres, le prix de revient est mis a zero par defaut.
+- La proforma convertie passe automatiquement au statut `converted`.
+- Le systeme evite les doubles conversions en reutilisant le lien existant si une commande a deja ete creee.
+- Ajout des traductions FR/EN.
+- Le test proforma couvre maintenant la conversion, la creation de la commande et le verrouillage de la proforma.
+
+Fichiers modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app/Http/Controllers/MainController.php` OK.
+- `php -l routes/web.php` OK.
+- `php -l resources/views/main/modules/accounting-proforma-invoices.blade.php` OK.
+- `php artisan test --filter=proforma` passe avec 1 test et 59 assertions.
+- `php artisan test --filter=accounting` passe avec 16 tests et 404 assertions.
+
+### 2026-05-07 - Badge vert pour commande client confirmee
+
+Prompt utilisateur :
+
+```text
+dans commandes clients sur le tableau confirmée doit etre en vert
+```
+
+Correction appliquee :
+
+- Les statuts des commandes clients utilisent maintenant des classes CSS dediees.
+- Le statut `confirmed` s'affiche en badge vert.
+- Le statut `delivered` s'affiche egalement en vert.
+- Les statuts `draft`, `in_progress` et `cancelled` gardent chacun une couleur distincte.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-customer-orders.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources/views/main/modules/accounting-customer-orders.blade.php` OK.
+- `php artisan test --filter=customer_orders` passe avec 1 test et 23 assertions.
+
 ### 2026-05-06 - Ligne du footer PDF identique au bas de page
 
 Prompt utilisateur :

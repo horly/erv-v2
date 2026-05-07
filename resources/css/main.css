@@ -1188,6 +1188,14 @@ input {
     background: #f8fafc;
 }
 
+.customer-order-stock-check {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    margin-bottom: .25rem;
+    font-weight: 750;
+}
+
 .proforma-total-card {
     display: grid;
     gap: .75rem;
@@ -2664,6 +2672,27 @@ body.accounting-module-body {
 .status-pill.status-neutral {
     background: #eef2ff;
     color: #2563eb;
+}
+
+.status-pill.customer-order-status-confirmed,
+.status-pill.customer-order-status-delivered {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.status-pill.customer-order-status-in_progress {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.status-pill.customer-order-status-cancelled {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.status-pill.customer-order-status-draft {
+    background: #f1f5f9;
+    color: #475569;
 }
 
 .two-factor-empty,

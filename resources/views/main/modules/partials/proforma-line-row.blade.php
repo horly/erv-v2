@@ -5,6 +5,7 @@
 @endphp
 
 <div class="proforma-line-card" data-proforma-line-row>
+    <input type="hidden" name="lines[{{ $index }}][cost_price]" value="{{ $line['cost_price'] ?? '0' }}" data-proforma-cost-price>
     <div class="row g-3 align-items-end">
         <div class="col-lg-2 col-md-4">
             <label class="form-label">{{ __('main.type') }} *</label>
@@ -76,6 +77,15 @@
             <label class="form-label">{{ __('main.description') }}</label>
             <input name="lines[{{ $index }}][details]" type="text" class="form-control @error("lines.$index.details") is-invalid @enderror" value="{{ $line['details'] ?? '' }}" placeholder="{{ __('main.description') }}">
             @error("lines.$index.details")<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-lg-4" data-proforma-create-item-field @hidden($lineType !== \App\Models\AccountingProformaInvoiceLine::TYPE_FREE)>
+            <label class="form-check customer-order-stock-check">
+                <input type="hidden" name="lines[{{ $index }}][create_stock_item]" value="0">
+                <input class="form-check-input" type="checkbox" name="lines[{{ $index }}][create_stock_item]" value="1" @checked((bool) ($line['create_stock_item'] ?? false))>
+                <span class="form-check-label">{{ __('main.create_stock_item_from_free_line') }}</span>
+            </label>
+            <small class="form-text text-muted">{{ __('main.create_stock_item_from_free_line_hint') }}</small>
+            @error("lines.$index.create_stock_item")<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
         </div>
     </div>
 </div>

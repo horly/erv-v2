@@ -198,6 +198,7 @@
         const type = row.querySelector('[data-proforma-line-type]')?.value || 'free';
         const itemField = row.querySelector('[data-proforma-item-field]');
         const serviceField = row.querySelector('[data-proforma-service-field]');
+        const createItemField = row.querySelector('[data-proforma-create-item-field]');
 
         if (itemField) {
             itemField.hidden = type !== 'item';
@@ -205,6 +206,14 @@
 
         if (serviceField) {
             serviceField.hidden = type !== 'service';
+        }
+
+        if (createItemField) {
+            createItemField.hidden = type !== 'free';
+            if (type !== 'free') {
+                const checkbox = createItemField.querySelector('input[type="checkbox"]');
+                if (checkbox) checkbox.checked = false;
+            }
         }
     };
 
@@ -308,9 +317,14 @@
         setValue('[data-proforma-description]', line.description || '');
         setValue('[name$="[details]"]', line.details || '');
         setValue('[data-proforma-quantity]', line.quantity || '1');
+        setValue('[data-proforma-cost-price]', line.cost_price || '0');
         setValue('[data-proforma-unit-price]', line.unit_price || '0');
         setValue('[data-proforma-discount-type]', line.discount_type || 'fixed');
         setValue('[data-proforma-discount]', line.discount_amount || '0');
+        const createStockItem = row.querySelector('[data-proforma-create-item-field] input[type="checkbox"]');
+        if (createStockItem) {
+            createStockItem.checked = Boolean(Number(line.create_stock_item || 0));
+        }
 
         lineList?.appendChild(fragment);
         bindLine(row);

@@ -86,6 +86,11 @@ class CompanySite extends Model
         return $this->hasMany(AccountingProformaInvoice::class);
     }
 
+    public function accountingCustomerOrders(): HasMany
+    {
+        return $this->hasMany(AccountingCustomerOrder::class);
+    }
+
     public function accountingCreditors(): HasMany
     {
         return $this->hasMany(AccountingCreditor::class);
