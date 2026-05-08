@@ -159,8 +159,12 @@
 
     typeSelect?.addEventListener('change', () => setsupplierType(typeSelect.value));
 
-    document.querySelectorAll('[data-supplier-mode]').forEach((trigger) => {
-        trigger.addEventListener('click', () => setFormMode(trigger));
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-supplier-mode]');
+
+        if (trigger) {
+            setFormMode(trigger);
+        }
     });
 
     document.querySelector('[data-add-supplier-contact]')?.addEventListener('click', () => {

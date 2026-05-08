@@ -6,6 +6,7 @@ use App\Models\Concerns\HasAccountingReference;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AccountingPaymentMethod extends Model
 {
@@ -59,6 +60,11 @@ class AccountingPaymentMethod extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function salesInvoicePayments(): HasMany
+    {
+        return $this->hasMany(AccountingSalesInvoicePayment::class, 'payment_method_id');
     }
 
     public static function types(): array

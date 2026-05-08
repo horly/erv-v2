@@ -482,7 +482,7 @@
             <tr>
                 <td class="bill-to">
                     <div class="muted-label">{{ __('main.invoice_to') }}</div>
-                    <div class="client-name">{{ $client?->name ?? '-' }}</div>
+                    <div class="client-name">{{ $client?->display_name ?? '-' }}</div>
                     @if ($client?->address)
                         <div class="client-line">{{ $client->address }}</div>
                     @endif

@@ -107,7 +107,163 @@
 
     typeField?.addEventListener('change', setBankSectionVisibility);
 
-    document.querySelectorAll('[data-payment-method-mode]').forEach((trigger) => {
-        trigger.addEventListener('click', () => setFormMode(trigger));
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-payment-method-mode]');
+
+        if (trigger) {
+            setFormMode(trigger);
+        }
     });
+
+    const normalize = (value = '') => String(value)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+
+    const initReceiptsTable = (wrapper) => {
+        if (!wrapper || wrapper.dataset.receiptsReady === '1') {
+            return;
+        }
+
+        wrapper.dataset.receiptsReady = '1';
+
+        const searchInput = wrapper.querySelector('[data-payment-method-receipts-search]');
+        const body = wrapper.querySelector('[data-payment-method-receipts-body]');
+        const emptyState = wrapper.querySelector('[data-payment-method-receipts-empty]');
+        const visibleCount = wrapper.querySelector('[data-payment-method-receipts-visible-count]');
+        const totalCount = wrapper.querySelector('[data-payment-method-receipts-total-count]');
+        const pagination = wrapper.querySelector('[data-payment-method-receipts-pagination]');
+        const sortButtons = Array.from(wrapper.querySelectorAll('[data-payment-method-receipts-sort]'));
+        const rows = Array.from(wrapper.querySelectorAll('[data-payment-method-receipt-row]'));
+        const perPage = 5;
+        const state = { page: 1, sortIndex: null, sortDirection: 'asc' };
+
+        const cellSortValue = (row, index, type) => {
+            const cell = row.children[index];
+            const raw = cell?.dataset.sortValue || cell?.textContent || '';
+
+            if (type === 'number') {
+                return Number(String(raw).replace(/\s/g, '').replace(',', '.')) || 0;
+            }
+
+            return normalize(raw);
+        };
+
+        const matchingRows = () => {
+            const term = normalize(searchInput?.value || '');
+            let filteredRows = rows.filter((row) => normalize(row.textContent).includes(term));
+
+            if (state.sortIndex !== null) {
+                const sortButton = sortButtons.find((button) => button.dataset.paymentMethodReceiptsSort === String(state.sortIndex));
+                const type = sortButton?.dataset.sortType || 'text';
+                const direction = state.sortDirection === 'asc' ? 1 : -1;
+
+                filteredRows = filteredRows.sort((left, right) => {
+                    const leftValue = cellSortValue(left, state.sortIndex, type);
+                    const rightValue = cellSortValue(right, state.sortIndex, type);
+
+                    if (leftValue === rightValue) {
+                        return 0;
+                    }
+
+                    return leftValue > rightValue ? direction : -direction;
+                });
+            }
+
+            return filteredRows;
+        };
+
+        const renderPagination = (totalPages) => {
+            if (!pagination) {
+                return;
+            }
+
+            pagination.hidden = totalPages <= 1;
+            pagination.innerHTML = '';
+
+            if (totalPages <= 1) {
+                return;
+            }
+
+            const previousLabel = pagination.dataset.previousLabel || 'Previous';
+            const nextLabel = pagination.dataset.nextLabel || 'Next';
+            const createButton = (label, page, disabled = false, active = false) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = label;
+                button.disabled = disabled;
+                button.className = active ? 'active' : '';
+                button.addEventListener('click', () => {
+                    state.page = page;
+                    render();
+                });
+
+                return button;
+            };
+
+            pagination.append(createButton(previousLabel, Math.max(1, state.page - 1), state.page === 1));
+
+            for (let page = 1; page <= totalPages; page += 1) {
+                pagination.append(createButton(String(page), page, false, page === state.page));
+            }
+
+            pagination.append(createButton(nextLabel, Math.min(totalPages, state.page + 1), state.page === totalPages));
+        };
+
+        const render = () => {
+            const filteredRows = matchingRows();
+            const totalPages = Math.max(1, Math.ceil(filteredRows.length / perPage));
+
+            state.page = Math.min(state.page, totalPages);
+            body.innerHTML = '';
+
+            filteredRows
+                .slice((state.page - 1) * perPage, state.page * perPage)
+                .forEach((row) => body.append(row));
+
+            if (visibleCount) {
+                visibleCount.textContent = String(filteredRows.length);
+            }
+
+            if (totalCount) {
+                totalCount.textContent = String(rows.length);
+            }
+
+            if (emptyState) {
+                emptyState.hidden = filteredRows.length > 0;
+            }
+
+            renderPagination(totalPages);
+        };
+
+        searchInput?.addEventListener('input', () => {
+            state.page = 1;
+            render();
+        });
+
+        sortButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                const nextIndex = Number(button.dataset.paymentMethodReceiptsSort);
+
+                if (state.sortIndex === nextIndex) {
+                    state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    state.sortIndex = nextIndex;
+                    state.sortDirection = 'asc';
+                }
+
+                render();
+            });
+        });
+
+        render();
+    };
+
+    const initReceiptsTables = () => {
+        document.querySelectorAll('[data-payment-method-receipts-table]').forEach(initReceiptsTable);
+    };
+
+    initReceiptsTables();
+    document.addEventListener('exad:table-updated', initReceiptsTables);
 })();

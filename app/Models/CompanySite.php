@@ -156,6 +156,21 @@ class CompanySite extends Model
         return $this->hasMany(AccountingStockMovement::class);
     }
 
+    public function accountingDeliveryNotes(): HasMany
+    {
+        return $this->hasMany(AccountingDeliveryNote::class);
+    }
+
+    public function accountingSalesInvoices(): HasMany
+    {
+        return $this->hasMany(AccountingSalesInvoice::class);
+    }
+
+    public function accountingCashRegisterSessions(): HasMany
+    {
+        return $this->hasMany(AccountingCashRegisterSession::class);
+    }
+
     public function accountingStockTransfers(): HasMany
     {
         return $this->hasMany(AccountingStockTransfer::class);

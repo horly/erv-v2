@@ -8,6 +8,7 @@
     const title = document.getElementById('proformaModalLabel');
     const lineList = document.querySelector('[data-proforma-line-list]');
     const lineTemplate = document.getElementById('proformaLineTemplate');
+    const clientSelect = document.querySelector('[data-proforma-client]');
     const taxRateField = document.getElementById('proformaTaxRate');
     const totalFields = {
         subtotal: document.querySelector('[data-total-subtotal]'),
@@ -79,6 +80,69 @@
         }
     };
 
+    const searchableSelectConfig = (select) => {
+        if (select?.matches('[data-proforma-client]')) {
+            return null;
+        }
+
+        if (select?.matches('[data-proforma-item]')) {
+            return { selector: '[data-proforma-item]', rowType: 'item' };
+        }
+
+        if (select?.matches('[data-proforma-service]')) {
+            return { selector: '[data-proforma-service]', rowType: 'service' };
+        }
+
+        return null;
+    };
+
+    const isSearchableSelectActive = (select, config = searchableSelectConfig(select)) => {
+        if (!select || !config) {
+            return false;
+        }
+
+        const row = select.closest('[data-proforma-line-row]');
+        return row?.querySelector('[data-proforma-line-type]')?.value === config.rowType;
+    };
+
+    const selectedValuesForSearchableGroup = (select) => {
+        const config = searchableSelectConfig(select);
+        const selectedValues = new Set();
+
+        if (!config) {
+            return selectedValues;
+        }
+
+        lineList?.querySelectorAll(config.selector).forEach((field) => {
+            if (field === select || !field.value || !isSearchableSelectActive(field, config)) {
+                return;
+            }
+
+            selectedValues.add(field.value);
+        });
+
+        return selectedValues;
+    };
+
+    const refreshSearchableSelectOptions = () => {
+        lineList?.querySelectorAll('[data-proforma-item], [data-proforma-service]').forEach((select) => {
+            select.refreshSearchOptions?.();
+        });
+    };
+
+    const clearDuplicateSelection = (select) => {
+        if (!select?.value || !isSearchableSelectActive(select)) {
+            return false;
+        }
+
+        if (!selectedValuesForSearchableGroup(select).has(select.value)) {
+            return false;
+        }
+
+        select.value = '';
+        return true;
+    };
+
     const initSearchableSelect = (select) => {
         if (!select || select.dataset.searchReady === 'true') {
             return;
@@ -143,16 +207,20 @@
 
         const filterOptions = (query) => {
             const normalized = normalizeSearch(query);
+            const selectedValues = selectedValuesForSearchableGroup(select);
             let visible = 0;
 
             optionButtons.forEach((button) => {
+                const isAlreadySelected = selectedValues.has(button.dataset.value);
                 const matches = !normalized || button.dataset.search.includes(normalized);
-                button.hidden = !matches;
-                if (matches) visible += 1;
+                button.hidden = isAlreadySelected || !matches;
+                if (!button.hidden) visible += 1;
             });
 
             empty.hidden = visible > 0;
         };
+
+        select.refreshSearchOptions = () => filterOptions(search.value);
 
         const openDropdown = () => {
             dropdown.hidden = false;
@@ -190,8 +258,13 @@
             }
         });
 
-        select.addEventListener('change', () => syncSearchableSelectLabel(select, shell));
+        select.addEventListener('change', () => {
+            clearDuplicateSelection(select);
+            syncSearchableSelectLabel(select, shell);
+            refreshSearchableSelectOptions();
+        });
         syncSearchableSelectLabel(select, shell);
+        filterOptions('');
     };
 
     const refreshLineVisibility = (row) => {
@@ -262,6 +335,7 @@
 
         type?.addEventListener('change', () => {
             refreshLineVisibility(row);
+            refreshSearchableSelectOptions();
             refreshTotals();
         });
 
@@ -328,6 +402,7 @@
 
         lineList?.appendChild(fragment);
         bindLine(row);
+        refreshSearchableSelectOptions();
     };
 
     const resetLines = (lines = []) => {
@@ -369,8 +444,12 @@
         resetLines(isEdit ? (values.lines || []) : []);
     };
 
-    document.querySelectorAll('[data-proforma-mode]').forEach((trigger) => {
-        trigger.addEventListener('click', () => setFormMode(trigger));
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-proforma-mode]');
+
+        if (trigger) {
+            setFormMode(trigger);
+        }
     });
 
     document.querySelector('[data-add-proforma-line]')?.addEventListener('click', () => {
@@ -385,11 +464,13 @@
         const row = button.closest('[data-proforma-line-row]');
         if (lineList.querySelectorAll('[data-proforma-line-row]').length > 1) {
             row?.remove();
+            refreshSearchableSelectOptions();
             refreshTotals();
         }
     });
 
     taxRateField?.addEventListener('input', refreshTotals);
+    initSearchableSelect(clientSelect);
     lineList?.querySelectorAll('[data-proforma-line-row]').forEach(bindLine);
     refreshTotals();
 })();

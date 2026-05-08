@@ -10,7 +10,23 @@
     const contactList = document.querySelector('[data-client-contact-list]');
     const contactTemplate = document.getElementById('clientContactTemplate');
     const addressWrapper = document.querySelector('[data-client-address-wrapper]');
+    const documentsModal = document.getElementById('clientDocumentsModal');
+    const documentsTitle = document.getElementById('clientDocumentsModalLabel');
+    const documentsSearch = documentsModal?.querySelector('[data-client-documents-search]');
+    const documentsBody = documentsModal?.querySelector('[data-client-documents-body]');
+    const documentsEmpty = documentsModal?.querySelector('[data-client-documents-empty]');
+    const documentsVisibleCount = documentsModal?.querySelector('[data-client-documents-visible-count]');
+    const documentsTotalCount = documentsModal?.querySelector('[data-client-documents-total-count]');
+    const documentsPagination = documentsModal?.querySelector('[data-client-documents-pagination]');
+    const documentsPaginationCount = documentsModal?.querySelector('[data-client-documents-pagination-count]');
+    const documentsPaginationNav = documentsModal?.querySelector('[data-client-documents-pagination-nav]');
     let contactIndex = contactList?.querySelectorAll('[data-client-contact-row]').length || 0;
+    let documentRows = [];
+    let filteredDocumentRows = [];
+    let documentSortIndex = 3;
+    let documentSortDirection = 'desc';
+    let documentPage = 1;
+    const documentsPerPage = 5;
 
     const fields = {
         name: document.getElementById('clientName'),
@@ -53,6 +69,12 @@
         }
     };
 
+    const normalize = (value = '') => String(value)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+
     const setFieldValue = (field, value = '') => {
         if (field) {
             field.value = value || '';
@@ -63,6 +85,150 @@
         form?.querySelectorAll('.is-invalid, .is-valid').forEach((field) => {
             field.classList.remove('is-invalid', 'is-valid');
         });
+    };
+
+    const documentSortValue = (row, index, type) => {
+        const raw = index === 0
+            ? row.number
+            : (index === 1
+                ? row.kind
+                : (index === 2
+                    ? row.reference
+                    : (index === 3
+                        ? row.date_sort
+                        : (index === 4 ? row.total_sort : (index === 5 ? row.status : '')))));
+
+        if (type === 'number') {
+            return Number(raw || 0);
+        }
+
+        return normalize(raw || '');
+    };
+
+    const renderDocumentsPagination = (totalPages) => {
+        if (!documentsPagination || !documentsPaginationNav) {
+            return;
+        }
+
+        documentsPagination.hidden = totalPages <= 1;
+        documentsPaginationNav.innerHTML = '';
+        if (documentsPaginationCount) {
+            documentsPaginationCount.textContent = '';
+        }
+
+        if (totalPages <= 1) {
+            return;
+        }
+
+        const previousLabel = documentsPagination.dataset.previousLabel || 'Previous';
+        const nextLabel = documentsPagination.dataset.nextLabel || 'Next';
+        const showingLabel = documentsPagination.dataset.showingLabel || 'Showing';
+        const toLabel = documentsPagination.dataset.toLabel || 'to';
+        const onLabel = documentsPagination.dataset.onLabel || 'of';
+        const createButton = (label, page, disabled = false, active = false) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = label;
+            button.disabled = disabled;
+            button.className = active ? 'active' : '';
+            button.addEventListener('click', () => {
+                documentPage = page;
+                renderDocumentsRows();
+            });
+
+            return button;
+        };
+
+        const start = ((documentPage - 1) * documentsPerPage) + 1;
+        const end = Math.min(documentPage * documentsPerPage, filteredDocumentRows.length);
+
+        if (documentsPaginationCount) {
+            documentsPaginationCount.textContent = `${showingLabel} ${start} ${toLabel} ${end} ${onLabel} ${filteredDocumentRows.length}`;
+        }
+
+        documentsPaginationNav.append(createButton(previousLabel, Math.max(1, documentPage - 1), documentPage === 1));
+
+        for (let page = 1; page <= totalPages; page += 1) {
+            documentsPaginationNav.append(createButton(String(page), page, false, page === documentPage));
+        }
+
+        documentsPaginationNav.append(createButton(nextLabel, Math.min(totalPages, documentPage + 1), documentPage === totalPages));
+    };
+
+    const renderDocumentsRows = () => {
+        if (!documentsBody || !documentsEmpty) {
+            return;
+        }
+
+        const query = normalize(documentsSearch?.value || '');
+        filteredDocumentRows = documentRows
+            .filter((row) => normalize(`${row.kind} ${row.reference} ${row.date} ${row.total} ${row.status}`).includes(query))
+            .sort((left, right) => {
+                const sortButton = documentsModal?.querySelector(`[data-client-documents-sort="${documentSortIndex}"]`);
+                const sortType = sortButton?.dataset.sortType || 'text';
+                const leftValue = documentSortValue(left, documentSortIndex, sortType);
+                const rightValue = documentSortValue(right, documentSortIndex, sortType);
+                const direction = documentSortDirection === 'asc' ? 1 : -1;
+
+                if (leftValue === rightValue) {
+                    return 0;
+                }
+
+                return leftValue > rightValue ? direction : -direction;
+            });
+
+        const totalPages = Math.max(1, Math.ceil(filteredDocumentRows.length / documentsPerPage));
+        documentPage = Math.min(documentPage, totalPages);
+
+        const pageRows = filteredDocumentRows.slice((documentPage - 1) * documentsPerPage, documentPage * documentsPerPage);
+
+        documentsBody.innerHTML = pageRows.map((row) => `
+            <tr>
+                <td data-sort-value="${escapeHtml(row.number)}">${escapeHtml(row.number)}</td>
+                <td>${escapeHtml(row.kind)}</td>
+                <td>${escapeHtml(row.reference)}</td>
+                <td data-sort-value="${escapeHtml(row.date_sort)}">${escapeHtml(row.date)}</td>
+                <td class="amount-cell text-end" data-sort-value="${escapeHtml(row.total_sort)}">${escapeHtml(row.total)}</td>
+                <td><span class="status-pill ${escapeHtml(row.status_class || 'status-neutral')}">${escapeHtml(row.status)}</span></td>
+                <td class="text-end">
+                    ${row.print_url
+                        ? `<a class="table-button table-button-print" href="${escapeHtml(row.print_url)}" target="_blank" rel="noopener" aria-label="${escapeHtml(row.print_label || 'Print')}" title="${escapeHtml(row.print_label || 'Print')}"><i class="bi bi-printer" aria-hidden="true"></i></a>`
+                        : '<span class="muted-dash">-</span>'}
+                </td>
+            </tr>
+        `).join('');
+
+        if (documentsVisibleCount) {
+            documentsVisibleCount.textContent = String(filteredDocumentRows.length);
+        }
+
+        if (documentsTotalCount) {
+            documentsTotalCount.textContent = String(documentRows.length);
+        }
+
+        documentsEmpty.hidden = filteredDocumentRows.length > 0;
+        renderDocumentsPagination(totalPages);
+    };
+
+    const openDocumentsModal = (trigger) => {
+        documentRows = parseDatasetJson(trigger.dataset.clientDocuments, []).map((row, index) => ({
+            ...row,
+            number: index + 1,
+        }));
+        filteredDocumentRows = [];
+        documentSortIndex = 3;
+        documentSortDirection = 'desc';
+        documentPage = 1;
+
+        if (documentsTitle) {
+            documentsTitle.innerHTML = `<i class="bi bi-folder2-open" aria-hidden="true"></i>${escapeHtml(trigger.dataset.clientDocumentsTitle || '')}`;
+        }
+
+        if (documentsSearch) {
+            documentsSearch.value = '';
+        }
+
+        renderDocumentsRows();
     };
 
     const setClientType = (type) => {
@@ -157,8 +323,40 @@
 
     typeSelect?.addEventListener('change', () => setClientType(typeSelect.value));
 
-    document.querySelectorAll('[data-client-mode]').forEach((trigger) => {
-        trigger.addEventListener('click', () => setFormMode(trigger));
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-client-mode]');
+
+        if (trigger) {
+            setFormMode(trigger);
+        }
+    });
+
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-client-documents-trigger]');
+
+        if (trigger) {
+            openDocumentsModal(trigger);
+        }
+    });
+
+    documentsSearch?.addEventListener('input', () => {
+        documentPage = 1;
+        renderDocumentsRows();
+    });
+
+    documentsModal?.querySelectorAll('[data-client-documents-sort]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const nextIndex = Number(button.dataset.clientDocumentsSort);
+
+            if (documentSortIndex === nextIndex) {
+                documentSortDirection = documentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                documentSortIndex = nextIndex;
+                documentSortDirection = button.dataset.sortType === 'date' ? 'desc' : 'asc';
+            }
+
+            renderDocumentsRows();
+        });
     });
 
     document.querySelector('[data-add-client-contact]')?.addEventListener('click', () => {

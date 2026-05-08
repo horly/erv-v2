@@ -159,8 +159,12 @@
 
     typeSelect?.addEventListener('change', () => setProspectType(typeSelect.value));
 
-    document.querySelectorAll('[data-prospect-mode]').forEach((trigger) => {
-        trigger.addEventListener('click', () => setFormMode(trigger));
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-prospect-mode]');
+
+        if (trigger) {
+            setFormMode(trigger);
+        }
     });
 
     document.querySelector('[data-add-prospect-contact]')?.addEventListener('click', () => {

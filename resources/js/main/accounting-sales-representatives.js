@@ -75,7 +75,11 @@
         setFieldValue(fields.notes, isEdit ? trigger.dataset.representativeNotes : '');
     };
 
-    document.querySelectorAll('[data-representative-mode]').forEach((trigger) => {
-        trigger.addEventListener('click', () => setFormMode(trigger));
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-representative-mode]');
+
+        if (trigger) {
+            setFormMode(trigger);
+        }
     });
 })();

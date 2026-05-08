@@ -5,9 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class AccountingCustomerOrderLine extends Model
+class AccountingSalesInvoiceLine extends Model
 {
     use HasFactory;
 
@@ -16,25 +15,20 @@ class AccountingCustomerOrderLine extends Model
     public const TYPE_FREE = 'free';
     public const DISCOUNT_FIXED = 'fixed';
     public const DISCOUNT_PERCENT = 'percent';
-    public const MARGIN_FIXED = 'fixed';
-    public const MARGIN_PERCENT = 'percent';
 
     protected $fillable = [
-        'customer_order_id',
+        'sales_invoice_id',
         'line_type',
         'item_id',
         'service_id',
+        'customer_order_line_id',
+        'delivery_note_line_id',
         'description',
         'details',
         'quantity',
-        'cost_price',
         'unit_price',
-        'margin_type',
-        'margin_value',
         'discount_type',
         'discount_amount',
-        'cost_total',
-        'margin_total',
         'line_total',
     ];
 
@@ -42,19 +36,15 @@ class AccountingCustomerOrderLine extends Model
     {
         return [
             'quantity' => 'decimal:2',
-            'cost_price' => 'decimal:2',
             'unit_price' => 'decimal:2',
-            'margin_value' => 'decimal:2',
             'discount_amount' => 'decimal:2',
-            'cost_total' => 'decimal:2',
-            'margin_total' => 'decimal:2',
             'line_total' => 'decimal:2',
         ];
     }
 
-    public function customerOrder(): BelongsTo
+    public function salesInvoice(): BelongsTo
     {
-        return $this->belongsTo(AccountingCustomerOrder::class, 'customer_order_id');
+        return $this->belongsTo(AccountingSalesInvoice::class, 'sales_invoice_id');
     }
 
     public function item(): BelongsTo
@@ -67,9 +57,14 @@ class AccountingCustomerOrderLine extends Model
         return $this->belongsTo(AccountingService::class, 'service_id');
     }
 
-    public function deliveryNoteLines(): HasMany
+    public function customerOrderLine(): BelongsTo
     {
-        return $this->hasMany(AccountingDeliveryNoteLine::class, 'customer_order_line_id');
+        return $this->belongsTo(AccountingCustomerOrderLine::class, 'customer_order_line_id');
+    }
+
+    public function deliveryNoteLine(): BelongsTo
+    {
+        return $this->belongsTo(AccountingDeliveryNoteLine::class, 'delivery_note_line_id');
     }
 
     public static function types(): array
@@ -86,14 +81,6 @@ class AccountingCustomerOrderLine extends Model
         return [
             self::DISCOUNT_FIXED,
             self::DISCOUNT_PERCENT,
-        ];
-    }
-
-    public static function marginTypes(): array
-    {
-        return [
-            self::MARGIN_FIXED,
-            self::MARGIN_PERCENT,
         ];
     }
 }

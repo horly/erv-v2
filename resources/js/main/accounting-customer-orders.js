@@ -2,6 +2,7 @@
     const form = document.querySelector('.customer-order-form');
     const lineList = document.querySelector('[data-customer-order-line-list]');
     const lineTemplate = document.getElementById('customerOrderLineTemplate');
+    const clientSelect = document.querySelector('[data-customer-order-client]');
     const taxRateField = document.getElementById('orderTaxRate');
     const totalFields = {
         subtotal: document.querySelector('[data-order-total-subtotal]'),
@@ -42,6 +43,69 @@
         }
     };
 
+    const searchableSelectConfig = (select) => {
+        if (select?.matches('[data-customer-order-client]')) {
+            return null;
+        }
+
+        if (select?.matches('[data-customer-order-item]')) {
+            return { selector: '[data-customer-order-item]', rowType: 'item' };
+        }
+
+        if (select?.matches('[data-customer-order-service]')) {
+            return { selector: '[data-customer-order-service]', rowType: 'service' };
+        }
+
+        return null;
+    };
+
+    const isSearchableSelectActive = (select, config = searchableSelectConfig(select)) => {
+        if (!select || !config) {
+            return false;
+        }
+
+        const row = select.closest('[data-customer-order-line-row]');
+        return row?.querySelector('[data-customer-order-line-type]')?.value === config.rowType;
+    };
+
+    const selectedValuesForSearchableGroup = (select) => {
+        const config = searchableSelectConfig(select);
+        const selectedValues = new Set();
+
+        if (!config) {
+            return selectedValues;
+        }
+
+        lineList.querySelectorAll(config.selector).forEach((field) => {
+            if (field === select || !field.value || !isSearchableSelectActive(field, config)) {
+                return;
+            }
+
+            selectedValues.add(field.value);
+        });
+
+        return selectedValues;
+    };
+
+    const refreshSearchableSelectOptions = () => {
+        lineList.querySelectorAll('[data-customer-order-item], [data-customer-order-service]').forEach((select) => {
+            select.refreshSearchOptions?.();
+        });
+    };
+
+    const clearDuplicateSelection = (select) => {
+        if (!select?.value || !isSearchableSelectActive(select)) {
+            return false;
+        }
+
+        if (!selectedValuesForSearchableGroup(select).has(select.value)) {
+            return false;
+        }
+
+        select.value = '';
+        return true;
+    };
+
     const initSearchableSelect = (select) => {
         if (!select || select.dataset.searchReady === 'true') {
             return;
@@ -55,6 +119,9 @@
         const toggle = document.createElement('button');
         toggle.type = 'button';
         toggle.className = 'form-select proforma-search-select-toggle';
+        if (select.classList.contains('is-invalid')) {
+            toggle.classList.add('is-invalid');
+        }
         toggle.innerHTML = '<span data-search-label></span><i class="bi bi-chevron-down" aria-hidden="true"></i>';
 
         const dropdown = document.createElement('div');
@@ -103,16 +170,20 @@
 
         const filterOptions = (query) => {
             const normalized = normalizeSearch(query);
+            const selectedValues = selectedValuesForSearchableGroup(select);
             let visible = 0;
 
             optionButtons.forEach((button) => {
+                const isAlreadySelected = selectedValues.has(button.dataset.value);
                 const matches = !normalized || button.dataset.search.includes(normalized);
-                button.hidden = !matches;
-                if (matches) visible += 1;
+                button.hidden = isAlreadySelected || !matches;
+                if (!button.hidden) visible += 1;
             });
 
             empty.hidden = visible > 0;
         };
+
+        select.refreshSearchOptions = () => filterOptions(search.value);
 
         toggle.addEventListener('click', () => {
             dropdown.hidden = !dropdown.hidden;
@@ -144,8 +215,13 @@
             }
         });
 
-        select.addEventListener('change', () => syncSearchableSelectLabel(select, shell));
+        select.addEventListener('change', () => {
+            clearDuplicateSelection(select);
+            syncSearchableSelectLabel(select, shell);
+            refreshSearchableSelectOptions();
+        });
         syncSearchableSelectLabel(select, shell);
+        filterOptions('');
     };
 
     const lineDiscountAmount = (row, rawTotal) => {
@@ -258,6 +334,7 @@
 
         type?.addEventListener('change', () => {
             refreshLineVisibility(row);
+            refreshSearchableSelectOptions();
             refreshTotals();
         });
 
@@ -310,6 +387,7 @@
         const row = fragment.querySelector('[data-customer-order-line-row]');
         lineList.appendChild(fragment);
         bindLine(row);
+        refreshSearchableSelectOptions();
         refreshTotals();
     };
 
@@ -322,11 +400,13 @@
         const row = button.closest('[data-customer-order-line-row]');
         if (lineList.querySelectorAll('[data-customer-order-line-row]').length > 1) {
             row?.remove();
+            refreshSearchableSelectOptions();
             refreshTotals();
         }
     });
 
     taxRateField?.addEventListener('input', refreshTotals);
+    initSearchableSelect(clientSelect);
     lineList.querySelectorAll('[data-customer-order-line-row]').forEach(bindLine);
     refreshTotals();
 })();

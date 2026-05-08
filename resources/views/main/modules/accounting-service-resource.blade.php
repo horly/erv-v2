@@ -377,7 +377,10 @@
                             <p class="modal-table-empty" data-related-empty hidden>{{ $resource === 'categories' ? __('main.no_category_services') : __('main.no_subcategory_services') }}</p>
                         </div>
 
-                        <section class="subscriptions-pagination modal-table-pagination" data-related-pagination data-previous-label="{{ __('admin.previous') }}" data-next-label="{{ __('admin.next') }}" hidden aria-label="{{ __('admin.pagination') }}"></section>
+                        <section class="subscriptions-pagination modal-table-pagination" data-related-pagination data-previous-label="{{ __('admin.previous') }}" data-next-label="{{ __('admin.next') }}" data-showing-label="{{ __('admin.showing') }}" data-to-label="{{ __('admin.to') }}" data-on-label="{{ __('admin.on') }}" hidden aria-label="{{ __('admin.pagination') }}">
+                            <span data-related-pagination-count></span>
+                            <nav class="pagination-shell" data-related-pagination-nav aria-label="{{ __('admin.pagination') }}"></nav>
+                        </section>
 
                         <div class="modal-actions">
                             <button type="button" class="modal-cancel" data-bs-dismiss="modal">{{ __('admin.close') }}</button>

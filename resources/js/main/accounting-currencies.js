@@ -77,7 +77,11 @@
         });
     };
 
-    document.querySelectorAll('[data-currency-mode]').forEach((trigger) => {
-        trigger.addEventListener('click', () => setFormMode(trigger));
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-currency-mode]');
+
+        if (trigger) {
+            setFormMode(trigger);
+        }
     });
 })();

@@ -1064,8 +1064,8 @@ a {
 
 .login-history-footer .pagination-shell button {
     display: inline-flex;
-    min-width: 38px;
-    min-height: 34px;
+    min-width: 42px;
+    min-height: 40px;
     align-items: center;
     justify-content: center;
     margin-left: -1px;

@@ -13,6 +13,13 @@ class AccountingClient extends Model
 
     public const TYPE_INDIVIDUAL = 'individual';
     public const TYPE_COMPANY = 'company';
+    public const WALK_IN_NAMES = [
+        'Client comptoir',
+        'Client comptoire',
+        'Client de passage',
+        'Walk-in customer',
+        'Counter customer',
+    ];
 
     protected $fillable = [
         'company_site_id',
@@ -66,9 +73,39 @@ class AccountingClient extends Model
         return $this->hasMany(AccountingProformaInvoice::class, 'client_id');
     }
 
+    public function customerOrders(): HasMany
+    {
+        return $this->hasMany(AccountingCustomerOrder::class, 'client_id');
+    }
+
+    public function deliveryNotes(): HasMany
+    {
+        return $this->hasMany(AccountingDeliveryNote::class, 'client_id');
+    }
+
+    public function salesInvoices(): HasMany
+    {
+        return $this->hasMany(AccountingSalesInvoice::class, 'client_id');
+    }
+
     public function isCompany(): bool
     {
         return $this->type === self::TYPE_COMPANY;
+    }
+
+    public function isWalkInCustomer(): bool
+    {
+        return in_array(trim((string) $this->name), self::WALK_IN_NAMES, true);
+    }
+
+    public function getDisplayNameAttribute(): string
+    {
+        return $this->isWalkInCustomer() ? __('main.walk_in_customer') : (string) $this->name;
+    }
+
+    public static function walkInCustomerNames(): array
+    {
+        return self::WALK_IN_NAMES;
     }
 
     public static function types(): array

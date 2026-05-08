@@ -130,6 +130,12 @@ CREATE TABLE `company_sites` (
   CONSTRAINT `company_sites_responsible_id_foreign` FOREIGN KEY (`responsible_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+DROP TABLE IF EXISTS `accounting_delivery_note_serials`;
+DROP TABLE IF EXISTS `accounting_sales_invoice_payments`;
+DROP TABLE IF EXISTS `accounting_sales_invoice_lines`;
+DROP TABLE IF EXISTS `accounting_sales_invoices`;
+DROP TABLE IF EXISTS `accounting_delivery_note_lines`;
+DROP TABLE IF EXISTS `accounting_delivery_notes`;
 DROP TABLE IF EXISTS `accounting_customer_order_lines`;
 DROP TABLE IF EXISTS `accounting_customer_orders`;
 DROP TABLE IF EXISTS `accounting_proforma_invoice_lines`;
@@ -975,6 +981,172 @@ CREATE TABLE `accounting_customer_order_lines` (
   CONSTRAINT `accounting_customer_order_lines_service_id_foreign` FOREIGN KEY (`service_id`) REFERENCES `accounting_services` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `accounting_delivery_notes` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `client_id` bigint(20) unsigned NOT NULL,
+  `customer_order_id` bigint(20) unsigned DEFAULT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `title` varchar(255) DEFAULT NULL,
+  `delivery_date` date NOT NULL,
+  `status` varchar(30) NOT NULL DEFAULT 'draft',
+  `delivered_by` varchar(255) DEFAULT NULL,
+  `carrier` varchar(255) DEFAULT NULL,
+  `stock_released_at` timestamp NULL DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_delivery_notes_reference_unique` (`reference`),
+  KEY `acct_delivery_note_site_status_idx` (`company_site_id`,`status`),
+  KEY `acct_delivery_note_site_date_idx` (`company_site_id`,`delivery_date`),
+  KEY `acct_delivery_note_site_client_idx` (`company_site_id`,`client_id`),
+  KEY `acct_delivery_note_order_status_idx` (`customer_order_id`,`status`),
+  KEY `accounting_delivery_notes_client_id_foreign` (`client_id`),
+  KEY `accounting_delivery_notes_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_delivery_notes_client_id_foreign` FOREIGN KEY (`client_id`) REFERENCES `accounting_clients` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_delivery_notes_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_delivery_notes_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_delivery_notes_customer_order_id_foreign` FOREIGN KEY (`customer_order_id`) REFERENCES `accounting_customer_orders` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_delivery_note_lines` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `delivery_note_id` bigint(20) unsigned NOT NULL,
+  `customer_order_line_id` bigint(20) unsigned DEFAULT NULL,
+  `line_type` varchar(30) NOT NULL,
+  `item_id` bigint(20) unsigned DEFAULT NULL,
+  `service_id` bigint(20) unsigned DEFAULT NULL,
+  `description` varchar(255) NOT NULL,
+  `details` text DEFAULT NULL,
+  `ordered_quantity` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `already_delivered_quantity` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `quantity` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `unit_price` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `line_total` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `acct_delivery_note_line_type_idx` (`delivery_note_id`,`line_type`),
+  KEY `acct_delivery_note_line_order_line_idx` (`customer_order_line_id`),
+  KEY `accounting_delivery_note_lines_item_id_foreign` (`item_id`),
+  KEY `accounting_delivery_note_lines_service_id_foreign` (`service_id`),
+  CONSTRAINT `accounting_delivery_note_lines_customer_order_line_id_foreign` FOREIGN KEY (`customer_order_line_id`) REFERENCES `accounting_customer_order_lines` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_delivery_note_lines_delivery_note_id_foreign` FOREIGN KEY (`delivery_note_id`) REFERENCES `accounting_delivery_notes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_delivery_note_lines_item_id_foreign` FOREIGN KEY (`item_id`) REFERENCES `accounting_stock_items` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_delivery_note_lines_service_id_foreign` FOREIGN KEY (`service_id`) REFERENCES `accounting_services` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_delivery_note_serials` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `delivery_note_line_id` bigint(20) unsigned NOT NULL,
+  `serial_number` varchar(255) NOT NULL,
+  `position` int(10) unsigned NOT NULL DEFAULT 1,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `acct_delivery_serial_line_unique` (`delivery_note_line_id`,`serial_number`),
+  KEY `acct_delivery_serial_line_position_idx` (`delivery_note_line_id`,`position`),
+  CONSTRAINT `accounting_delivery_note_serials_delivery_note_line_id_foreign` FOREIGN KEY (`delivery_note_line_id`) REFERENCES `accounting_delivery_note_lines` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_sales_invoices` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `reference` varchar(30) DEFAULT NULL,
+  `company_site_id` bigint(20) unsigned NOT NULL,
+  `client_id` bigint(20) unsigned NOT NULL,
+  `customer_order_id` bigint(20) unsigned DEFAULT NULL,
+  `delivery_note_id` bigint(20) unsigned DEFAULT NULL,
+  `proforma_invoice_id` bigint(20) unsigned DEFAULT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `title` varchar(255) DEFAULT NULL,
+  `invoice_date` date NOT NULL,
+  `due_date` date NOT NULL,
+  `currency` varchar(3) NOT NULL,
+  `status` varchar(30) NOT NULL DEFAULT 'draft',
+  `payment_terms` varchar(30) DEFAULT NULL,
+  `subtotal` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `discount_total` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `total_ht` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `tax_rate` decimal(8,2) NOT NULL DEFAULT 0.00,
+  `tax_amount` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `total_ttc` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `paid_total` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `balance_due` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `notes` text DEFAULT NULL,
+  `terms` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `accounting_sales_invoices_reference_unique` (`reference`),
+  KEY `acct_sales_invoice_site_status_idx` (`company_site_id`,`status`),
+  KEY `acct_sales_invoice_site_date_idx` (`company_site_id`,`invoice_date`),
+  KEY `acct_sales_invoice_site_client_idx` (`company_site_id`,`client_id`),
+  KEY `accounting_sales_invoices_client_id_foreign` (`client_id`),
+  KEY `accounting_sales_invoices_customer_order_id_foreign` (`customer_order_id`),
+  KEY `accounting_sales_invoices_delivery_note_id_foreign` (`delivery_note_id`),
+  KEY `accounting_sales_invoices_proforma_invoice_id_foreign` (`proforma_invoice_id`),
+  KEY `accounting_sales_invoices_created_by_foreign` (`created_by`),
+  CONSTRAINT `accounting_sales_invoices_client_id_foreign` FOREIGN KEY (`client_id`) REFERENCES `accounting_clients` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_sales_invoices_company_site_id_foreign` FOREIGN KEY (`company_site_id`) REFERENCES `company_sites` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_sales_invoices_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_sales_invoices_customer_order_id_foreign` FOREIGN KEY (`customer_order_id`) REFERENCES `accounting_customer_orders` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_sales_invoices_delivery_note_id_foreign` FOREIGN KEY (`delivery_note_id`) REFERENCES `accounting_delivery_notes` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_sales_invoices_proforma_invoice_id_foreign` FOREIGN KEY (`proforma_invoice_id`) REFERENCES `accounting_proforma_invoices` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_sales_invoice_lines` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `sales_invoice_id` bigint(20) unsigned NOT NULL,
+  `line_type` varchar(30) NOT NULL,
+  `item_id` bigint(20) unsigned DEFAULT NULL,
+  `service_id` bigint(20) unsigned DEFAULT NULL,
+  `customer_order_line_id` bigint(20) unsigned DEFAULT NULL,
+  `delivery_note_line_id` bigint(20) unsigned DEFAULT NULL,
+  `description` varchar(255) NOT NULL,
+  `details` text DEFAULT NULL,
+  `quantity` decimal(18,2) NOT NULL DEFAULT 1.00,
+  `unit_price` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `discount_type` varchar(20) NOT NULL DEFAULT 'fixed',
+  `discount_amount` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `line_total` decimal(18,2) NOT NULL DEFAULT 0.00,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `acct_sales_invoice_line_type_idx` (`sales_invoice_id`,`line_type`),
+  KEY `accounting_sales_invoice_lines_item_id_foreign` (`item_id`),
+  KEY `accounting_sales_invoice_lines_service_id_foreign` (`service_id`),
+  KEY `accounting_sales_invoice_lines_customer_order_line_id_foreign` (`customer_order_line_id`),
+  KEY `accounting_sales_invoice_lines_delivery_note_line_id_foreign` (`delivery_note_line_id`),
+  CONSTRAINT `accounting_sales_invoice_lines_customer_order_line_id_foreign` FOREIGN KEY (`customer_order_line_id`) REFERENCES `accounting_customer_order_lines` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_sales_invoice_lines_delivery_note_line_id_foreign` FOREIGN KEY (`delivery_note_line_id`) REFERENCES `accounting_delivery_note_lines` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_sales_invoice_lines_item_id_foreign` FOREIGN KEY (`item_id`) REFERENCES `accounting_stock_items` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_sales_invoice_lines_sales_invoice_id_foreign` FOREIGN KEY (`sales_invoice_id`) REFERENCES `accounting_sales_invoices` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `accounting_sales_invoice_lines_service_id_foreign` FOREIGN KEY (`service_id`) REFERENCES `accounting_services` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting_sales_invoice_payments` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `sales_invoice_id` bigint(20) unsigned NOT NULL,
+  `payment_method_id` bigint(20) unsigned DEFAULT NULL,
+  `received_by` bigint(20) unsigned DEFAULT NULL,
+  `payment_date` date NOT NULL,
+  `amount` decimal(18,2) NOT NULL,
+  `currency` varchar(3) NOT NULL,
+  `reference` varchar(255) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `acct_sales_invoice_payment_date_idx` (`sales_invoice_id`,`payment_date`),
+  KEY `accounting_sales_invoice_payments_payment_method_id_foreign` (`payment_method_id`),
+  KEY `accounting_sales_invoice_payments_received_by_foreign` (`received_by`),
+  CONSTRAINT `accounting_sales_invoice_payments_payment_method_id_foreign` FOREIGN KEY (`payment_method_id`) REFERENCES `accounting_payment_methods` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_sales_invoice_payments_received_by_foreign` FOREIGN KEY (`received_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `accounting_sales_invoice_payments_sales_invoice_id_foreign` FOREIGN KEY (`sales_invoice_id`) REFERENCES `accounting_sales_invoices` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `accounting_payment_methods` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `reference` varchar(30) DEFAULT NULL,
@@ -1077,7 +1249,7 @@ CREATE TABLE `migrations` (
   `migration` varchar(255) NOT NULL,
   `batch` int(11) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=32 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=38 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('1', '0001_01_01_000000_create_users_table', '1');
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('2', '0001_01_01_000001_create_cache_table', '1');
@@ -1113,6 +1285,9 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('31', '2026_05_05_
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('32', '2026_05_05_000002_add_payment_terms_to_accounting_proforma_invoices_table', '27');
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('33', '2026_05_06_000001_fill_proforma_offer_validity_dates', '28');
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('34', '2026_05_07_000001_create_accounting_customer_orders_tables', '29');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('35', '2026_05_07_000002_create_accounting_delivery_notes_tables', '30');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('36', '2026_05_07_000003_create_accounting_delivery_note_serials_table', '31');
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES ('37', '2026_05_07_000004_create_accounting_sales_invoices_tables', '32');
 
 DROP TABLE IF EXISTS `password_reset_tokens`;
 CREATE TABLE `password_reset_tokens` (

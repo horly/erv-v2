@@ -83,7 +83,7 @@
                                     <tr>
                                         <td>{{ ($orders->firstItem() ?? 1) + $loop->index }}</td>
                                         <td><span class="reference-pill">{{ $order->reference }}</span></td>
-                                        <td>{{ $order->client?->name ?? '-' }}</td>
+                                        <td>{{ $order->client?->display_name ?? '-' }}</td>
                                         <td>{{ optional($order->order_date)->format('d/m/Y') }}</td>
                                         <td>{{ optional($order->expected_delivery_date)->format('d/m/Y') ?: '-' }}</td>
                                         <td class="amount-cell text-end" data-sort-value="{{ $order->margin_total }}">{{ number_format((float) $order->margin_total, 2, ',', ' ') }} {{ $order->currency }}</td>
@@ -91,6 +91,16 @@
                                         <td><span class="status-pill customer-order-status-{{ $order->status }}">{{ $statusLabels[$order->status] ?? $order->status }}</span></td>
                                         <td>
                                             <div class="table-actions">
+                                                @if ($orderPermissions['can_create'] && in_array($order->status, [\App\Models\AccountingCustomerOrder::STATUS_CONFIRMED, \App\Models\AccountingCustomerOrder::STATUS_IN_PROGRESS], true))
+                                                    <a class="table-button table-button-print" href="{{ route('main.accounting.delivery-notes.create', [$company, $site, 'order' => $order->id]) }}" aria-label="{{ __('main.create_delivery_note') }}" title="{{ __('main.create_delivery_note') }}">
+                                                        <i class="bi bi-box-arrow-up" aria-hidden="true"></i>
+                                                    </a>
+                                                @endif
+                                                @if ($orderPermissions['can_create'] && $order->status !== \App\Models\AccountingCustomerOrder::STATUS_CANCELLED)
+                                                    <a class="table-button table-button-print" href="{{ route('main.accounting.sales-invoices.create', [$company, $site, 'order' => $order->id]) }}" aria-label="{{ __('main.new_sales_invoice') }}" title="{{ __('main.new_sales_invoice') }}">
+                                                        <i class="bi bi-receipt" aria-hidden="true"></i>
+                                                    </a>
+                                                @endif
                                                 @if ($orderPermissions['can_update'])
                                                     <a class="table-button table-button-edit" href="{{ route('main.accounting.customer-orders.edit', [$company, $site, $order]) }}" aria-label="{{ __('admin.edit') }}">
                                                         <i class="bi bi-pencil" aria-hidden="true"></i>

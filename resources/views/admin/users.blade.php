@@ -500,10 +500,10 @@
                                 <tbody id="loginHistoryBody"></tbody>
                             </table>
                         </div>
-                        <div class="login-history-footer">
+                        <section class="subscriptions-pagination modal-table-pagination login-history-footer" id="loginHistoryFooter" hidden aria-label="{{ __('admin.pagination') }}">
                             <span id="loginHistoryCount"></span>
                             <nav class="pagination-shell" id="loginHistoryPagination" aria-label="{{ __('admin.pagination') }}"></nav>
-                        </div>
+                        </section>
                     </div>
 
                     <div class="modal-actions">
@@ -592,6 +592,7 @@
             const visibleCount = document.getElementById('loginHistoryVisibleCount');
             const totalCount = document.getElementById('loginHistoryTotalCount');
             const search = document.getElementById('loginHistorySearch');
+            const footer = document.getElementById('loginHistoryFooter');
             const pagination = document.getElementById('loginHistoryPagination');
             let currentUrl = '';
             let currentName = '';
@@ -611,6 +612,7 @@
                 state.textContent = @json(__('main.loading_history'));
                 tableWrap.hidden = false;
                 body.innerHTML = '';
+                footer.hidden = true;
                 pagination.innerHTML = '';
 
                 const params = new URLSearchParams({
@@ -633,6 +635,7 @@
                     count.textContent = '';
                     visibleCount.textContent = '0';
                     totalCount.textContent = String(payload.meta.total);
+                    footer.hidden = true;
                     return;
                 }
 
@@ -653,6 +656,7 @@
                 count.textContent = `${@json(__('admin.showing'))} ${payload.meta.from} ${@json(__('admin.to'))} ${payload.meta.to} ${@json(__('admin.on'))} ${payload.meta.total}`;
                 visibleCount.textContent = String(payload.data.length);
                 totalCount.textContent = String(payload.meta.total);
+                footer.hidden = payload.meta.total <= 5;
                 pagination.hidden = payload.meta.total <= 5;
 
                 const pageButton = (label, targetPage, disabled = false, active = false) => {
@@ -699,18 +703,22 @@
                 });
             });
 
-            document.querySelectorAll('[data-login-history-trigger]').forEach((trigger) => {
-                trigger.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    currentName = trigger.dataset.loginHistoryName || '';
-                    currentSort = 'date';
-                    currentDirection = 'desc';
-                    if (search) {
-                        search.value = '';
-                    }
-                    bootstrap.Modal.getOrCreateInstance(modalElement).show();
-                    loadHistory(trigger.dataset.loginHistoryUrl);
-                });
+            document.addEventListener('click', (event) => {
+                const trigger = event.target.closest('[data-login-history-trigger]');
+
+                if (!trigger) {
+                    return;
+                }
+
+                event.stopPropagation();
+                currentName = trigger.dataset.loginHistoryName || '';
+                currentSort = 'date';
+                currentDirection = 'desc';
+                if (search) {
+                    search.value = '';
+                }
+                bootstrap.Modal.getOrCreateInstance(modalElement).show();
+                loadHistory(trigger.dataset.loginHistoryUrl);
             });
         })();
     </script>

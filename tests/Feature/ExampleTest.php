@@ -3,17 +3,24 @@
 namespace Tests\Feature;
 
 use App\Models\AccountingClient;
+use App\Models\AccountingCashRegisterSession;
 use App\Models\AccountingCreditor;
 use App\Models\AccountingCurrency;
 use App\Models\AccountingCustomerOrder;
 use App\Models\AccountingCustomerOrderLine;
 use App\Models\AccountingDebtor;
+use App\Models\AccountingDeliveryNote;
+use App\Models\AccountingDeliveryNoteLine;
+use App\Models\AccountingDeliveryNoteSerial;
 use App\Models\AccountingPaymentMethod;
 use App\Models\AccountingPartner;
 use App\Models\AccountingProformaInvoice;
 use App\Models\AccountingProformaInvoiceLine;
 use App\Models\AccountingProspect;
 use App\Models\AccountingSalesRepresentative;
+use App\Models\AccountingSalesInvoice;
+use App\Models\AccountingSalesInvoiceLine;
+use App\Models\AccountingSalesInvoicePayment;
 use App\Models\AccountingRecurringService;
 use App\Models\AccountingService;
 use App\Models\AccountingServiceCategory;
@@ -128,6 +135,78 @@ class ExampleTest extends TestCase
         $response->assertSee(__('admin.next'), false);
         $response->assertSee('>5</strong>', false);
         $response->assertSee('>6</strong>', false);
+    }
+
+    public function test_table_search_filters_all_paginated_records(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Search subscription',
+            'code' => 'SEARCH_SUBSCRIPTION',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'search admin',
+            'email' => 'search-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Search Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'search-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Search Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $hiddenClient = AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Hidden Global Search Client',
+            'email' => 'hidden-global@example.test',
+        ]);
+        AccountingClient::query()
+            ->whereKey($hiddenClient->id)
+            ->update(['created_at' => now()->subDay(), 'updated_at' => now()->subDay()]);
+
+        foreach (range(1, 5) as $index) {
+            $recentClient = AccountingClient::create([
+                'company_site_id' => $site->id,
+                'created_by' => $admin->id,
+                'type' => AccountingClient::TYPE_COMPANY,
+                'name' => 'Recent Client '.$index,
+                'email' => 'recent-'.$index.'@example.test',
+            ]);
+            AccountingClient::query()
+                ->whereKey($recentClient->id)
+                ->update(['created_at' => now()->addSeconds($index), 'updated_at' => now()->addSeconds($index)]);
+        }
+
+        $route = route('main.accounting.clients', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertDontSee('Hidden Global Search Client');
+
+        $this->actingAs($admin)->get($route.'?search=Hidden+Global')
+            ->assertOk()
+            ->assertSee('Hidden Global Search Client')
+            ->assertSee('>1</strong>', false)
+            ->assertDontSee('Recent Client 5');
     }
 
     public function test_admin_can_open_company_sites_and_create_site_with_assignments(): void
@@ -726,6 +805,81 @@ class ExampleTest extends TestCase
 
         $client = AccountingClient::query()->where('name', 'Client SARL')->firstOrFail();
 
+        AccountingProformaInvoice::create([
+            'company_site_id' => $site->id,
+            'client_id' => $client->id,
+            'created_by' => $admin->id,
+            'reference' => 'PRO-000001',
+            'title' => 'Offre client',
+            'issue_date' => '2026-05-08',
+            'expiration_date' => '2026-05-15',
+            'currency' => 'USD',
+            'status' => AccountingProformaInvoice::STATUS_SENT,
+            'payment_terms' => AccountingProformaInvoice::PAYMENT_FULL_ORDER,
+            'subtotal' => 1200,
+            'discount_total' => 0,
+            'total_ht' => 1200,
+            'tax_rate' => 0,
+            'tax_amount' => 0,
+            'total_ttc' => 1200,
+        ]);
+
+        $customerOrder = AccountingCustomerOrder::create([
+            'company_site_id' => $site->id,
+            'client_id' => $client->id,
+            'created_by' => $admin->id,
+            'reference' => 'CMD-000001',
+            'title' => 'Commande client',
+            'order_date' => '2026-05-09',
+            'expected_delivery_date' => '2026-05-12',
+            'currency' => 'USD',
+            'status' => AccountingCustomerOrder::STATUS_CONFIRMED,
+            'payment_terms' => AccountingProformaInvoice::PAYMENT_FULL_ORDER,
+            'subtotal' => 1200,
+            'cost_total' => 900,
+            'margin_total' => 300,
+            'margin_rate' => 25,
+            'discount_total' => 0,
+            'total_ht' => 1200,
+            'tax_rate' => 0,
+            'tax_amount' => 0,
+            'total_ttc' => 1200,
+        ]);
+
+        $deliveryNote = AccountingDeliveryNote::create([
+            'company_site_id' => $site->id,
+            'client_id' => $client->id,
+            'customer_order_id' => $customerOrder->id,
+            'created_by' => $admin->id,
+            'reference' => 'BL-000001',
+            'title' => 'Livraison client',
+            'delivery_date' => '2026-05-10',
+            'status' => AccountingDeliveryNote::STATUS_READY,
+        ]);
+
+        AccountingSalesInvoice::create([
+            'company_site_id' => $site->id,
+            'client_id' => $client->id,
+            'customer_order_id' => $customerOrder->id,
+            'delivery_note_id' => $deliveryNote->id,
+            'created_by' => $admin->id,
+            'reference' => 'FAC-000001',
+            'title' => 'Facture client',
+            'invoice_date' => '2026-05-11',
+            'due_date' => '2026-05-18',
+            'currency' => 'USD',
+            'status' => AccountingSalesInvoice::STATUS_ISSUED,
+            'payment_terms' => AccountingProformaInvoice::PAYMENT_FULL_ORDER,
+            'subtotal' => 1200,
+            'discount_total' => 0,
+            'total_ht' => 1200,
+            'tax_rate' => 0,
+            'tax_amount' => 0,
+            'total_ttc' => 1200,
+            'paid_total' => 0,
+            'balance_due' => 1200,
+        ]);
+
         $this->assertDatabaseHas('accounting_client_contacts', [
             'accounting_client_id' => $client->id,
             'full_name' => 'Marie Contact',
@@ -744,10 +898,19 @@ class ExampleTest extends TestCase
             ->assertSee(__('main.reference'), false)
             ->assertSee('CLT-000001', false)
             ->assertSee('CLT-000002', false)
+            ->assertDontSee('data-sort-index="4">', false)
+            ->assertDontSee('data-sort-index="5">', false)
             ->assertSee('Jean Client')
             ->assertSee('Client SARL')
             ->assertSee('Marie Contact', false)
-            ->assertSee(__('main.client_company'), false);
+            ->assertSee(__('main.client_company'), false)
+            ->assertSee(__('main.view_client_documents'), false)
+            ->assertSee(__('main.client_documents_title', ['name' => 'Client SARL']), false)
+            ->assertSee('PRO-000001', false)
+            ->assertSee('CMD-000001', false)
+            ->assertSee('BL-000001', false)
+            ->assertSee('FAC-000001', false)
+            ->assertSee('table-button table-button-print', false);
     }
 
     public function test_accounting_suppliers_page_manages_individual_and_company_suppliers(): void
@@ -2025,10 +2188,91 @@ class ExampleTest extends TestCase
             'status' => AccountingPaymentMethod::STATUS_INACTIVE,
         ]);
 
+        $client = AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Receipt Client',
+            'email' => 'receipt-client@example.test',
+            'currency' => 'CDF',
+        ]);
+
+        $invoice = AccountingSalesInvoice::create([
+            'company_site_id' => $site->id,
+            'client_id' => $client->id,
+            'created_by' => $admin->id,
+            'reference' => 'FAC-PAY-METHOD',
+            'title' => 'Invoice paid by method',
+            'invoice_date' => '2026-05-08',
+            'due_date' => '2026-05-15',
+            'currency' => 'CDF',
+            'status' => AccountingSalesInvoice::STATUS_PARTIALLY_PAID,
+            'payment_terms' => '100% on order',
+            'subtotal' => 500,
+            'discount_total' => 0,
+            'total_ht' => 500,
+            'tax_rate' => 0,
+            'tax_amount' => 0,
+            'total_ttc' => 500,
+            'paid_total' => 250,
+            'balance_due' => 250,
+        ]);
+
+        AccountingSalesInvoicePayment::create([
+            'sales_invoice_id' => $invoice->id,
+            'payment_method_id' => $bankMethod->id,
+            'received_by' => $admin->id,
+            'payment_date' => '2026-05-08',
+            'amount' => 250,
+            'currency' => 'CDF',
+            'reference' => 'PAY-RECEIPT-001',
+            'notes' => 'Partial receipt',
+        ]);
+
+        $protectedMethod = AccountingPaymentMethod::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Protected cash',
+            'type' => AccountingPaymentMethod::TYPE_CASH,
+            'currency_code' => 'CDF',
+            'is_default' => false,
+            'is_system_default' => false,
+            'status' => AccountingPaymentMethod::STATUS_ACTIVE,
+        ]);
+
+        AccountingSalesInvoicePayment::create([
+            'sales_invoice_id' => $invoice->id,
+            'payment_method_id' => $protectedMethod->id,
+            'received_by' => $admin->id,
+            'payment_date' => '2026-05-08',
+            'amount' => 50,
+            'currency' => 'CDF',
+            'reference' => 'PAY-PROTECTED-001',
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('main.accounting.payment-methods.destroy', [$company, $site, $protectedMethod]))
+            ->assertRedirect($route)
+            ->assertSessionHas('success', __('main.payment_method_with_movements_cannot_delete'));
+
+        $this->assertDatabaseHas('accounting_payment_methods', [
+            'id' => $protectedMethod->id,
+            'name' => 'Protected cash',
+        ]);
+
         $this->actingAs($admin)->get($route)
             ->assertOk()
             ->assertSee('Mobile money')
             ->assertSee(__('main.payment_method_type_mobile_money'), false)
+            ->assertSee(__('main.view_receipts'), false)
+            ->assertSee(__('main.disbursements_coming_soon'), false)
+            ->assertSee(__('main.payment_method_receipts_title', ['name' => 'Mobile money']), false)
+            ->assertSee(__('main.payment_method_receipts_total'), false)
+            ->assertSee('FAC-PAY-METHOD')
+            ->assertSee('Receipt Client')
+            ->assertSee('250,00 CDF')
+            ->assertSee('PAY-RECEIPT-001')
+            ->assertDontSee(__('main.delete_payment_method_text', ['name' => 'Protected cash']), false)
             ->assertSeeInOrder(['Espèces', 'Mobile money']);
     }
 
@@ -2107,7 +2351,6 @@ class ExampleTest extends TestCase
             ->assertSee(__('main.payment_terms_to_discuss'), false)
             ->assertSee(__('main.create_stock_item_from_free_line'), false)
             ->assertSee(__('main.import_supplier_quote'), false)
-            ->assertSee('.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff', false)
             ->assertSee(route('main.accounting.proforma-invoices.import-quote', [$company, $site]), false)
             ->assertSee('data-proforma-line-list', false)
             ->assertSee('resources/js/main/accounting-proforma-invoices.js', false);
@@ -2143,18 +2386,6 @@ class ExampleTest extends TestCase
         $this->assertSame('125.00', session()->getOldInput('lines.0.cost_price'));
         $this->assertSame('1', session()->getOldInput('lines.0.create_stock_item'));
         $this->assertSame('Support premium', session()->getOldInput('lines.1.description'));
-
-        $this->actingAs($admin)->post(route('main.accounting.proforma-invoices.import-quote', [$company, $site]), [
-            'client_id' => $client->id,
-            'title' => 'Offre depuis image',
-            'issue_date' => '2026-05-01',
-            'expiration_date' => '2026-05-15',
-            'currency' => 'CDF',
-            'status' => AccountingProformaInvoice::STATUS_DRAFT,
-            'payment_terms' => AccountingProformaInvoice::PAYMENT_TO_DISCUSS,
-            'tax_rate' => 16,
-            'supplier_quote_file' => UploadedFile::fake()->createWithContent('supplier-quote.png', 'fake-image-content'),
-        ])->assertSessionHasErrors(['supplier_quote_file']);
 
         $this->actingAs($admin)->post(route('main.accounting.proforma-invoices.store', [$company, $site]), [
             'client_id' => $client->id,
@@ -2559,6 +2790,918 @@ class ExampleTest extends TestCase
             ->assertSee('Client Commande')
             ->assertSee('50,00 CDF', false)
             ->assertSee('278,40 CDF', false);
+    }
+
+    public function test_accounting_sales_invoices_page_manages_invoice_payments_and_pdf(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Sales Invoices',
+            'code' => 'SALES_INVOICES',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'invoice admin',
+            'email' => 'invoice-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Invoice Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'invoice-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Invoice Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        AccountingCurrency::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'code' => 'CDF',
+            'name' => 'Franc congolais',
+            'symbol' => 'FC',
+            'exchange_rate' => 1,
+            'is_base' => true,
+            'is_default' => true,
+            'status' => AccountingCurrency::STATUS_ACTIVE,
+        ]);
+
+        $client = AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Client Facture',
+            'address' => 'Kinshasa',
+        ]);
+
+        $paymentMethod = AccountingPaymentMethod::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Caisse CDF',
+            'type' => AccountingPaymentMethod::TYPE_CASH,
+            'currency_code' => 'CDF',
+            'is_default' => true,
+            'status' => AccountingPaymentMethod::STATUS_ACTIVE,
+        ]);
+
+        $route = route('main.accounting.sales-invoices', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.sales_invoices'), false)
+            ->assertSee(__('main.new_sales_invoice'), false)
+            ->assertSee(route('main.accounting.sales-invoices.create', [$company, $site]), false);
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.sales-invoices.create', [$company, $site]))
+            ->assertOk()
+            ->assertSee(__('main.sales_invoice_lines'), false)
+            ->assertSee(__('main.payment_terms_half_order'), false)
+            ->assertSee('resources/js/main/accounting-sales-invoices.js', false);
+
+        $this->actingAs($admin)->post(route('main.accounting.sales-invoices.store', [$company, $site]), [
+            'client_id' => $client->id,
+            'title' => 'Facturation finale',
+            'invoice_date' => '2026-05-07',
+            'due_date' => '2026-06-07',
+            'currency' => 'CDF',
+            'status' => AccountingSalesInvoice::STATUS_ISSUED,
+            'payment_terms' => AccountingProformaInvoice::PAYMENT_HALF_ORDER,
+            'tax_rate' => 16,
+            'notes' => 'Merci.',
+            'terms' => "Paiement selon accord.\nLivraison incluse.",
+            'lines' => [
+                [
+                    'line_type' => AccountingSalesInvoiceLine::TYPE_FREE,
+                    'description' => 'Prestation facturable',
+                    'quantity' => 2,
+                    'unit_price' => 100,
+                    'discount_type' => AccountingSalesInvoiceLine::DISCOUNT_FIXED,
+                    'discount_amount' => 10,
+                ],
+            ],
+        ])->assertRedirect($route);
+
+        $invoice = AccountingSalesInvoice::query()->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_sales_invoices', [
+            'id' => $invoice->id,
+            'reference' => 'FAC-000001',
+            'client_id' => $client->id,
+            'status' => AccountingSalesInvoice::STATUS_ISSUED,
+            'subtotal' => 200,
+            'discount_total' => 10,
+            'total_ht' => 190,
+            'tax_amount' => 30.4,
+            'total_ttc' => 220.4,
+            'balance_due' => 220.4,
+        ]);
+
+        $this->assertDatabaseHas('accounting_sales_invoice_lines', [
+            'sales_invoice_id' => $invoice->id,
+            'description' => 'Prestation facturable',
+            'line_total' => 190,
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee('FAC-000001')
+            ->assertSee('Client Facture')
+            ->assertSee('220,40 CDF', false)
+            ->assertSee(__('main.sales_invoice_status_issued'), false)
+            ->assertSee(route('main.accounting.sales-invoices.print', [$company, $site, $invoice]), false);
+
+        $this->actingAs($admin)->post(route('main.accounting.sales-invoices.payments.store', [$company, $site, $invoice]), [
+            'payment_method_id' => $paymentMethod->id,
+            'payment_date' => '2026-05-08',
+            'amount' => 120.4,
+            'reference' => 'PAY-CLIENT-1',
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_sales_invoice_payments', [
+            'sales_invoice_id' => $invoice->id,
+            'payment_method_id' => $paymentMethod->id,
+            'amount' => 120.4,
+            'reference' => 'PAY-CLIENT-1',
+        ]);
+
+        $this->assertSame(AccountingSalesInvoice::STATUS_PARTIALLY_PAID, $invoice->fresh()->status);
+        $this->assertSame('100.00', $invoice->fresh()->balance_due);
+
+        $this->actingAs($admin)->from($route)->post(route('main.accounting.sales-invoices.payments.store', [$company, $site, $invoice]), [
+            'payment_invoice_id' => $invoice->id,
+            'payment_method_id' => $paymentMethod->id,
+            'payment_date' => '2026-05-08',
+            'amount' => 100.01,
+            'reference' => 'PAY-OVERPAID',
+        ])
+            ->assertRedirect($route)
+            ->assertSessionHasErrors('amount');
+
+        $this->assertSame('100.00', $invoice->fresh()->balance_due);
+        $this->assertSame(1, AccountingSalesInvoicePayment::query()->count());
+
+        $this->actingAs($admin)->from($route)->post(route('main.accounting.sales-invoices.payments.store', [$company, $site, $invoice]), [
+            'payment_invoice_id' => $invoice->id,
+            'payment_date' => '2026-05-08',
+            'amount' => 10,
+            'reference' => 'PAY-NO-METHOD',
+        ])
+            ->assertRedirect($route)
+            ->assertSessionHasErrors('payment_method_id');
+
+        $this->assertSame('100.00', $invoice->fresh()->balance_due);
+        $this->assertSame(1, AccountingSalesInvoicePayment::query()->count());
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.view_payments'), false)
+            ->assertSee(__('main.sales_invoice_payments_title', ['reference' => 'FAC-000001']), false)
+            ->assertSee('PAY-CLIENT-1')
+            ->assertSee('120,40 CDF', false)
+            ->assertSee('Caisse CDF');
+
+        $this->actingAs($admin)->post(route('main.accounting.sales-invoices.payments.store', [$company, $site, $invoice]), [
+            'payment_method_id' => $paymentMethod->id,
+            'payment_date' => '2026-05-09',
+            'amount' => 100,
+        ])->assertRedirect($route);
+
+        $this->assertSame(AccountingSalesInvoice::STATUS_PAID, $invoice->fresh()->status);
+        $this->assertSame('0.00', $invoice->fresh()->balance_due);
+        $this->assertSame(2, AccountingSalesInvoicePayment::query()->count());
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.sales-invoices.print', [$company, $site, $invoice]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+    }
+
+    public function test_accounting_receipts_page_lists_site_receipts_and_filters(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Receipts',
+            'code' => 'RECEIPTS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'receipts admin',
+            'email' => 'receipts-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Receipts Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'receipts-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Receipts Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        AccountingCurrency::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'code' => 'CDF',
+            'name' => 'Franc congolais',
+            'symbol' => 'FC',
+            'exchange_rate' => 1,
+            'is_base' => true,
+            'is_default' => true,
+            'status' => AccountingCurrency::STATUS_ACTIVE,
+        ]);
+
+        $client = AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Client Encaissement',
+            'address' => 'Kinshasa',
+        ]);
+
+        $method = AccountingPaymentMethod::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Caisse CDF',
+            'type' => AccountingPaymentMethod::TYPE_CASH,
+            'currency_code' => 'CDF',
+            'status' => AccountingPaymentMethod::STATUS_ACTIVE,
+            'is_default' => true,
+        ]);
+
+        $invoice = AccountingSalesInvoice::create([
+            'company_site_id' => $site->id,
+            'client_id' => $client->id,
+            'created_by' => $admin->id,
+            'reference' => 'FAC-000123',
+            'title' => 'Facture test encaissement',
+            'invoice_date' => '2026-05-07',
+            'due_date' => '2026-05-20',
+            'currency' => 'CDF',
+            'status' => AccountingSalesInvoice::STATUS_PARTIALLY_PAID,
+            'subtotal' => 100,
+            'discount_total' => 0,
+            'total_ht' => 100,
+            'tax_rate' => 0,
+            'tax_amount' => 0,
+            'total_ttc' => 100,
+            'paid_total' => 40,
+            'balance_due' => 60,
+        ]);
+
+        AccountingSalesInvoicePayment::create([
+            'sales_invoice_id' => $invoice->id,
+            'payment_method_id' => $method->id,
+            'received_by' => $admin->id,
+            'payment_date' => '2026-05-08',
+            'amount' => 40,
+            'currency' => 'CDF',
+            'reference' => 'PAY-REC-001',
+        ]);
+
+        $route = route('main.accounting.receipts', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.payments_received'), false)
+            ->assertSee(__('main.receipts_subtitle'), false)
+            ->assertSee('FAC-000123')
+            ->assertSee('Client Encaissement')
+            ->assertSee('PAY-REC-001')
+            ->assertSee('40,00 CDF', false)
+            ->assertSee(route('main.accounting.sales-invoices.print', [$company, $site, $invoice]), false);
+
+        $this->actingAs($admin)->get($route.'?payment_method_id='.$method->id)
+            ->assertOk()
+            ->assertSee('PAY-REC-001');
+
+        $this->actingAs($admin)->get($route.'?search=PAY-REC-001')
+            ->assertOk()
+            ->assertSee('PAY-REC-001')
+            ->assertSee('>1</strong>', false);
+    }
+
+    public function test_accounting_cash_register_creates_quick_paid_sale_and_releases_stock(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Cash Register',
+            'code' => 'CASH_REGISTER',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'cash admin',
+            'email' => 'cash-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Cash Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'cash-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Cash Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        AccountingCurrency::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'code' => 'CDF',
+            'name' => 'Franc congolais',
+            'symbol' => 'FC',
+            'exchange_rate' => 1,
+            'is_base' => true,
+            'is_default' => true,
+            'status' => AccountingCurrency::STATUS_ACTIVE,
+        ]);
+
+        $method = AccountingPaymentMethod::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Caisse Principale',
+            'type' => AccountingPaymentMethod::TYPE_CASH,
+            'currency_code' => 'CDF',
+            'status' => AccountingPaymentMethod::STATUS_ACTIVE,
+            'is_default' => true,
+        ]);
+
+        $unit = AccountingStockUnit::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Piece',
+            'symbol' => 'pc',
+            'type' => AccountingStockUnit::TYPE_QUANTITY,
+            'status' => 'active',
+        ]);
+
+        $warehouse = AccountingStockWarehouse::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Depot caisse',
+            'code' => 'DEP-CASH',
+            'status' => 'active',
+            'is_default' => true,
+        ]);
+
+        $category = AccountingStockCategory::create([
+            'company_site_id' => $site->id,
+            'warehouse_id' => $warehouse->id,
+            'created_by' => $admin->id,
+            'name' => 'Articles caisse',
+            'status' => AccountingStockCategory::STATUS_ACTIVE,
+        ]);
+
+        $item = AccountingStockItem::create([
+            'company_site_id' => $site->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'default_warehouse_id' => $warehouse->id,
+            'created_by' => $admin->id,
+            'name' => 'Clavier comptoir',
+            'type' => AccountingStockItem::TYPE_PRODUCT,
+            'sale_price' => 100,
+            'current_stock' => 5,
+            'currency' => 'CDF',
+            'status' => 'active',
+        ]);
+
+        $route = route('main.accounting.cash-register', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.cash_register'), false)
+            ->assertDontSee(__('main.cash_register_subtitle'), false)
+            ->assertSee(__('main.open_cash_register'), false);
+
+        $session = AccountingCashRegisterSession::create([
+            'company_site_id' => $site->id,
+            'opened_by' => $admin->id,
+            'reference' => 'CAI-ADMIN-001',
+            'status' => AccountingCashRegisterSession::STATUS_OPEN,
+            'opened_at' => now(),
+            'opening_float' => 50,
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.close_cash_register'), false)
+            ->assertSee('Clavier comptoir');
+
+        $response = $this->actingAs($admin)->post(route('main.accounting.cash-register.store', [$company, $site]), [
+            'sale_date' => '2026-05-08',
+            'currency' => 'CDF',
+            'payment_method_id' => $method->id,
+            'payment_reference' => 'TICKET-001',
+            'payment_received' => 250,
+            'tax_rate' => 0,
+            'lines' => [[
+                'line_type' => AccountingSalesInvoiceLine::TYPE_ITEM,
+                'item_id' => $item->id,
+                'description' => 'Clavier comptoir',
+                'quantity' => 2,
+                'unit_price' => 100,
+                'discount_type' => AccountingSalesInvoiceLine::DISCOUNT_FIXED,
+                'discount_amount' => 0,
+            ]],
+        ]);
+
+        $response
+            ->assertRedirect($route)
+            ->assertSessionHas('success', __('main.cash_register_sale_saved'));
+
+        $invoice = AccountingSalesInvoice::query()->firstOrFail();
+
+        $this->assertSame(AccountingSalesInvoice::TITLE_CASH_REGISTER, $invoice->title);
+        $this->assertSame($session->id, $invoice->cash_register_session_id);
+        $this->assertSame(AccountingSalesInvoice::STATUS_PAID, $invoice->status);
+        $this->assertSame('200.00', (string) $invoice->total_ttc);
+        $this->assertSame(1, AccountingSalesInvoicePayment::query()->count());
+        $this->assertSame('250.00', (string) AccountingSalesInvoicePayment::query()->firstOrFail()->amount_received);
+        $this->assertSame('50.00', (string) AccountingSalesInvoicePayment::query()->firstOrFail()->change_due);
+        $this->assertSame(1, AccountingStockMovement::query()->where('type', AccountingStockMovement::TYPE_EXIT)->count());
+        $this->assertSame(3.0, (float) $item->fresh()->current_stock);
+
+        $this->actingAs($admin)->get($route.'?search=TICKET-001')
+            ->assertOk()
+            ->assertSee($invoice->reference)
+            ->assertSee('200,00 CDF', false)
+            ->assertSee(route('main.accounting.sales-invoices.print', [$company, $site, $invoice]), false);
+
+        $cashier = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'cash user',
+            'email' => 'cash-user@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $cashier->sites()->attach($site->id, [
+            'module_permissions' => json_encode([CompanySite::MODULE_ACCOUNTING => [AccountingSalesInvoice::TITLE_CASH_REGISTER]]),
+            'can_create' => true,
+            'can_update' => true,
+            'can_delete' => false,
+        ]);
+
+        $cashierSession = AccountingCashRegisterSession::create([
+            'company_site_id' => $site->id,
+            'opened_by' => $cashier->id,
+            'reference' => 'CAI-USER-001',
+            'status' => AccountingCashRegisterSession::STATUS_OPEN,
+            'opened_at' => now()->addMinute(),
+            'opening_float' => 10,
+        ]);
+
+        $cashierInvoice = AccountingSalesInvoice::create([
+            'company_site_id' => $site->id,
+            'cash_register_session_id' => $cashierSession->id,
+            'client_id' => $invoice->client_id,
+            'created_by' => $cashier->id,
+            'reference' => 'FAC-USER-CASH',
+            'title' => AccountingSalesInvoice::TITLE_CASH_REGISTER,
+            'invoice_date' => '2026-05-08',
+            'due_date' => '2026-05-08',
+            'currency' => 'CDF',
+            'status' => AccountingSalesInvoice::STATUS_PAID,
+            'payment_terms' => AccountingProformaInvoice::PAYMENT_FULL_ORDER,
+            'subtotal' => 25,
+            'discount_total' => 0,
+            'total_ht' => 25,
+            'tax_rate' => 0,
+            'tax_amount' => 0,
+            'total_ttc' => 25,
+            'paid_total' => 25,
+            'balance_due' => 0,
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee($invoice->reference)
+            ->assertSee($cashierInvoice->reference)
+            ->assertSee('CAI-ADMIN-001')
+            ->assertSee('CAI-USER-001');
+
+        $this->actingAs($cashier)->get($route)
+            ->assertOk()
+            ->assertSee($cashierInvoice->reference)
+            ->assertSee('CAI-USER-001')
+            ->assertDontSee($invoice->reference)
+            ->assertDontSee('CAI-ADMIN-001');
+
+        $closeResponse = $this->actingAs($admin)->post(route('main.accounting.cash-register.close', [$company, $site, $session]), [
+            'counted_cash_amount' => 250,
+            'counted_other_amount' => 0,
+        ]);
+
+        $closeResponse
+            ->assertRedirect($route)
+            ->assertSessionHas('success', __('main.cash_register_session_closed'));
+
+        $this->assertSame(AccountingCashRegisterSession::STATUS_CLOSED, $session->fresh()->status);
+        $this->assertSame('250.00', (string) $session->fresh()->expected_total_amount);
+        $this->assertSame('0.00', (string) $session->fresh()->difference_amount);
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.cash-register.report', [$company, $site, $session]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+    }
+
+    public function test_accounting_delivery_notes_create_partial_delivery_release_stock_and_print_pdf(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Delivery Notes',
+            'code' => 'DELIVERY_NOTES',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'delivery admin',
+            'email' => 'delivery-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Delivery Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'delivery-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Delivery Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $currency = AccountingCurrency::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'code' => 'CDF',
+            'name' => 'Franc congolais',
+            'symbol' => 'FC',
+            'exchange_rate' => 1,
+            'is_base' => true,
+            'is_default' => true,
+            'status' => AccountingCurrency::STATUS_ACTIVE,
+        ]);
+
+        $client = AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Client Livraison',
+            'address' => 'Kinshasa',
+        ]);
+
+        $unit = AccountingStockUnit::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Piece',
+            'symbol' => 'pc',
+            'type' => AccountingStockUnit::TYPE_QUANTITY,
+            'status' => 'active',
+        ]);
+
+        $warehouse = AccountingStockWarehouse::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Entrepot livraison',
+            'code' => 'DEP-LIV',
+            'status' => 'active',
+            'is_default' => true,
+        ]);
+
+        $category = AccountingStockCategory::create([
+            'company_site_id' => $site->id,
+            'warehouse_id' => $warehouse->id,
+            'created_by' => $admin->id,
+            'name' => 'Materiel livraison',
+            'status' => 'active',
+        ]);
+
+        $item = AccountingStockItem::create([
+            'company_site_id' => $site->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'default_warehouse_id' => $warehouse->id,
+            'created_by' => $admin->id,
+            'name' => 'Serveur livraison',
+            'type' => AccountingStockItem::TYPE_PRODUCT,
+            'purchase_price' => 1000,
+            'sale_price' => 1500,
+            'current_stock' => 10,
+            'currency' => $currency->code,
+            'status' => 'active',
+        ]);
+
+        $order = AccountingCustomerOrder::create([
+            'company_site_id' => $site->id,
+            'client_id' => $client->id,
+            'created_by' => $admin->id,
+            'title' => 'Commande livraison',
+            'order_date' => '2026-05-07',
+            'expected_delivery_date' => '2026-05-10',
+            'currency' => 'CDF',
+            'status' => AccountingCustomerOrder::STATUS_CONFIRMED,
+            'subtotal' => 7500,
+            'cost_total' => 5000,
+            'margin_total' => 2500,
+            'margin_rate' => 50,
+            'discount_total' => 0,
+            'total_ht' => 7500,
+            'tax_rate' => 0,
+            'tax_amount' => 0,
+            'total_ttc' => 7500,
+        ]);
+
+        $orderLine = AccountingCustomerOrderLine::create([
+            'customer_order_id' => $order->id,
+            'line_type' => AccountingCustomerOrderLine::TYPE_ITEM,
+            'item_id' => $item->id,
+            'description' => 'Serveur livraison',
+            'quantity' => 5,
+            'cost_price' => 1000,
+            'unit_price' => 1500,
+            'line_total' => 7500,
+            'cost_total' => 5000,
+            'margin_total' => 2500,
+        ]);
+
+        $indexRoute = route('main.accounting.delivery-notes', [$company, $site]);
+
+        $this->actingAs($admin)->get($indexRoute)
+            ->assertOk()
+            ->assertSee(__('main.delivery_notes'), false)
+            ->assertSee(__('main.new_delivery_note'), false)
+            ->assertSee($order->reference, false);
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.delivery-notes.create', [$company, $site, 'order' => $order->id]))
+            ->assertOk()
+            ->assertSee(__('main.quantity_to_deliver'), false)
+            ->assertSee(__('main.serial_numbers'), false)
+            ->assertSee('Serveur livraison', false)
+            ->assertSee('5,00', false);
+
+        $this->actingAs($admin)->post(route('main.accounting.delivery-notes.store', [$company, $site]), [
+            'customer_order_id' => $order->id,
+            'title' => 'Livraison partielle',
+            'delivery_date' => '2026-05-08',
+            'status' => AccountingDeliveryNote::STATUS_PARTIAL,
+            'delivered_by' => 'Livreur interne',
+            'carrier' => 'Pickup',
+            'notes' => 'Premiere livraison',
+            'lines' => [
+                [
+                    'customer_order_line_id' => $orderLine->id,
+                    'quantity' => 2,
+                    'serial_numbers' => ['SN-LIV-001', 'SN-LIV-002'],
+                ],
+            ],
+        ])->assertRedirect($indexRoute);
+
+        $deliveryNote = AccountingDeliveryNote::query()->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_delivery_notes', [
+            'id' => $deliveryNote->id,
+            'reference' => 'BL-000001',
+            'customer_order_id' => $order->id,
+            'client_id' => $client->id,
+            'status' => AccountingDeliveryNote::STATUS_PARTIAL,
+        ]);
+
+        $this->assertDatabaseHas('accounting_delivery_note_lines', [
+            'delivery_note_id' => $deliveryNote->id,
+            'customer_order_line_id' => $orderLine->id,
+            'quantity' => 2,
+            'line_total' => 3000,
+        ]);
+
+        $deliveryLine = AccountingDeliveryNoteLine::query()->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_delivery_note_serials', [
+            'delivery_note_line_id' => $deliveryLine->id,
+            'serial_number' => 'SN-LIV-001',
+            'position' => 1,
+        ]);
+
+        $this->assertDatabaseHas('accounting_delivery_note_serials', [
+            'delivery_note_line_id' => $deliveryLine->id,
+            'serial_number' => 'SN-LIV-002',
+            'position' => 2,
+        ]);
+
+        $this->assertDatabaseHas('accounting_stock_movements', [
+            'company_site_id' => $site->id,
+            'item_id' => $item->id,
+            'warehouse_id' => $warehouse->id,
+            'type' => AccountingStockMovement::TYPE_EXIT,
+            'quantity' => 2,
+        ]);
+
+        $this->assertSame(8.0, $item->fresh()->current_stock);
+        $this->assertSame(AccountingCustomerOrder::STATUS_IN_PROGRESS, $order->fresh()->status);
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.delivery-notes.print', [$company, $site, $deliveryNote]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+
+        $this->actingAs($admin)->post(route('main.accounting.delivery-notes.store', [$company, $site]), [
+            'customer_order_id' => $order->id,
+            'title' => 'Livraison finale',
+            'delivery_date' => '2026-05-09',
+            'status' => AccountingDeliveryNote::STATUS_DELIVERED,
+            'lines' => [
+                [
+                    'customer_order_line_id' => $orderLine->id,
+                    'quantity' => 3,
+                ],
+            ],
+        ])->assertRedirect($indexRoute);
+
+        $this->assertSame(5.0, $item->fresh()->current_stock);
+        $this->assertSame(AccountingCustomerOrder::STATUS_DELIVERED, $order->fresh()->status);
+        $this->assertSame(2, AccountingDeliveryNoteLine::query()->count());
+        $this->assertSame(2, AccountingDeliveryNoteSerial::query()->count());
+    }
+
+    public function test_delivery_note_stock_error_keeps_order_lines_visible(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Delivery Stock Error',
+            'code' => 'DELIVERY_STOCK_ERROR',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'stock error admin',
+            'email' => 'stock-error-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Stock Error Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'stock-error-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Stock Error Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $client = AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Client Stock Error',
+        ]);
+
+        $unit = AccountingStockUnit::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Piece',
+            'symbol' => 'pc',
+            'type' => AccountingStockUnit::TYPE_QUANTITY,
+            'status' => 'active',
+        ]);
+
+        $warehouse = AccountingStockWarehouse::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Entrepot insuffisant',
+            'code' => 'DEP-INS',
+            'status' => 'active',
+            'is_default' => true,
+        ]);
+
+        $category = AccountingStockCategory::create([
+            'company_site_id' => $site->id,
+            'warehouse_id' => $warehouse->id,
+            'created_by' => $admin->id,
+            'name' => 'Stock insuffisant',
+            'status' => 'active',
+        ]);
+
+        $item = AccountingStockItem::create([
+            'company_site_id' => $site->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'default_warehouse_id' => $warehouse->id,
+            'created_by' => $admin->id,
+            'name' => 'Serveur HP Proliant380 gen10',
+            'type' => AccountingStockItem::TYPE_PRODUCT,
+            'purchase_price' => 1000,
+            'sale_price' => 1500,
+            'current_stock' => 0,
+            'currency' => 'CDF',
+            'status' => 'active',
+        ]);
+
+        $order = AccountingCustomerOrder::create([
+            'company_site_id' => $site->id,
+            'client_id' => $client->id,
+            'created_by' => $admin->id,
+            'order_date' => '2026-05-07',
+            'currency' => 'CDF',
+            'status' => AccountingCustomerOrder::STATUS_CONFIRMED,
+            'subtotal' => 1500,
+            'total_ht' => 1500,
+            'total_ttc' => 1500,
+        ]);
+
+        $orderLine = AccountingCustomerOrderLine::create([
+            'customer_order_id' => $order->id,
+            'line_type' => AccountingCustomerOrderLine::TYPE_ITEM,
+            'item_id' => $item->id,
+            'description' => $item->name,
+            'quantity' => 1,
+            'unit_price' => 1500,
+            'line_total' => 1500,
+        ]);
+
+        $createRoute = route('main.accounting.delivery-notes.create', [$company, $site, 'order' => $order->id]);
+
+        $this->actingAs($admin)
+            ->from($createRoute)
+            ->post(route('main.accounting.delivery-notes.store', [$company, $site]), [
+                'customer_order_id' => $order->id,
+                'delivery_date' => '2026-05-08',
+                'status' => AccountingDeliveryNote::STATUS_DELIVERED,
+                'lines' => [
+                    [
+                        'customer_order_line_id' => $orderLine->id,
+                        'quantity' => 1,
+                    ],
+                ],
+            ])
+            ->assertRedirect($createRoute)
+            ->assertSessionHasErrors('lines');
+
+        $this->actingAs($admin)
+            ->get($createRoute)
+            ->assertOk()
+            ->assertSee('Serveur HP Proliant380 gen10', false)
+            ->assertSee('1,00', false)
+            ->assertDontSee('value=\"0,00\"', false);
     }
 
     public function test_non_accounting_module_opens_under_development_page(): void
@@ -4068,7 +5211,7 @@ class ExampleTest extends TestCase
         $response->assertSee('data-vat-rate="16"', false);
         $response->assertSee('Congo (RDC) (+243 - TVA 16,00%)', false);
         $response->assertSee('Côte d&#039;Ivoire (+225 - TVA 18,00%)', false);
-        $response->assertDontSee('CÃ', false);
+        $response->assertDontSee('CÃƒ', false);
     }
 
     public function test_company_create_account_currency_select_shows_currency_name_and_iso_code(): void
@@ -4863,3 +6006,4 @@ class ExampleTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 }
+

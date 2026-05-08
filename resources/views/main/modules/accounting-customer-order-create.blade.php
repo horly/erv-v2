@@ -95,7 +95,7 @@
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label for="orderClient" class="form-label">{{ __('main.customer') }} *</label>
-                                <select id="orderClient" name="client_id" class="form-select @error('client_id') is-invalid @enderror">
+                                <select id="orderClient" name="client_id" class="form-select @error('client_id') is-invalid @enderror" data-customer-order-client data-search-placeholder="{{ __('main.search') }}" data-search-empty="{{ __('admin.no_results') }}">
                                     <option value="">{{ __('main.choose_customer') }}</option>
                                     @foreach ($clients as $id => $label)
                                         <option value="{{ $id }}" @selected(old('client_id', $isEditingOrder ? $order->client_id : null) == $id)>{{ $label }}</option>
@@ -141,16 +141,19 @@
                         <section class="proforma-lines-section">
                             <div class="form-section-title">
                                 <span><i class="bi bi-list-check" aria-hidden="true"></i> {{ __('main.customer_order_lines') }}</span>
-                                <button type="button" class="light-action" data-add-customer-order-line>
-                                    <i class="bi bi-plus" aria-hidden="true"></i>
-                                    {{ __('main.add_line') }}
-                                </button>
                             </div>
 
                             <div class="proforma-line-list" data-customer-order-line-list>
                                 @foreach ($oldLines as $index => $line)
                                     @include('main.modules.partials.customer-order-line-row', ['index' => $index, 'line' => $line, 'items' => $items, 'services' => $services, 'lineTypeLabels' => $lineTypeLabels])
                                 @endforeach
+                            </div>
+
+                            <div class="line-section-actions">
+                                <button type="button" class="light-action" data-add-customer-order-line>
+                                    <i class="bi bi-plus" aria-hidden="true"></i>
+                                    {{ __('main.add_line') }}
+                                </button>
                             </div>
                         </section>
 

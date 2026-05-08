@@ -5620,6 +5620,39 @@ Verification :
 - `php artisan test --filter=proforma` passe avec 1 test et 72 assertions.
 - `php artisan test` passe avec 77 tests et 850 assertions.
 
+### 2026-05-07 - Retrait des formats image de l'import quotation
+
+Prompt utilisateur :
+
+```text
+enleve l'ajout des images
+```
+
+Changements appliques :
+
+- Retrait des extensions image de l'import de quotation fournisseur.
+- L'import accepte de nouveau uniquement `CSV`, `TXT`, `XLSX` et `PDF` texte.
+- Suppression de la logique OCR/Tesseract ajoutee pour les images.
+- Mise a jour du champ fichier dans le formulaire proforma.
+- Mise a jour des traductions FR/EN.
+- Suppression du test lie aux images.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` OK.
+- `php -l resources\views\main\modules\accounting-proforma-invoice-create.blade.php` OK.
+- `php artisan test --filter=proforma` passe avec 1 test et 69 assertions.
+- `php artisan test` passe avec 77 tests et 847 assertions.
+
 ### 2026-05-07 - Commandes clients avec marges beneficiaires
 
 Prompt utilisateur :
@@ -7573,3 +7606,1674 @@ Verification :
 
 - `php artisan view:clear` execute.
 - `php artisan test --filter=accounting_module` passe avec 2 tests et 34 assertions.
+
+### 2026-05-07 - Bons de livraison du module comptabilite
+
+Prompt utilisateur :
+
+```text
+maintenant nous allons travailler sur bons de livraison.
+donne moi ton idée professionnel sans rien faire pour le moment
+
+applique ton idée
+```
+
+Fonctionnalite appliquee :
+
+- Ajout des tables `accounting_delivery_notes` et `accounting_delivery_note_lines`.
+- Ajout des modeles `AccountingDeliveryNote` et `AccountingDeliveryNoteLine`.
+- Ajout des relations avec les commandes clients, les lignes de commande et les sites.
+- Ajout de la page `Bons de livraison` avec le tableau standard : recherche, tri, pagination, statuts et actions.
+- Creation d'un bon de livraison uniquement depuis une commande client confirmee ou en preparation avec reste a livrer.
+- Gestion des livraisons partielles et finales.
+- Controle des quantites pour empecher de livrer plus que le reste disponible.
+- Sortie automatique du stock pour les bons partiels ou livres, avec mouvement de stock rattache.
+- Mise a jour automatique du statut de la commande client : confirmee, en preparation ou livree.
+- Ajout d'un PDF professionnel de bon de livraison avec QR Code et pied de page.
+- Ajout du lien `Bons de livraison` dans la sidebar comptabilite et du raccourci depuis les commandes clients.
+- Mise a jour de l'export `database/exports/erp_database.sql`.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_05_07_000002_create_accounting_delivery_notes_tables.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingDeliveryNote.php`
+- `app/Models/AccountingDeliveryNoteLine.php`
+- `app/Models/AccountingCustomerOrder.php`
+- `app/Models/AccountingCustomerOrderLine.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-delivery-notes.blade.php`
+- `resources/views/main/modules/accounting-delivery-note-create.blade.php`
+- `resources/views/main/modules/accounting-delivery-note-print.blade.php`
+- `resources/views/main/modules/accounting-customer-orders.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l` passe sur le controleur, les modeles, la migration et les routes.
+- `php artisan test --filter=delivery_notes` passe.
+- `php artisan test` passe avec 78 tests et 870 assertions.
+- `php artisan migrate --force` applique la migration des bons de livraison.
+
+### 2026-05-07 - Conservation des lignes apres erreur de bon de livraison
+
+Prompt utilisateur :
+
+```text
+quand tu affiche l'erreur lors de la création du bon de livraison, ne supprime pas les items affiche l'erreur mais ne supprime pas
+```
+
+Correction appliquee :
+
+- Lorsqu'une erreur de stock ou de validation survient sur la creation d'un bon de livraison, les lignes issues de la commande restent visibles.
+- Les quantites saisies par l'utilisateur sont conservees.
+- Les informations calculees de la commande, comme la description, la quantite commandee, deja livree et le reste a livrer, sont rechargees depuis la commande.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-delivery-note-create.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter=delivery_note_stock_error` passe.
+
+### 2026-05-07 - Numeros de serie sur les bons de livraison
+
+Prompt utilisateur :
+
+```text
+ajoute une rubrique qui nous permets d'ajouter les serial number des items par rapport à la quantité; un exemple si la quantité d'un item est 1 on peut rajouter un serial number si c'est 3 par exemple on peut rajouter 3 ainsi de suite
+```
+
+Fonctionnalite appliquee :
+
+- Ajout de la table `accounting_delivery_note_serials` pour stocker les numeros de serie par ligne de bon de livraison.
+- Ajout du modele `AccountingDeliveryNoteSerial`.
+- Ajout de la relation `AccountingDeliveryNoteLine::serials()`.
+- Sur le formulaire de creation du bon de livraison, les lignes d'articles affichent automatiquement un champ de numero de serie par unite livree.
+- Les numeros de serie sont optionnels mais limites a la quantite livree.
+- Les doublons de numeros de serie sur une meme ligne sont refuses proprement.
+- Les numeros de serie s'affichent dans le PDF du bon de livraison sous la ligne concernee.
+- Mise a jour de `database/exports/erp_database.sql`.
+
+Fichiers ajoutes ou modifies :
+
+- `database/migrations/2026_05_07_000003_create_accounting_delivery_note_serials_table.php`
+- `database/exports/erp_database.sql`
+- `app/Models/AccountingDeliveryNoteSerial.php`
+- `app/Models/AccountingDeliveryNoteLine.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-delivery-note-create.blade.php`
+- `resources/views/main/modules/accounting-delivery-note-print.blade.php`
+- `resources/js/main/accounting-delivery-notes.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l` passe sur les fichiers PHP touches.
+- `php artisan test --filter=delivery_notes` passe.
+- `php artisan migrate --force` applique la migration des numeros de serie.
+
+### 2026-05-07 - Bouton ajouter une ligne en bas des cards
+
+Prompt utilisateur :
+
+```text
+ajouter une ligne doit toujours etre en bas et non en haut de la card des items partout
+```
+
+Correction appliquee :
+
+- Le bouton `Ajouter une ligne` est deplace sous les cards de lignes dans le formulaire de facture proforma.
+- Le bouton `Ajouter une ligne` est deplace sous les cards de lignes dans le formulaire de commande client.
+- Ajout d'un conteneur commun `line-section-actions` pour aligner le bouton en bas a droite.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `resources/views/main/modules/accounting-customer-order-create.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l` passe sur les deux vues Blade modifiees.
+- `php artisan test --filter="proforma|customer_orders"` passe.
+
+### 2026-05-07 - Masquage des items deja selectionnes dans les lignes
+
+Prompt utilisateur :
+
+```text
+un item deja selectionné ne dois plus etre selectionné et ne dois meme plus s'afficher sur l'input pour la recherche
+```
+
+Correction appliquee :
+
+- Dans les lignes de facture proforma, un article ou service deja selectionne dans une ligne active disparait automatiquement du select recherchable des autres lignes.
+- Dans les lignes de commande client, le meme comportement est applique pour les articles et les services.
+- Lorsqu'une ligne change de type, qu'une ligne est ajoutee ou supprimee, les listes recherchables sont rafraichies automatiquement.
+- Une selection doublon forcee est remise a vide pour eviter l'envoi de deux fois le meme item.
+
+Fichiers modifies :
+
+- `resources/js/main/accounting-proforma-invoices.js`
+- `resources/js/main/accounting-customer-orders.js`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="proforma|customer_orders"` passe.
+
+### 2026-05-07 - Recherche sur le champ client des documents de vente
+
+Prompt utilisateur :
+
+```text
+pour le client possibilité de faire egalement la recherche comme c'est fait sur les items; applique ça partout
+```
+
+Correction appliquee :
+
+- Le champ `Client` du formulaire de facture proforma utilise maintenant le select recherchable deja utilise pour les articles et services.
+- Le champ `Client` du formulaire de commande client utilise aussi le meme select recherchable.
+- Les erreurs de validation restent affichees sous le champ avec le meme style que les autres formulaires.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `resources/views/main/modules/accounting-customer-order-create.blade.php`
+- `resources/js/main/accounting-proforma-invoices.js`
+- `resources/js/main/accounting-customer-orders.js`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `node --check` passe sur les deux fichiers JavaScript touches.
+- `php artisan test --filter="proforma|customer_orders"` passe.
+
+### 2026-05-07 - Correction du debordement des lignes de commande
+
+Prompt utilisateur :
+
+```text
+lorsque je modifie une commande, il y a un depassement d'affichage des items
+```
+
+Correction appliquee :
+
+- Les lignes de commande client utilisent une grille CSS dediee au lieu de dependre uniquement des largeurs Bootstrap.
+- Les colonnes ne peuvent plus etre elargies par les longs noms d'articles ou de services.
+- Les champs, selects et selects recherchables restent dans la largeur disponible.
+- La grille est responsive : 12 colonnes sur grand ecran, 6 colonnes sur tablette, une colonne sur mobile.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="customer_orders"` passe.
+
+### 2026-05-07 - Numeros de serie en liste sur le bon de livraison PDF
+
+Prompt utilisateur :
+
+```text
+les numéros de serie doivent s'afficher sous forme d'une liste
+```
+
+Correction appliquee :
+
+- Les numeros de serie ne sont plus affiches sur une seule ligne separee par des virgules.
+- Dans le PDF du bon de livraison, chaque numero de serie s'affiche maintenant sur sa propre ligne dans une liste.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-delivery-note-print.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="delivery_notes"` passe.
+
+### 2026-05-08 - Cycle ouverture et cloture de caisse
+
+Prompt utilisateur :
+
+```text
+genere moi un cycle comme ceci :
+Objectif :
+Ajouter un module de caisse permettant :
+- l'ouverture de caisse
+- le rattachement des ventes a une session de caisse ouverte
+- la fermeture / cloture de caisse
+- le calcul des montants theoriques
+- la saisie des montants reellement comptes
+- le calcul des ecarts
+- la generation d'un rapport de cloture
+- la validation de la cloture se fait qu'avec un utilisateur qui a le role admin
+```
+
+Correction appliquee :
+
+- Ajout d'une table de sessions de caisse avec ouverture, cloture, montants theoriques, montants comptes, ecarts et validation admin.
+- Liaison des ventes de caisse a la session ouverte via `cash_register_session_id`.
+- Ajout de l'ouverture de caisse avant toute vente rapide.
+- Blocage de l'enregistrement d'une vente si aucune session n'est ouverte.
+- Ajout de la cloture de caisse avec validation reservee au role admin.
+- Calcul automatique des montants theoriques depuis le fond de caisse et les paiements rattaches.
+- Ajout d'un historique des sessions et d'un rapport imprimable de cloture.
+
+Fichiers modifies :
+
+- `database/migrations/2026_05_08_000001_create_accounting_cash_register_sessions_table.php`
+- `app/Models/AccountingCashRegisterSession.php`
+- `app/Models/AccountingSalesInvoice.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `resources/views/main/modules/accounting-cash-register-session-report.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Models\AccountingCashRegisterSession.php` passe.
+- `php -l database\migrations\2026_05_08_000001_create_accounting_cash_register_sessions_table.php` passe.
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php -l resources\views\main\modules\accounting-cash-register-session-report.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Monnaie a rendre dans la caisse
+
+Prompt utilisateur :
+
+```text
+Ajoute dans la caisse une fonctionnalite de gestion du paiement en especes lors de l'enregistrement d'une vente.
+Objectif :
+Quand le client paie en especes, le caissier doit pouvoir saisir le montant recu du client, et le systeme doit calculer automatiquement la monnaie a rendre.
+```
+
+Correction appliquee :
+
+- Ajout des champs de paiement especes dans la caisse : total a payer, montant recu et monnaie a rendre.
+- Affichage de ces champs uniquement lorsque le mode de paiement selectionne est de type especes.
+- Calcul automatique de la monnaie a rendre cote interface.
+- Blocage cote interface et cote serveur si le montant recu est inferieur au total a payer.
+- Enregistrement du montant recu et de la monnaie rendue sur le paiement de la facture.
+- Affichage du montant recu et de la monnaie rendue dans le detail du ticket de caisse.
+
+Fichiers modifies :
+
+- `database/migrations/2026_05_08_000002_add_cash_received_fields_to_sales_invoice_payments.php`
+- `app/Models/AccountingSalesInvoicePayment.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l database\migrations\2026_05_08_000002_add_cash_received_fields_to_sales_invoice_payments.php` passe.
+- `php -l app\Models\AccountingSalesInvoicePayment.php` passe.
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Reduction des polices en gras du rapport de caisse
+
+Prompt utilisateur :
+
+```text
+ne touche pas le pied et bas de page c'est parfait.
+reduit legerement la taille des polices en gras
+```
+
+Correction appliquee :
+
+- Reduction legere des titres de section, des montants en gras, des en-tetes de tableaux et des badges de statut dans le rapport de cloture de caisse.
+- Aucun changement applique au pied de page ni a la zone basse du PDF.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register-session-report.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register-session-report.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Pavé numérique caisse pour quantité et montant reçu
+
+Prompt utilisateur :
+
+```text
+le clavier numérique sur la caisse enregistreuses doit permerttre de pouvoir saisir :
+- la quantité de l'article séléctionné
+- le Montant reçu
+```
+
+Correction appliquee :
+
+- Le pave numerique de la caisse peut maintenant piloter la quantite de l'article selectionne dans le panier.
+- Le meme pave numerique peut saisir le montant recu lorsque le champ `Montant recu` est selectionne.
+- Ajout d'un etat visuel sur la zone especes quand le pave numerique cible le montant recu.
+- Le bouton `C` efface la cible active : remise a 1 pour la quantite ou vidage du montant recu.
+- Le calcul de la monnaie a rendre et l'activation du bouton d'enregistrement restent synchronises apres chaque saisie au pave.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Visibilite des tickets et sessions de caisse par role
+
+Prompt utilisateur :
+
+```text
+un administrateur peut voir toutes les sessions de caisse et les tickets de caisse émisse dans le module.
+Les utilisateurs normaux eux peuvent voir uniquement ce que eux ils ont emises sessions de caisse et tikets de caisses
+```
+
+Correction appliquee :
+
+- Les administrateurs conservent la visibilite globale sur les tickets de caisse et les sessions du site.
+- Les utilisateurs simples ne voient plus que les tickets de caisse qu'ils ont emis.
+- Les utilisateurs simples ne voient plus que les sessions de caisse qu'ils ont ouvertes.
+- L'ouverture et l'enregistrement d'une vente par un utilisateur simple utilisent sa propre session ouverte.
+- L'acces direct au rapport d'une session appartenant a un autre utilisateur simple est bloque.
+- Le test caisse couvre maintenant la difference de visibilite entre admin et utilisateur simple.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Rapport de caisse en PDF Dompdf
+
+Prompt utilisateur :
+
+```text
+LE rapport de la caisse doit egalement utiliser doompdf garde le meme design de la page html que tu as utilisé
+```
+
+Correction appliquee :
+
+- Le rapport de cloture de caisse est maintenant genere avec Dompdf.
+- La meme vue Blade et le meme style visuel sont conserves pour le rendu du rapport.
+- Les boutons HTML `Retour` et `Imprimer` sont masques pendant le rendu PDF.
+- Le fichier PDF est diffuse avec un nom base sur la reference de session de caisse.
+- Le test caisse verifie maintenant que le rapport retourne bien un contenu `application/pdf`.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-cash-register-session-report.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-cash-register-session-report.blade.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Alignements et espacements du rapport de cloture caisse
+
+Prompt utilisateur :
+
+```text
+stp respect tout les espaces, les alignimement comme sur l'image
+```
+
+Correction appliquee :
+
+- Reprise complete de la mise en page PDF du rapport de cloture caisse pour respecter l'image fournie.
+- Header en deux zones : informations entreprise a gauche, titre et reference a droite.
+- Ligne bleue pleine largeur sous l'entete.
+- Sections espacees avec titres en majuscules.
+- Tableau de session sans bordures lourdes, avec ligne de cloture sur fond bleu clair.
+- Cartes de montants alignees sur une seule ligne.
+- Tableaux `Mode de paiement` et `Tickets de caisse` alignes et espacés comme sur le modele.
+- Utilisation d'une structure table-based plus stable avec Dompdf.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register-session-report.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register-session-report.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Harmonisation rapport caisse avec les factures
+
+Prompt utilisateur :
+
+```text
+reduit legerement la la taille de police ajoute le pied de page comme dans facture, utilise le meme haut et pied de page meme la taille des polices
+```
+
+Correction appliquee :
+
+- Le rapport de cloture caisse utilise maintenant les memes marges PDF que les factures.
+- La police globale passe au meme style et a la meme taille que les factures : Courier 12px.
+- La ligne haute bleu/gris reprend le meme format que les factures.
+- Ajout du pied de page fixe identique aux factures avec informations entreprise, compte principal et mention de generation.
+- Reduction des tailles internes du rapport : titres de section, lignes de tableau, badges et cartes de montants.
+- Chargement des comptes de l'entreprise pour alimenter le pied de page.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-cash-register-session-report.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-cash-register-session-report.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Message informatif pour montant recu insuffisant
+
+Prompt utilisateur :
+
+```text
+ce message doit etre informatif et non en route mets ça dans un alert info
+```
+
+Correction appliquee :
+
+- Le message "Le montant recu doit etre superieur ou egal au total a payer" s'affiche maintenant dans une alerte informative.
+- Retrait de l'apparence rouge `invalid-feedback` et de la coloration danger sur ce cas dans la caisse.
+- Le blocage de validation reste actif tant que le montant recu est inferieur au total a payer.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Bouton plein ecran dans la topbar
+
+Prompt utilisateur :
+
+```text
+ajouter un bouton qui met permet de passer en mode plein ecran sur la barre de tache comme indiqué dans l'image
+```
+
+Correction appliquee :
+
+- Ajout d'un bouton plein ecran dans la topbar des pages du module.
+- Utilisation de l'API Fullscreen du navigateur.
+- Changement automatique de l'icone entre plein ecran et sortie du plein ecran.
+- Libelles traduits en francais et en anglais.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/partials/accounting-topbar.blade.php`
+- `resources/js/main.js`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\partials\accounting-topbar.blade.php` passe.
+- `node --check resources\js\main.js` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+
+### 2026-05-08 - Espacement et activation conditionnelle du bouton de vente caisse
+
+Prompt utilisateur :
+
+```text
+espace les cards stp
+enregistrer la vente doit toujours etre floue jusqu'à ce que les conditions soit reunis plase
+```
+
+Correction appliquee :
+
+- Ajout d'un espacement au-dessus des cards principales de la caisse.
+- Le bouton "Enregistrer la vente" est maintenant desactive par defaut.
+- Le bouton reste flou et inclicable tant que le panier est vide.
+- En paiement especes, le bouton reste flou et inclicable tant que le montant recu est inferieur au total a payer.
+- Le bouton redevient actif uniquement lorsque les conditions de vente sont reunies.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Desactivation du bouton caisse si montant recu insuffisant
+
+Prompt utilisateur :
+
+```text
+si le monatnt est inférieur au monant à payer le bouton enregistre vente doit etre inclicable et flou si le monant est supérieur ou egale c'est bon
+```
+
+Correction appliquee :
+
+- Le bouton "Enregistrer la vente" est desactive automatiquement si le paiement est en especes et que le montant recu est inferieur au total a payer.
+- Le bouton devient visuellement flou et attenue pendant cet etat.
+- Le bouton redevient actif des que le montant recu est superieur ou egal au total a payer.
+- Les autres modes de paiement ne sont pas concernes par ce blocage visuel.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Caisse enregistreuse POS point de vente
+
+Prompt utilisateur :
+
+```text
+je vais une vrai caisse enregistreuse pour les points de vente comme magasin, alimentation etc...
+enleves les services ça n'a aucun sens et le total des ventes caisse.
+Voici un exemple d'interfaces comme une caise doit etre ce que tu as fais n'as aucun sens
+```
+
+Correction appliquee :
+
+- Remplacement de la page caisse enregistreuse par une vraie interface POS adaptee aux ventes rapides.
+- Suppression des services dans la caisse : seuls les articles de stock actifs peuvent etre vendus.
+- Suppression du bloc "total des ventes caisse" qui ne correspondait pas au flux point de vente.
+- Ajout d'une zone produits avec recherche, d'un panier central, d'un recapitulatif TVA/total et d'un panneau de paiement.
+- Ajout d'un clavier numerique pour ajuster rapidement la quantite de la ligne selectionnee.
+- Conservation de la logique existante : creation d'une facture caisse payee, enregistrement du paiement et sortie de stock.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `app/Http/Controllers/MainController.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Espacement visuel de la caisse enregistreuse
+
+Prompt utilisateur :
+
+```text
+espace un peu l'input de recherche en bas et les 3 cards de la caisse enregistreuse
+```
+
+Correction appliquee :
+
+- Augmentation legere de l'espace sous l'input de recherche des articles.
+- Augmentation legere de l'espace entre les trois panneaux principaux de la caisse enregistreuse.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Tableau des tickets integre dans la card
+
+Prompt utilisateur :
+
+```text
+meme le tableau doit etre mits dans la card et ajoute un titre sur la card
+```
+
+Correction appliquee :
+
+- Regroupement du titre, de la recherche, du compteur, du tableau et de la pagination des tickets de caisse dans une seule card.
+- Ajout du titre "Tickets de caisse" sur la card.
+- Conservation du style de tableau existant avec un cadre interne propre.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Espacement au-dessus de la card tickets de caisse
+
+Prompt utilisateur :
+
+```text
+la card que tu viens de céer doit laisse un peu d'espace au dessus stp c'est trop sérré avec les aautres cards en haut
+```
+
+Correction appliquee :
+
+- Ajout d'un espace superieur sur la card "Tickets de caisse".
+- La card est maintenant mieux separee des panneaux POS situes au-dessus.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Recherche des tickets de caisse dans une card
+
+Prompt utilisateur :
+
+```text
+si ça ne marche pas mets cette zone dans une card
+```
+
+Correction appliquee :
+
+- La zone de recherche et compteur des tickets de caisse est maintenant placee dans une card dediee.
+- La card possede son propre padding et son propre espacement avec le tableau.
+- Cette approche evite les conflits avec les marges globales des tableaux.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Renforcement de l'espacement sous la recherche des tickets
+
+Prompt utilisateur :
+
+```text
+toujours pas d'espace
+```
+
+Correction appliquee :
+
+- Renforcement du selecteur CSS de la page caisse pour eviter que le layout comptabilite ecrase l'espacement.
+- Ajout d'un espacement force entre la barre de recherche des tickets et la card du tableau.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Espacement sous la recherche des tickets de caisse
+
+Prompt utilisateur :
+
+```text
+je parle de cette input
+```
+
+Correction appliquee :
+
+- Ajout d'un espacement plus confortable sous l'input de recherche du tableau des tickets de caisse.
+- La correction est limitee a la page caisse enregistreuse pour ne pas modifier le style global des autres tableaux.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Traduction uniforme du client comptoir
+
+Prompt utilisateur :
+
+```text
+peux tu traduire client comptoire partout ?
+```
+
+Correction appliquee :
+
+- Ajout d'un affichage traduisible pour le client comptoir via `display_name`.
+- Les anciens libelles deja presents en base sont reconnus : `Client comptoir`, `Client comptoire`, `Client de passage`, `Walk-in customer` et `Counter customer`.
+- Les listes, modales, documents PDF, encaissements, bons de livraison, factures, commandes et tickets de caisse affichent maintenant le libelle selon la langue active.
+- La creation du client comptoir reutilise un ancien enregistrement equivalent au lieu de creer un doublon selon la langue courante.
+
+Fichiers modifies :
+
+- `app/Models/AccountingClient.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/views/main/modules/accounting-payment-methods.blade.php`
+- `resources/views/main/modules/accounting-receipts.blade.php`
+- `resources/views/main/modules/accounting-delivery-notes.blade.php`
+- `resources/views/main/modules/accounting-delivery-note-create.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `resources/views/main/modules/accounting-customer-orders.blade.php`
+- `resources/views/main/modules/accounting-sales-invoices.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoice-print.blade.php`
+- `resources/views/main/modules/accounting-sales-invoice-print.blade.php`
+- `resources/views/main/modules/accounting-delivery-note-print.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Models\AccountingClient.php` passe.
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l` passe sur les vues Blade modifiees.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Espacement des modes de paiement en caisse
+
+Prompt utilisateur :
+
+```text
+dans mode de paiement dans caisse enregistreuses ne laisse pas beaucoup dêespace pareil
+```
+
+Correction appliquee :
+
+- Correction du panneau "Mode de paiement" de la caisse enregistreuse.
+- Les modes de paiement ne s'etirent plus verticalement sur toute la hauteur disponible.
+- Le clavier numerique et les actions restent plus proches du contenu pour une interface POS plus compacte.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Navigation articles par categorie en caisse
+
+Prompt utilisateur :
+
+```text
+dans la zone articles disponibles je souhaite que tu groupes les artcles par catégories lorsquêon clique sur une catégories. on voit les sous-catégories et en suite on voit les articles
+```
+
+Correction appliquee :
+
+- La caisse enregistreuse affiche maintenant les articles en navigation hierarchique.
+- Premier niveau : categories d'articles.
+- Deuxieme niveau : sous-categories de la categorie selectionnee.
+- Troisieme niveau : articles disponibles dans la sous-categorie selectionnee.
+- Ajout d'un fil d'Ariane et d'un bouton retour pour naviguer dans la zone articles.
+- La recherche reste globale : elle permet de retrouver directement les articles, meme sans parcourir les categories.
+- Les articles sans categorie ou sans sous-categorie sont regroupes proprement dans des rubriques dediees.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Caisse enregistreuse point de vente
+
+Prompt utilisateur :
+
+```text
+je vais une vrai caisse enregistreuse pour les points de vente comme magasin, alimentation etc...
+enleves les services ça n'a aucun sens et le total des ventes caisse.
+```
+
+Correction appliquee :
+
+- Refonte de l'interface caisse en mode point de vente.
+- Suppression des services dans la caisse : la vente caisse se fait uniquement sur les articles du stock.
+- Suppression du bloc `Total des ventes caisse` sur l'ecran de caisse.
+- Ajout d'un catalogue d'articles avec recherche rapide, prix, reference et stock disponible.
+- Ajout d'un panier caisse avec quantites modifiables, suppression de lignes et calcul direct du total a payer.
+- Ajout d'une zone paiement avec les modes de paiement et un pave numerique utilisable sur la ligne selectionnee.
+- Conservation de la logique d'enregistrement : facture payee automatiquement, paiement cree, stock decremente.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Caisse enregistreuse en mode vente rapide
+
+Prompt utilisateur :
+
+```text
+pourquoi la caisse enregistreuse ressemble à la page encaissements ?
+une caisse enregistreuse c'est pour les ventes rapides
+```
+
+Correction appliquee :
+
+- Remplacement de la logique de journal d'encaissements par une vraie page de caisse enregistreuse.
+- Ajout d'un formulaire de vente rapide avec client comptoir par defaut, lignes article/service/libre, TVA, mode de paiement obligatoire et reference de paiement.
+- Creation automatique d'une facture payee pour chaque ticket de caisse.
+- Enregistrement automatique du paiement lie au ticket.
+- Decrement automatique du stock pour les lignes de type article, avec message d'erreur si le stock est insuffisant.
+- Affichage d'un tableau des tickets de caisse avec impression PDF et modal de detail des lignes vendues.
+- Masquage de l'objet technique du ticket dans le PDF de facture.
+
+Fichiers modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `app/Models/AccountingSalesInvoice.php`
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `resources/views/main/modules/accounting-sales-invoice-print.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l app\Models\AccountingSalesInvoice.php` passe.
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php -l routes\web.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-08 - Module comptabilite - Caisse enregistreuse
+
+Prompt utilisateur :
+
+```text
+applique ton idée
+```
+
+Implementation appliquee :
+
+- Ajout d'une page dediee `Caisse enregistreuse` dans le module Comptabilite.
+- Ajout de la route :
+  - `main.accounting.cash-register`
+- Branchement du sous-menu `Caisse enregistreuse` dans la sidebar avec etat actif.
+- Ajout d'une methode controller `accountingCashRegister()` avec :
+  - controle d'acces site/module
+  - recherche globale serveur (`search`) comme les autres tableaux
+  - filtres : mode de paiement, type de mode, devise, date de debut, date de fin
+  - calcul des indicateurs de caisse (total des entrees, total du jour, nombre de mouvements, solde courant)
+  - pagination + tri + data des modales de detail
+- Creation de la vue :
+  - `resources/views/main/modules/accounting-cash-register.blade.php`
+  - style coherent avec les pages compta existantes
+  - barre de recherche + tri + pagination
+  - tableau des mouvements (date, reference, facture, client, mode, type, montant, recu par, statut facture)
+  - action impression PDF facture et modal de detail mouvement
+- Ajout des traductions FR/EN necessaires (sous-titre, total caisse, etat vide, detail mouvement, `all_types`).
+- Ajout d'un test feature :
+  - `test_accounting_cash_register_page_lists_movements_and_filters`
+
+Fichiers modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php artisan test --filter="accounting_cash_register_page_lists_movements_and_filters|accounting_receipts_page_lists_site_receipts_and_filters"` passe (2 tests, 26 assertions).
+
+### 2026-05-08 - Pagination du modal documents client
+
+Prompt utilisateur :
+
+```text
+le bouton de pagination n'est pas bien designé.
+Voici le design à coté
+```
+
+Correction appliquee :
+
+- Refonte de la pagination du modal `Documents du client`.
+- Ajout d'un compteur de plage a gauche du type `Affichage de 1 à 5 sur 9`.
+- Ajout d'une vraie navigation a droite dans le style des autres tableaux de l'application.
+- Harmonisation des boutons `Précédent`, pages et `Suivant` avec les états actif et désactivé.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/js/main/accounting-clients.js`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `node --check resources\js\main\accounting-clients.js` passe.
+
+### 2026-05-08 - Impression des documents imprimables dans le dossier client
+
+Prompt utilisateur :
+
+```text
+donne la possibilité d'imprimer les documents imprimable
+```
+
+Correction appliquee :
+
+- Ajout d'une colonne d'actions dans le modal `Documents du client`.
+- Ajout du bouton d'impression pour les documents qui disposent deja d'une route PDF/impression :
+  - factures proforma,
+  - bons de livraison,
+  - factures de vente.
+- Les commandes clients restent sans bouton d'impression tant qu'une route d'impression dediee n'existe pas.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/js/main/accounting-clients.js`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `node --check resources\js\main\accounting-clients.js` passe.
+- `php artisan test --filter="accounting_clients"` passe.
+
+### 2026-05-08 - Uniformisation des tableaux dans les modales
+
+Prompt utilisateur :
+
+```text
+tous mes modales qui affichent les tableaux doivent etre pareil
+```
+
+Correction appliquee :
+
+- Uniformisation du pied de pagination de tous les modales affichant un tableau.
+- Ajout d'un compteur bas de page du type `Affichage de X à Y sur Z`.
+- Harmonisation du rendu des boutons `Précédent`, pages et `Suivant`.
+- Application de ce standard sur :
+  - documents client,
+  - encaissements par mode de paiement,
+  - historique des paiements de facture,
+  - tableaux d'articles/services rattachés,
+  - historiques de connexion côté admin et côté main.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/views/main/modules/accounting-payment-methods.blade.php`
+- `resources/views/main/modules/accounting-sales-invoices.blade.php`
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `resources/views/main/modules/accounting-service-resource.blade.php`
+- `resources/views/main/users.blade.php`
+- `resources/views/admin/users.blade.php`
+- `resources/js/main/accounting-clients.js`
+- `resources/js/main/accounting-stock-resource.js`
+- `resources/js/main/accounting-service-resource.js`
+- `resources/css/main.css`
+- `resources/css/admin/dashboard.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `node --check resources\js\main\accounting-clients.js` passe.
+- `node --check resources\js\main\accounting-stock-resource.js` passe.
+- `node --check resources\js\main\accounting-service-resource.js` passe.
+
+### 2026-05-08 - Couleurs des statuts dans le modal documents client
+
+Prompt utilisateur :
+
+```text
+sur les modal dossier client dans le tableau sur la colonne statut respect les couleurs stp
+```
+
+Correction appliquee :
+
+- Application des classes de couleur de statuts deja utilisees dans les tableaux metier.
+- Les documents client affichent maintenant des badges colores coherents selon leur nature :
+  - proforma,
+  - commande client,
+  - bon de livraison,
+  - facture.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/js/main/accounting-clients.js`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `node --check resources\js\main\accounting-clients.js` passe.
+
+### 2026-05-08 - Tableau clients : retrait telephone/email et ajout des documents
+
+Prompt utilisateur :
+
+```text
+dans le tableaux qui affiche la liste des clients sur la page clients, j'aimerai que tu supprimes les colonnes téléphone et email.
+ajouter un bouttons qui permet d'afficher les profoma, commandes, bon de livraison et facture s'ils en ont
+```
+
+Correction appliquee :
+
+- Suppression des colonnes `Telephone` et `Email` du tableau principal des clients.
+- Ajout d'un bouton d'action pour consulter les documents lies a un client lorsqu'il possede deja des pieces.
+- Ajout d'un modal dynamique listant les factures proforma, commandes clients, bons de livraison et factures du client.
+- Le modal reprend le style des tableaux en modale avec recherche locale, tri et pagination sans rechargement de page.
+- Chargement des relations et compteurs necessaires cote controleur pour eviter les acces repetes a la base.
+- Ajout des relations manquantes sur le modele `AccountingClient`.
+
+Fichiers modifies :
+
+- `app/Models/AccountingClient.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/js/main/accounting-clients.js`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Models\AccountingClient.php` passe.
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `node --check resources\js\main\accounting-clients.js` passe.
+- `php artisan test --filter="accounting_clients"` passe.
+
+### 2026-05-08 - Encaissements par mode de paiement
+
+Prompt utilisateur :
+
+```text
+revenons maintenant dans la page mode de paiement, je vais que tu rajoute un boutons qui me permet de voir les encaissements donc les paiement fais avec chaque mode de paiement et les decaissements (pour le moment ce bouton ne sera pas offérationnel, on y travailleras plus tard)
+```
+
+Correction appliquee :
+
+- Ajout d'un bouton `Encaissements` sur chaque mode de paiement pour ouvrir un modal listant les paiements de factures rattaches au mode.
+- Ajout d'un bouton `Decaissements` visible mais desactive, prepare pour la prochaine etape.
+- Le modal des encaissements respecte le style standard des tableaux de modal : bordure autour du tableau, recherche, tri, pagination locale au-dela de 5 lignes et message vide centre.
+- Ajout des traductions FR/EN pour les encaissements et les decaissements a venir.
+- Ajout d'un test couvrant l'affichage des encaissements rattaches a un mode de paiement.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-payment-methods.blade.php`
+- `resources/js/main/accounting-payment-methods.js`
+- `resources/css/main.css`
+- `app/Http/Controllers/MainController.php`
+- `app/Models/AccountingPaymentMethod.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Models\AccountingPaymentMethod.php` passe.
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `node --check resources\js\main\accounting-payment-methods.js` passe.
+- `php artisan test --filter="accounting_payment_methods"` passe : 1 test, 27 assertions.
+
+### 2026-05-08 - Suppression bloquee des modes de paiement utilises
+
+Prompt utilisateur :
+
+```text
+un mode paiement qui a déjà des encaissements ou decaissements ne doit pas etre supprimmable il faut enleve le boutton supprimer
+```
+
+Correction appliquee :
+
+- Le bouton supprimer n'est plus affiche pour un mode de paiement ayant deja des encaissements.
+- La suppression est aussi bloquee cote controleur si une requete directe tente de supprimer un mode de paiement utilise.
+- Ajout d'un message traduit FR/EN indiquant qu'un mode avec mouvements ne peut pas etre supprime.
+- Le test de la page modes de paiement verifie maintenant que le bouton est masque et que la suppression directe est refusee.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-payment-methods.blade.php`
+- `app/Http/Controllers/MainController.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan test --filter="accounting_payment_methods"` passe : 1 test, 32 assertions.
+
+### 2026-05-08 - Total des encaissements dans le modal mode de paiement
+
+Prompt utilisateur :
+
+```text
+sur le modal d'encaissement es-ce possible d'afficher le monant total des encaissement
+```
+
+Correction appliquee :
+
+- Ajout d'un resume `Total encaisse` dans le modal des encaissements de chaque mode de paiement.
+- Le montant est affiche avec deux decimales et la devise du mode de paiement.
+- Ajout des traductions FR/EN du libelle.
+- Ajout du style de bandeau recapitulatif dans les modales.
+- Le test de la page modes de paiement verifie maintenant la presence de ce total.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-payment-methods.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l tests\Feature\ExampleTest.php` passe.
+- `php artisan test --filter="accounting_payment_methods"` passe : 1 test, 33 assertions.
+
+### 2026-05-07 - Module factures de vente
+
+Prompt utilisateur :
+
+```text
+nous allons maintenant travailler sur facture donne ton idée pro et ne fais rien
+applique ton idée
+```
+
+Implementation appliquee :
+
+- Ajout du module `Factures de vente` dans la rubrique Vente du module comptabilite.
+- Creation des tables `accounting_sales_invoices`, `accounting_sales_invoice_lines` et `accounting_sales_invoice_payments`.
+- Ajout des modeles Eloquent et des relations avec site, client, commande client, bon de livraison, proforma, lignes et paiements.
+- Ajout de la liste des factures avec recherche, pagination, statuts, montants alignes a droite et actions.
+- Ajout d'une page dediee de creation/modification de facture, dans le meme esprit que proforma et commandes.
+- Possibilite de creer une facture depuis une commande client, un bon de livraison ou une proforma.
+- Ajout des paiements clients avec recalcul automatique du montant paye, du solde et du statut : brouillon, emise, partiellement payee, payee, en retard, annulee.
+- Ajout d'un PDF professionnel de facture de vente avec QR code, objet, lignes, totaux, paiements, solde et pied de page fixe.
+- Mise a jour de l'export SQL `database/exports/erp_database.sql`.
+- Ajout des traductions FR/EN et d'un test fonctionnel couvrant creation, paiement et generation PDF.
+
+Fichiers principaux modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `app/Models/AccountingSalesInvoice.php`
+- `app/Models/AccountingSalesInvoiceLine.php`
+- `app/Models/AccountingSalesInvoicePayment.php`
+- `app/Models/CompanySite.php`
+- `database/migrations/2026_05_07_000004_create_accounting_sales_invoices_tables.php`
+- `database/exports/erp_database.sql`
+- `resources/views/main/modules/accounting-sales-invoices.blade.php`
+- `resources/views/main/modules/accounting-sales-invoice-create.blade.php`
+- `resources/views/main/modules/accounting-sales-invoice-print.blade.php`
+- `resources/views/main/modules/partials/sales-invoice-line-row.blade.php`
+- `resources/views/main/modules/accounting-customer-orders.blade.php`
+- `resources/views/main/modules/accounting-delivery-notes.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l app\Models\AccountingSalesInvoice.php` passe.
+- `php -l app\Models\AccountingSalesInvoiceLine.php` passe.
+- `php -l app\Models\AccountingSalesInvoicePayment.php` passe.
+- `php -l database/migrations/2026_05_07_000004_create_accounting_sales_invoices_tables.php` passe.
+- `php artisan test --filter="sales_invoices"` passe avec 1 test et 31 assertions.
+- `php artisan test --filter="accounting_sales_invoices|accounting_customer_orders|accounting_delivery_notes|accounting_proforma"` passe avec 4 tests et 150 assertions.
+- `php artisan test` passe avec 81 tests et 919 assertions.
+
+### 2026-05-08 - Correction table factures de vente manquante
+
+Prompt utilisateur :
+
+```text
+j'ai cette erreur
+continue
+```
+
+Erreur constatee :
+
+- `SQLSTATE[42S02]: Base table or view not found: 1146 Table 'erp_database.accounting_sales_invoices' doesn't exist`.
+- La migration `2026_05_07_000004_create_accounting_sales_invoices_tables` etait encore en attente dans la base locale.
+
+Correction appliquee :
+
+- Verification de l'etat des migrations avec `php artisan migrate:status`.
+- Execution de `php artisan migrate`.
+- La migration des factures de vente est maintenant appliquee en batch 33.
+
+Verification :
+
+- `php -l database/migrations/2026_05_07_000004_create_accounting_sales_invoices_tables.php` passe.
+- `php artisan migrate:status` confirme que `2026_05_07_000004_create_accounting_sales_invoices_tables` est `Ran`.
+- `php artisan test --filter="accounting_sales_invoices"` passe avec 1 test et 31 assertions.
+
+### 2026-05-08 - Ajustement du modal d'ajout de paiement
+
+Prompt utilisateur :
+
+```text
+ajuste un peu les inputs de ce modal et reduit legerement le titre
+```
+
+Correction appliquee :
+
+- Ajout d'une classe dediee au modal d'ajout de paiement des factures de vente.
+- Reduction legere de la taille du titre et meilleur espacement entre l'icone et le texte.
+- Ajout de padding interne au formulaire pour que les champs ne collent plus aux bords du modal.
+- Ajustement de la hauteur et du padding des inputs/selects/textarea.
+- Ajout d'un comportement responsive pour garder le titre propre sur mobile.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-sales-invoices.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="accounting_sales_invoices"` passe avec 1 test et 31 assertions.
+
+### 2026-05-08 - Modal des paiements effectues sur les factures
+
+Prompt utilisateur :
+
+```text
+sur la le tableau des factures s'il y a un paiement déjà effectué ajouter un bouton qui affiche modal qui illustre tous les paiements effectués
+```
+
+Correction appliquee :
+
+- Ajout d'un bouton d'historique des paiements dans la colonne actions des factures, visible uniquement si la facture possede deja au moins un paiement.
+- Ajout d'un modal par facture affichant tous les paiements effectues.
+- Le tableau du modal reprend le style standard : recherche, tri, pagination locale a partir de plus de 5 paiements, bordure autour du tableau et bouton fermer en bas.
+- Affichage des informations utiles : numero, date, montant, mode de paiement, reference et utilisateur ayant recu le paiement.
+- Chargement des relations `paymentMethod` et `receiver` pour eviter les requetes inutiles dans la vue.
+- Ajout des traductions FR/EN et mise a jour du test fonctionnel.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-sales-invoices.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php artisan test --filter="accounting_sales_invoices"` passe avec 1 test et 37 assertions.
+
+### 2026-05-08 - Blocage des paiements superieurs au solde restant
+
+Prompt utilisateur :
+
+```text
+lors de l'ajout d'un paiement, le montant qui est saisie ne doist pas dépasser le reste du solde à payer
+```
+
+Correction appliquee :
+
+- Ajout d'une limite `max` sur le champ montant du modal de paiement, basee sur le solde restant de la facture.
+- Ajout d'une validation serveur empechant tout paiement superieur au solde restant, meme si le HTML est modifie.
+- Ajout d'un message d'erreur traduit indiquant le solde maximum autorise.
+- Le modal de paiement se rouvre automatiquement en cas d'erreur et affiche l'erreur sous le champ montant.
+- Ajout d'un test couvrant une tentative de paiement superieure au solde.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-sales-invoices.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php artisan test --filter="accounting_sales_invoices"` passe avec 1 test et 43 assertions.
+
+### 2026-05-08 - Mode de paiement obligatoire sur les paiements de facture
+
+Prompt utilisateur :
+
+```text
+le mode de paiement doit etre obligatoire.
+pour FAC-000001 supprime le dernier paiement de 1000 qui a été effectué car il sans mode de paiement
+```
+
+Correction appliquee :
+
+- Le champ mode de paiement est maintenant obligatoire dans le formulaire d'ajout de paiement.
+- La validation serveur exige `payment_method_id`, avec verification que le mode de paiement appartient bien au site courant.
+- L'erreur du mode de paiement s'affiche sous le select si le champ est vide.
+- Ajout d'un test empechant l'enregistrement d'un paiement sans mode de paiement.
+- Suppression dans la base locale du paiement `1000.00` sans mode de paiement lie a `FAC-000001`.
+- Recalcul de `FAC-000001` apres suppression : statut `partially_paid`, montant paye `1040.00`, solde restant `700.00`.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-sales-invoices.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php artisan test --filter="accounting_sales_invoices"` passe avec 1 test et 49 assertions.
+- Verification base locale : `FAC-000001` ne conserve que le paiement valide avec `payment_method_id = 2`.
+
+### 2026-05-08 - Erreur de paiement affichee sous le champ montant
+
+Prompt utilisateur :
+
+```text
+l'erreur doit s'afficher en bas de l'input montant et color l'input en danger
+```
+
+Correction appliquee :
+
+- Desactivation de la validation native du navigateur sur le formulaire d'ajout de paiement afin de garder le style applicatif.
+- Ajout d'une validation JavaScript du montant avant soumission.
+- Si le montant est vide, inferieur au minimum ou superieur au solde restant, l'input passe en etat danger et le message s'affiche directement sous le champ.
+- La validation serveur reste active pour bloquer les paiements superieurs au solde, meme en cas de contournement du JavaScript.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-sales-invoices.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php artisan test --filter="accounting_sales_invoices"` passe avec 1 test et 43 assertions.
+
+### 2026-05-08 - Nouvelle page Encaissements (paiements reçus)
+
+Prompt utilisateur :
+
+```text
+applique ton idée
+```
+
+Correction appliquee :
+
+- Ajout de la page **Encaissements** dans le module Comptabilite, connectee au menu Vente.
+- Ajout d'une route dediee et d'une methode controleur pour charger les paiements reels de la base.
+- Mise en place de KPI en haut de page : total encaisse, encaissements du mois, nombre de paiements, factures soldees, factures partiellement payees.
+- Ajout d'un bloc de filtres (client, mode de paiement, periode, devise, statut facture) avec conservation des filtres pendant recherche/pagination.
+- Tableau principal conforme au style existant (tri, recherche dynamique, pagination, statuts colores, montants alignees a droite).
+- Ajout d'actions par ligne :
+  - impression de la facture liee (PDF)
+  - modal de detail d'encaissement.
+- Traductions FR/EN ajoutees pour les nouveaux libelles.
+
+Fichiers modifies :
+
+- `routes/web.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-receipts.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter=\"accounting_receipts_page_lists_site_receipts_and_filters\"` execute.
+
+### 2026-05-08 - Encaissements : suppression des widgets et total simplifié
+
+Prompt utilisateur :
+
+```text
+enleve les widgets j'en ai pas besoin et affiche les totals des encaissements comme tu l'as fais du coté mode paiement
+```
+
+Correction appliquee :
+
+- Suppression des widgets KPI sur la page Encaissements.
+- Remplacement par une barre de total unique au style `modal-total-strip`, identique a l'affichage des totaux cote modes de paiement.
+- Conservation des filtres, du tableau, du tri, de la recherche dynamique et de la pagination.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-receipts.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter=\"accounting_receipts_page_lists_site_receipts_and_filters\"` execute.
+
+### 2026-05-07 - Recherche dynamique AJAX sur les tableaux
+
+Prompt utilisateur :
+
+```text
+la méthode que tu as appliqué n'est pas correcte, la recherche se fait mais c'est lent et à chaque fois la page s'actualise c'est pas propre ni professionnel.
+je souhaite que la recherche se fait à la maniere de datatable js dynamique sans charger la page à chaque fois
+```
+
+Correction appliquee :
+
+- La recherche des tableaux principaux reste globale sur toutes les pages, mais se fait maintenant en AJAX.
+- La page ne se recharge plus quand l'utilisateur saisit une recherche ou clique sur la pagination.
+- Le tableau, le compteur et la pagination sont remplaces dynamiquement apres la reponse serveur.
+- L'URL garde le parametre `search` sans empiler une nouvelle entree d'historique a chaque frappe.
+- La pagination AJAX reste navigable et conserve la recherche en cours.
+- Les actions des lignes ajoutees dynamiquement restent utilisables : suppression, edition, modales, historique de connexion et tableaux dans les modales.
+
+Fichiers modifies :
+
+- `resources/js/main.js`
+- `resources/js/main/accounting-clients.js`
+- `resources/js/main/accounting-suppliers.js`
+- `resources/js/main/accounting-prospects.js`
+- `resources/js/main/accounting-creditors.js`
+- `resources/js/main/accounting-debtors.js`
+- `resources/js/main/accounting-partners.js`
+- `resources/js/main/accounting-sales-representatives.js`
+- `resources/js/main/accounting-currencies.js`
+- `resources/js/main/accounting-payment-methods.js`
+- `resources/js/main/accounting-stock-resource.js`
+- `resources/js/main/accounting-service-resource.js`
+- `resources/js/main/accounting-proforma-invoices.js`
+- `resources/views/admin/users.blade.php`
+- `resources/views/main/users.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `node --check` passe sur les fichiers JavaScript modifies.
+- `php artisan test --filter="table_search|admin_main_companies_table_is_paginated|accounting_clients"` passe.
+- `php artisan test` passe : 80 tests, 888 assertions.
+
+### 2026-05-07 - Recherche globale sur les tableaux pagines
+
+Prompt utilisateur :
+
+```text
+sur tous mes tableaux pour la recherche il ne faut pas seulement faire la recherche sur les items sur la page courante, il faut faire la recherche sur tous les elements et toutes les pages
+```
+
+Correction appliquee :
+
+- La recherche des tableaux principaux passe maintenant par le serveur avec le parametre `search`.
+- Les resultats sont filtres sur tous les elements de la base, pas seulement sur les lignes de la page courante.
+- La pagination conserve la recherche active et revient automatiquement a la premiere page quand le texte de recherche change.
+- Les tableaux dans les modales conservent leur recherche locale adaptee a leur contenu deja charge.
+- Les recherches couvrent aussi les relations utiles selon les pages : abonnement, entreprise, utilisateurs, contacts, categories, sites, lignes de documents, etc.
+
+Fichiers modifies :
+
+- `resources/js/main.js`
+- `app/Http/Controllers/AdminController.php`
+- `app/Http/Controllers/MainController.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l app\Http\Controllers\AdminController.php` passe.
+- `node --check resources\js\main.js` passe.
+- `php artisan test` passe : 80 tests, 888 assertions.
+
+### 2026-05-07 - Espacement des lignes de bons de livraison
+
+Prompt utilisateur :
+
+```text
+espace un peu le card des items dans la création et la modification des bons de livraisons
+```
+
+Correction appliquee :
+
+- Ajout d'un espacement vertical entre les cards des lignes de bon de livraison.
+- Leger renforcement du padding interne des cards pour ameliorer la lisibilite avec les numeros de serie.
+
+Fichiers modifies :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan test --filter="delivery_notes"` passe.
+
+### 2026-05-08 - Suppression du titre redondant de la caisse
+
+Prompt utilisateur :
+
+```text
+enleve Caisse enregistreuse c'est redondant
+```
+
+Correction appliquee :
+
+- Suppression confirmee du titre et du sous-titre internes de la page caisse enregistreuse.
+- Conservation du titre dans la topbar et du lien retour vers le tableau de bord comptabilite.
+- Mise a jour du test pour verifier que le sous-titre redondant ne s'affiche plus dans le contenu.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-cash-register.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
+- `php artisan test --filter=accounting_cash_register` passe.

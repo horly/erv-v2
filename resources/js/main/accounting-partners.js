@@ -74,7 +74,11 @@
         setFieldValue(fields.notes, isEdit ? trigger.dataset.partnerNotes : '');
     };
 
-    document.querySelectorAll('[data-partner-mode]').forEach((trigger) => {
-        trigger.addEventListener('click', () => setFormMode(trigger));
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-partner-mode]');
+
+        if (trigger) {
+            setFormMode(trigger);
+        }
     });
 })();

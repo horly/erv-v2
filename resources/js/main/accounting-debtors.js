@@ -73,7 +73,11 @@
         setFieldValue(fields.status, isEdit ? trigger.dataset.debtorStatus : defaults.status);
     };
 
-    document.querySelectorAll('[data-debtor-mode]').forEach((trigger) => {
-        trigger.addEventListener('click', () => setFormMode(trigger));
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-debtor-mode]');
+
+        if (trigger) {
+            setFormMode(trigger);
+        }
     });
 })();

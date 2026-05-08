@@ -76,7 +76,11 @@
         setFieldValue(fields.status, isEdit ? trigger.dataset.creditorStatus : defaults.status);
     };
 
-    document.querySelectorAll('[data-creditor-mode]').forEach((trigger) => {
-        trigger.addEventListener('click', () => setFormMode(trigger));
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-creditor-mode]');
+
+        if (trigger) {
+            setFormMode(trigger);
+        }
     });
 })();

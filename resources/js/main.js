@@ -1,6 +1,7 @@
 (() => {
     const shell = document.querySelector('.main-shell');
     const root = document.documentElement;
+    const fullscreenButton = document.getElementById('fullscreenButton');
     const themeButton = document.getElementById('themeButton');
     const languageMenu = document.querySelector('.language-menu');
     const languageButton = document.getElementById('languageButton');
@@ -33,6 +34,21 @@
         themeButton.innerHTML = darkMode
             ? '<i class="bi bi-moon-stars-fill" aria-hidden="true"></i>'
             : '<i class="bi bi-brightness-high-fill" aria-hidden="true"></i>';
+    };
+
+    const updateFullscreenButton = () => {
+        if (!fullscreenButton) return;
+
+        const isFullscreen = Boolean(document.fullscreenElement);
+        const label = isFullscreen
+            ? fullscreenButton.dataset.labelExit
+            : fullscreenButton.dataset.labelEnter;
+
+        fullscreenButton.setAttribute('aria-label', label);
+        fullscreenButton.setAttribute('title', label);
+        fullscreenButton.innerHTML = isFullscreen
+            ? '<i class="bi bi-fullscreen-exit" aria-hidden="true"></i>'
+            : '<i class="bi bi-fullscreen" aria-hidden="true"></i>';
     };
 
     const closeMenus = (except = null) => {
@@ -106,6 +122,21 @@
         applyTheme(nextTheme);
     });
 
+    fullscreenButton?.addEventListener('click', async () => {
+        try {
+            if (document.fullscreenElement) {
+                await document.exitFullscreen();
+            } else {
+                await document.documentElement.requestFullscreen();
+            }
+        } catch (error) {
+            // Certains navigateurs bloquent l'API hors action utilisateur directe.
+        }
+    });
+
+    document.addEventListener('fullscreenchange', updateFullscreenButton);
+    updateFullscreenButton();
+
     languageButton?.addEventListener('click', () => {
         const isOpen = languageMenu.classList.toggle('open');
         languageButton.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
@@ -130,24 +161,204 @@
         }
     });
 
-    const initDataTable = (dataTable, dataTableSearch = null, dataTableCount = null) => {
+    const normalizeSearch = (value = '') => String(value)
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+    const initServerSearch = (dataTableSearch, getCurrentTable, setCurrentTable, bindSortButtons) => {
+        if (!dataTableSearch || typeof getCurrentTable !== 'function' || typeof setCurrentTable !== 'function') {
+            return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const currentSearch = params.get('search') || '';
+        let searchTimer = null;
+        let activeRequest = null;
+
+        if (currentSearch && dataTableSearch.value !== currentSearch) {
+            dataTableSearch.value = currentSearch;
+        }
+
+        const setLoadingState = (loading) => {
+            const tableCard = getCurrentTable()?.closest('.company-card, .admin-table-card');
+
+            if (!tableCard) {
+                return;
+            }
+
+            tableCard.style.opacity = loading ? '0.55' : '';
+            tableCard.style.pointerEvents = loading ? 'none' : '';
+            tableCard.setAttribute('aria-busy', loading ? 'true' : 'false');
+        };
+
+        const replaceElement = (selector, parsedDocument) => {
+            const currentElement = document.querySelector(selector);
+            const nextElement = parsedDocument.querySelector(selector);
+
+            if (currentElement && nextElement) {
+                currentElement.outerHTML = nextElement.outerHTML;
+            }
+        };
+
+        const replacePagination = (parsedDocument) => {
+            const currentPagination = document.querySelector('.subscriptions-pagination:not(.modal-table-pagination)');
+            const nextPagination = parsedDocument.querySelector('.subscriptions-pagination:not(.modal-table-pagination)');
+            const tableCard = getCurrentTable()?.closest('.company-card, .admin-table-card');
+
+            if (currentPagination && nextPagination) {
+                currentPagination.outerHTML = nextPagination.outerHTML;
+                return;
+            }
+
+            if (currentPagination && !nextPagination) {
+                currentPagination.remove();
+                return;
+            }
+
+            if (!currentPagination && nextPagination && tableCard) {
+                tableCard.insertAdjacentHTML('afterend', nextPagination.outerHTML);
+            }
+        };
+
+        const syncMissingReferencedModals = (parsedDocument) => {
+            getCurrentTable()
+                ?.querySelectorAll('[data-bs-target^="#"]')
+                .forEach((trigger) => {
+                    const targetId = trigger.dataset.bsTarget?.slice(1);
+
+                    if (!targetId || document.getElementById(targetId)) {
+                        return;
+                    }
+
+                    const parsedModal = parsedDocument.getElementById(targetId);
+
+                    if (parsedModal) {
+                        document.body.insertAdjacentHTML('beforeend', parsedModal.outerHTML);
+                    }
+                });
+        };
+
+        const fetchTable = async (url, historyMode = 'push') => {
+            activeRequest?.abort();
+            activeRequest = new AbortController();
+            setLoadingState(true);
+
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'text/html',
+                    },
+                    signal: activeRequest.signal,
+                });
+
+                if (!response.ok) {
+                    window.location.href = url;
+                    return;
+                }
+
+                const html = await response.text();
+                const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
+                const nextTable = parsedDocument.getElementById('companyTable');
+                const currentTable = getCurrentTable();
+
+                if (!nextTable || !currentTable) {
+                    window.location.href = url;
+                    return;
+                }
+
+                currentTable.outerHTML = nextTable.outerHTML;
+                setCurrentTable(document.getElementById('companyTable'));
+                replaceElement('.row-count', parsedDocument);
+                replacePagination(parsedDocument);
+                syncMissingReferencedModals(parsedDocument);
+                bindSortButtons();
+                bindModalDataTables();
+
+                if (historyMode === 'push') {
+                    window.history.pushState({}, '', url);
+                } else if (historyMode === 'replace') {
+                    window.history.replaceState({}, '', url);
+                }
+
+                document.dispatchEvent(new CustomEvent('exad:table-updated', {
+                    detail: {
+                        url,
+                        table: getCurrentTable(),
+                    },
+                }));
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    window.location.href = url;
+                }
+            } finally {
+                setLoadingState(false);
+            }
+        };
+
+        const buildSearchUrl = () => {
+            const nextSearch = dataTableSearch.value.trim();
+            const nextParams = new URLSearchParams(window.location.search);
+
+            if (nextSearch) {
+                nextParams.set('search', nextSearch);
+            } else {
+                nextParams.delete('search');
+            }
+
+            nextParams.delete('page');
+
+            const query = nextParams.toString();
+
+            return `${window.location.pathname}${query ? `?${query}` : ''}`;
+        };
+
+        dataTableSearch.addEventListener('input', () => {
+            window.clearTimeout(searchTimer);
+            searchTimer = window.setTimeout(() => fetchTable(buildSearchUrl(), 'replace'), 300);
+        });
+
+        document.addEventListener('click', (event) => {
+            const link = event.target.closest('.subscriptions-pagination:not(.modal-table-pagination) a');
+
+            if (!link || link.origin !== window.location.origin || link.pathname !== window.location.pathname) {
+                return;
+            }
+
+            event.preventDefault();
+            fetchTable(link.href);
+        });
+
+        window.addEventListener('popstate', () => {
+            const params = new URLSearchParams(window.location.search);
+            const nextSearch = params.get('search') || '';
+
+            if (dataTableSearch.value !== nextSearch) {
+                dataTableSearch.value = nextSearch;
+            }
+
+            fetchTable(window.location.href, false);
+        });
+    };
+
+    const initDataTable = (dataTable, dataTableSearch = null, dataTableCount = null, options = {}) => {
         if (!dataTable) {
             return;
         }
 
+        const isServerSearch = options.serverSearch === true;
+        let currentTable = dataTable;
+
         const refreshVisibleRows = () => {
-            const query = (dataTableSearch?.value.trim().toLowerCase() || '')
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '');
-            const rows = Array.from(dataTable.querySelectorAll('tbody tr:not(.empty-row)'));
-            const searchEmptyRow = dataTable.querySelector('.search-empty-row');
+            const query = normalizeSearch(dataTableSearch?.value || '');
+            const rows = Array.from(currentTable.querySelectorAll('tbody tr:not(.empty-row)'));
+            const searchEmptyRow = currentTable.querySelector('.search-empty-row');
             let visible = 0;
 
             rows.forEach((row) => {
-                const content = row.textContent
-                    .toLowerCase()
-                    .normalize('NFD')
-                    .replace(/[\u0300-\u036f]/g, '');
+                const content = normalizeSearch(row.textContent || '');
                 const match = content.includes(query);
                 row.hidden = !match;
                 visible += match ? 1 : 0;
@@ -162,17 +373,20 @@
             }
         };
 
-        dataTableSearch?.addEventListener('input', refreshVisibleRows);
+        const bindSortButtons = () => currentTable.querySelectorAll('.table-sort').forEach((button) => {
+            if (button.dataset.tableSortBound === 'true') {
+                return;
+            }
 
-        dataTable.querySelectorAll('.table-sort').forEach((button) => {
+            button.dataset.tableSortBound = 'true';
             button.addEventListener('click', () => {
-                const tbody = dataTable.tBodies[0];
+                const tbody = currentTable.tBodies[0];
                 const index = Number(button.dataset.sortIndex);
                 const type = button.dataset.sortType || 'text';
                 const direction = button.dataset.sortDirection === 'asc' ? 'desc' : 'asc';
                 const rows = Array.from(tbody.querySelectorAll('tr:not(.empty-row)'));
 
-                dataTable.querySelectorAll('.table-sort').forEach((sortButton) => {
+                currentTable.querySelectorAll('.table-sort').forEach((sortButton) => {
                     sortButton.classList.remove('is-sorted-asc', 'is-sorted-desc');
                     delete sortButton.dataset.sortDirection;
                 });
@@ -195,7 +409,7 @@
                     return 0;
                 });
 
-                const searchEmptyRow = dataTable.querySelector('.search-empty-row');
+                const searchEmptyRow = currentTable.querySelector('.search-empty-row');
                 rows.forEach((row) => {
                     if (searchEmptyRow) {
                         tbody.insertBefore(row, searchEmptyRow);
@@ -203,20 +417,47 @@
                         tbody.appendChild(row);
                     }
                 });
-                refreshVisibleRows();
+
+                if (!isServerSearch) {
+                    refreshVisibleRows();
+                }
             });
+        });
+
+        if (isServerSearch) {
+            initServerSearch(
+                dataTableSearch,
+                () => currentTable,
+                (nextTable) => {
+                    currentTable = nextTable;
+                },
+                bindSortButtons,
+            );
+        } else {
+            dataTableSearch?.addEventListener('input', refreshVisibleRows);
+        }
+
+        bindSortButtons();
+    };
+
+    initDataTable(table, searchInput, visibleCount, { serverSearch: true });
+
+    const bindModalDataTables = () => {
+        document.querySelectorAll('[data-datatable]').forEach((wrapper) => {
+            if (wrapper.dataset.datatableBound === 'true') {
+                return;
+            }
+
+            wrapper.dataset.datatableBound = 'true';
+            initDataTable(
+                wrapper.querySelector('[data-datatable-table]'),
+                wrapper.querySelector('[data-datatable-search]'),
+                wrapper.querySelector('[data-datatable-visible-count]'),
+            );
         });
     };
 
-    initDataTable(table, searchInput, visibleCount);
-
-    document.querySelectorAll('[data-datatable]').forEach((wrapper) => {
-        initDataTable(
-            wrapper.querySelector('[data-datatable-table]'),
-            wrapper.querySelector('[data-datatable-search]'),
-            wrapper.querySelector('[data-datatable-visible-count]'),
-        );
-    });
+    bindModalDataTables();
 
     function getSortValue(cell, type) {
         const value = (cell?.textContent || '').trim().toLowerCase();
@@ -311,8 +552,12 @@
             expiryInput.value = isEdit ? trigger.dataset.subscriptionExpiresAt : expiryInput.defaultValue;
         };
 
-        document.querySelectorAll('[data-subscription-mode]').forEach((trigger) => {
-            trigger.addEventListener('click', () => setSubscriptionFormMode(trigger));
+        document.addEventListener('click', (event) => {
+            const trigger = event.target.closest('[data-subscription-mode]');
+
+            if (trigger) {
+                setSubscriptionFormMode(trigger);
+            }
         });
 
         subscriptionForm.addEventListener('submit', (event) => {
@@ -393,19 +638,22 @@
             }));
         };
 
-        document.querySelectorAll('[data-user-mode]').forEach((trigger) => {
-            trigger.addEventListener('click', () => setUserFormMode(trigger));
-        });
+        document.addEventListener('click', (event) => {
+            const trigger = event.target.closest('[data-user-mode]');
 
-        document.querySelectorAll('.user-edit-row').forEach((row) => {
-            row.addEventListener('click', (event) => {
-                if (event.target.closest('button, a, form, input, select, textarea')) {
-                    return;
-                }
+            if (trigger) {
+                setUserFormMode(trigger);
+                return;
+            }
 
-                setUserFormMode(row);
-                bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal')).show();
-            });
+            const row = event.target.closest('.user-edit-row');
+
+            if (!row || event.target.closest('button, a, form, input, select, textarea')) {
+                return;
+            }
+
+            setUserFormMode(row);
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('userModal')).show();
         });
     }
 
@@ -798,26 +1046,30 @@
                 : '<i class="bi bi-eye" aria-hidden="true"></i>';
         });
     });
-    document.querySelectorAll('[data-delete-trigger]').forEach((trigger) => {
-        trigger.addEventListener('click', async () => {
-            const form = trigger.closest('form');
+    document.addEventListener('click', async (event) => {
+        const trigger = event.target.closest('[data-delete-trigger]');
 
-            if (!form) {
-                return;
-            }
+        if (!trigger) {
+            return;
+        }
 
-            const confirmed = await confirmDeleteAction({
-                title: trigger.dataset.deleteTitle,
-                text: trigger.dataset.deleteText,
-                confirmButtonText: trigger.dataset.deleteConfirm,
-                cancelButtonText: trigger.dataset.deleteCancel,
-            });
+        const form = trigger.closest('form');
 
-            if (confirmed) {
-                setFormSubmitting(form, trigger);
-                form.submit();
-            }
+        if (!form) {
+            return;
+        }
+
+        const confirmed = await confirmDeleteAction({
+            title: trigger.dataset.deleteTitle,
+            text: trigger.dataset.deleteText,
+            confirmButtonText: trigger.dataset.deleteConfirm,
+            cancelButtonText: trigger.dataset.deleteCancel,
         });
+
+        if (confirmed) {
+            setFormSubmitting(form, trigger);
+            form.submit();
+        }
     });
 
     function confirmDeleteAction(options) {

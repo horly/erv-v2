@@ -7,6 +7,17 @@
     </div>
 
     <div class="header-actions">
+        <button
+            class="icon-button"
+            type="button"
+            id="fullscreenButton"
+            aria-label="{{ __('main.fullscreen_enter') }}"
+            title="{{ __('main.fullscreen_enter') }}"
+            data-label-enter="{{ __('main.fullscreen_enter') }}"
+            data-label-exit="{{ __('main.fullscreen_exit') }}"
+        >
+            <i class="bi bi-fullscreen" aria-hidden="true"></i>
+        </button>
         <button class="icon-button" type="button" id="themeButton" aria-label="{{ __('auth.theme_dark') }}" title="{{ __('auth.theme_dark') }}">
             <i class="bi bi-brightness-high-fill" aria-hidden="true"></i>
         </button>

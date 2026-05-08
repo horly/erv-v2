@@ -9,6 +9,10 @@
     $partnersRoute = route('main.accounting.partners', [$company, $site]);
     $salesRepresentativesRoute = route('main.accounting.sales-representatives', [$company, $site]);
     $customerOrdersRoute = route('main.accounting.customer-orders', [$company, $site]);
+    $deliveryNotesRoute = route('main.accounting.delivery-notes', [$company, $site]);
+    $salesInvoicesRoute = route('main.accounting.sales-invoices', [$company, $site]);
+    $receiptsRoute = route('main.accounting.receipts', [$company, $site]);
+    $cashRegisterRoute = route('main.accounting.cash-register', [$company, $site]);
     $stockRoute = fn (string $resource) => route('main.accounting.stock.index', [$company, $site, $resource]);
     $serviceRoute = fn (string $resource) => route('main.accounting.services.index', [$company, $site, $resource]);
     $navigationGroups = [
@@ -56,13 +60,14 @@
     $salesItems = [
         ['label' => __('main.proforma_invoices'), 'icon' => 'bi-file-earmark-richtext', 'href' => route('main.accounting.proforma-invoices', [$company, $site]), 'active' => $activeAccountingPage === 'proforma-invoices'],
         ['label' => __('main.customer_orders'), 'icon' => 'bi-clipboard-check', 'href' => $customerOrdersRoute, 'active' => $activeAccountingPage === 'customer-orders'],
-        ['label' => __('main.delivery_notes'), 'icon' => 'bi-box-arrow-up'],
-        ['label' => __('main.sales_invoices'), 'icon' => 'bi-receipt'],
-        ['label' => __('main.payments_received'), 'icon' => 'bi-cash-coin'],
-        ['label' => __('main.cash_register'), 'icon' => 'bi-calculator'],
+        ['label' => __('main.delivery_notes'), 'icon' => 'bi-box-arrow-up', 'href' => $deliveryNotesRoute, 'active' => $activeAccountingPage === 'delivery-notes'],
+        ['label' => __('main.sales_invoices'), 'icon' => 'bi-receipt', 'href' => $salesInvoicesRoute, 'active' => $activeAccountingPage === 'sales-invoices'],
+        ['label' => __('main.payments_received'), 'icon' => 'bi-cash-coin', 'href' => $receiptsRoute, 'active' => $activeAccountingPage === 'receipts'],
+        ['label' => __('main.cash_register'), 'icon' => 'bi-calculator', 'href' => $cashRegisterRoute, 'active' => $activeAccountingPage === 'cash-register'],
         ['label' => __('main.credit_notes'), 'icon' => 'bi-arrow-counterclockwise'],
         ['label' => __('main.other_income'), 'icon' => 'bi-plus-circle'],
     ];
+    $salesIsOpen = collect($salesItems)->contains(fn ($item) => $item['active'] ?? false);
     $expenseItems = [
         ['label' => __('main.purchases'), 'icon' => 'bi-bag-check'],
         ['label' => __('main.purchase_orders'), 'icon' => 'bi-clipboard-check'],
@@ -136,8 +141,8 @@
 
         <span class="sidebar-section-title">{{ __('main.billing') }}</span>
 
-        <div class="sidebar-group">
-            <button class="sidebar-group-toggle" type="button" title="{{ __('main.sales') }}" aria-expanded="false" data-accounting-submenu>
+        <div class="sidebar-group {{ $salesIsOpen ? 'open' : '' }}">
+            <button class="sidebar-group-toggle" type="button" title="{{ __('main.sales') }}" aria-expanded="{{ $salesIsOpen ? 'true' : 'false' }}" data-accounting-submenu>
                 <i class="bi bi-cart-check" aria-hidden="true"></i>
                 <span>{{ __('main.sales') }}</span>
                 <i class="bi bi-chevron-down sidebar-group-chevron" aria-hidden="true"></i>

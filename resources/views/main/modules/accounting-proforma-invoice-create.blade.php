@@ -167,7 +167,7 @@
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label for="proformaClient" class="form-label">{{ __('main.customer') }} *</label>
-                                <select id="proformaClient" name="client_id" class="form-select @error('client_id') is-invalid @enderror" data-proforma-field data-default-value="{{ $isEditingProforma ? $proforma->client_id : '' }}">
+                                <select id="proformaClient" name="client_id" class="form-select @error('client_id') is-invalid @enderror" data-proforma-field data-proforma-client data-default-value="{{ $isEditingProforma ? $proforma->client_id : '' }}" data-search-placeholder="{{ __('main.search') }}" data-search-empty="{{ __('admin.no_results') }}">
                                     <option value="">{{ __('main.choose_customer') }}</option>
                                     @foreach ($clients as $id => $label)
                                         <option value="{{ $id }}" @selected(old('client_id', $isEditingProforma ? $proforma->client_id : null) == $id)>{{ $label }}</option>
@@ -219,7 +219,7 @@
                                 <div class="row g-3 align-items-end">
                                     <div class="col-lg-6">
                                         <label for="supplierQuoteFile" class="form-label">{{ __('main.supplier_quote_file') }}</label>
-                                        <input id="supplierQuoteFile" name="supplier_quote_file" type="file" class="form-control @error('supplier_quote_file') is-invalid @enderror" accept=".csv,.txt,.xlsx,.pdf,.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff">
+                                        <input id="supplierQuoteFile" name="supplier_quote_file" type="file" class="form-control @error('supplier_quote_file') is-invalid @enderror" accept=".csv,.txt,.xlsx,.pdf">
                                         <small class="form-text text-muted">{{ __('main.supplier_quote_file_hint') }}</small>
                                         @error('supplier_quote_file')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                                     </div>
@@ -244,16 +244,19 @@
                         <section class="proforma-lines-section">
                             <div class="form-section-title">
                                 <span><i class="bi bi-list-check" aria-hidden="true"></i> {{ __('main.proforma_lines') }}</span>
-                                <button type="button" class="light-action" data-add-proforma-line>
-                                    <i class="bi bi-plus" aria-hidden="true"></i>
-                                    {{ __('main.add_line') }}
-                                </button>
                             </div>
 
                             <div class="proforma-line-list" data-proforma-line-list>
                                 @foreach ($oldLines as $index => $line)
                                     @include('main.modules.partials.proforma-line-row', ['index' => $index, 'line' => $line, 'items' => $items, 'services' => $services, 'lineTypeLabels' => $lineTypeLabels])
                                 @endforeach
+                            </div>
+
+                            <div class="line-section-actions">
+                                <button type="button" class="light-action" data-add-proforma-line>
+                                    <i class="bi bi-plus" aria-hidden="true"></i>
+                                    {{ __('main.add_line') }}
+                                </button>
                             </div>
                         </section>
 

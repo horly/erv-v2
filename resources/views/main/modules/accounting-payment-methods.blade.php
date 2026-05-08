@@ -191,16 +191,28 @@
                                         <td>
                                             <div class="table-actions">
                                                 @if ($method->is_system_default)
+                                                    <button type="button" class="table-button table-button-history" data-bs-toggle="modal" data-bs-target="#paymentMethodReceiptsModal{{ $method->id }}" aria-label="{{ __('main.view_receipts') }}" title="{{ __('main.view_receipts') }}">
+                                                        <i class="bi bi-cash-coin" aria-hidden="true"></i>
+                                                    </button>
+                                                    <button type="button" class="table-button table-button-print" disabled aria-disabled="true" aria-label="{{ __('main.disbursements_coming_soon') }}" title="{{ __('main.disbursements_coming_soon') }}">
+                                                        <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                                                    </button>
                                                     <button type="button" class="table-button table-button-edit" data-bs-toggle="modal" data-bs-target="#paymentMethodModal" data-payment-method-mode="view" data-payment-method-id="{{ $method->id }}" data-payment-method-values="{{ base64_encode(json_encode($paymentMethodPayload($method))) }}" aria-label="{{ __('main.view_details') }}">
                                                         <i class="bi bi-eye" aria-hidden="true"></i>
                                                     </button>
                                                 @else
+                                                    <button type="button" class="table-button table-button-history" data-bs-toggle="modal" data-bs-target="#paymentMethodReceiptsModal{{ $method->id }}" aria-label="{{ __('main.view_receipts') }}" title="{{ __('main.view_receipts') }}">
+                                                        <i class="bi bi-cash-coin" aria-hidden="true"></i>
+                                                    </button>
+                                                    <button type="button" class="table-button table-button-print" disabled aria-disabled="true" aria-label="{{ __('main.disbursements_coming_soon') }}" title="{{ __('main.disbursements_coming_soon') }}">
+                                                        <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                                                    </button>
                                                     @if ($paymentMethodPermissions['can_update'])
                                                         <button type="button" class="table-button table-button-edit" data-bs-toggle="modal" data-bs-target="#paymentMethodModal" data-payment-method-mode="edit" data-payment-method-action="{{ route('main.accounting.payment-methods.update', [$company, $site, $method]) }}" data-payment-method-id="{{ $method->id }}" data-payment-method-values="{{ base64_encode(json_encode($paymentMethodPayload($method))) }}" aria-label="{{ __('admin.edit') }}">
                                                             <i class="bi bi-pencil" aria-hidden="true"></i>
                                                         </button>
                                                     @endif
-                                                    @if ($paymentMethodPermissions['can_delete'] && ! $method->is_default)
+                                                    @if ($paymentMethodPermissions['can_delete'] && ! $method->is_default && (int) $method->sales_invoice_payments_count === 0)
                                                         <form method="POST" action="{{ route('main.accounting.payment-methods.destroy', [$company, $site, $method]) }}">
                                                             @csrf
                                                             @method('DELETE')
@@ -237,6 +249,79 @@
             </section>
         </main>
     </div>
+
+    @foreach ($paymentMethods as $method)
+        <div class="modal fade subscription-modal related-table-modal payment-method-receipts-modal" id="paymentMethodReceiptsModal{{ $method->id }}" tabindex="-1" aria-labelledby="paymentMethodReceiptsModal{{ $method->id }}Label" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content admin-form modal-table-dialog">
+                    <div class="modal-body" data-payment-method-receipts-table>
+                        <button type="button" class="modal-close" data-bs-dismiss="modal" aria-label="{{ __('admin.close') }}"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                        <h2 id="paymentMethodReceiptsModal{{ $method->id }}Label">
+                            <i class="bi bi-cash-coin" aria-hidden="true"></i>
+                            {{ __('main.payment_method_receipts_title', ['name' => $method->name]) }}
+                        </h2>
+
+                        <section class="table-tools modal-table-tools" aria-label="{{ __('admin.search_tools') }}">
+                            <label class="search-box">
+                                <i class="bi bi-search" aria-hidden="true"></i>
+                                <input type="search" data-payment-method-receipts-search placeholder="{{ __('admin.search') }}" autocomplete="off">
+                            </label>
+                            <span class="row-count">
+                                <strong data-payment-method-receipts-visible-count>{{ $method->salesInvoicePayments->count() }}</strong>
+                                /
+                                <strong data-payment-method-receipts-total-count>{{ $method->salesInvoicePayments->count() }}</strong>
+                                {{ __('admin.rows') }}
+                            </span>
+                        </section>
+
+                        <div class="modal-total-strip">
+                            <span>{{ __('main.payment_method_receipts_total') }}</span>
+                            <strong>{{ number_format((float) ($method->receipts_total ?? $method->salesInvoicePayments->sum('amount')), 2, ',', ' ') }} {{ $method->currency_code }}</strong>
+                        </div>
+
+                        <div class="modal-table-frame">
+                            <table class="company-table modal-data-table">
+                                <thead>
+                                    <tr>
+                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="0" data-sort-type="number"># <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="1">{{ __('main.sales_invoice') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="2">{{ __('main.customer') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="3" data-sort-type="date">{{ __('main.payment_date') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th class="text-end"><button class="table-sort" type="button" data-payment-method-receipts-sort="4" data-sort-type="number">{{ __('main.amount') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="5">{{ __('main.reference') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="6">{{ __('main.received_by') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    </tr>
+                                </thead>
+                                <tbody data-payment-method-receipts-body>
+                                    @foreach ($method->salesInvoicePayments->sortByDesc('payment_date')->values() as $payment)
+                                        <tr data-payment-method-receipt-row>
+                                            <td data-sort-value="{{ $loop->iteration }}">{{ $loop->iteration }}</td>
+                                            <td>{{ $payment->salesInvoice?->reference ?? '-' }}</td>
+                                            <td>{{ $payment->salesInvoice?->client?->display_name ?? '-' }}</td>
+                                            <td data-sort-value="{{ optional($payment->payment_date)->format('Y-m-d') }}">{{ optional($payment->payment_date)->format('d/m/Y') }}</td>
+                                            <td class="amount-cell text-end" data-sort-value="{{ $payment->amount }}">{{ number_format((float) $payment->amount, 2, ',', ' ') }} {{ $payment->currency }}</td>
+                                            <td>{{ $payment->reference ?: '-' }}</td>
+                                            <td>{{ $payment->receiver?->name ?? '-' }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                            <p class="modal-table-empty" data-payment-method-receipts-empty hidden>{{ __('main.no_payment_method_receipts') }}</p>
+                        </div>
+
+                        <section class="subscriptions-pagination modal-table-pagination" data-payment-method-receipts-pagination data-previous-label="{{ __('admin.previous') }}" data-next-label="{{ __('admin.next') }}" data-showing-label="{{ __('admin.showing') }}" data-to-label="{{ __('admin.to') }}" data-on-label="{{ __('admin.on') }}" hidden aria-label="{{ __('admin.pagination') }}">
+                            <span data-payment-method-receipts-pagination-count></span>
+                            <nav class="pagination-shell" data-payment-method-receipts-pagination-nav aria-label="{{ __('admin.pagination') }}"></nav>
+                        </section>
+
+                        <div class="modal-actions">
+                            <button type="button" class="modal-cancel" data-bs-dismiss="modal">{{ __('admin.close') }}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endforeach
 
     <div class="modal fade subscription-modal accounting-payment-method-modal" id="paymentMethodModal" tabindex="-1" aria-labelledby="paymentMethodModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -359,5 +444,178 @@
     <script>{!! file_get_contents(resource_path('js/main.js')) !!}</script>
     <!-- resources/js/main/accounting-payment-methods.js -->
     <script>{!! file_get_contents(resource_path('js/main/accounting-payment-methods.js')) !!}</script>
+    <script>
+        (() => {
+            const normalize = (value = '') => String(value)
+                .trim()
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '');
+
+            const sortValue = (cell, type = 'text') => {
+                const rawValue = cell?.dataset.sortValue || cell?.textContent || '';
+                const value = String(rawValue).trim();
+
+                if (type === 'number') {
+                    return Number(value.replace(/[^0-9.-]/g, '')) || 0;
+                }
+
+                if (type === 'date') {
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                        return new Date(value).getTime();
+                    }
+
+                    const match = value.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+                    return match ? new Date(`${match[3]}-${match[2]}-${match[1]}`).getTime() : 0;
+                }
+
+                return normalize(value);
+            };
+
+            const initReceiptsTable = (wrapper) => {
+                if (!wrapper || wrapper.dataset.paymentMethodReceiptsTableBound === 'true') {
+                    return;
+                }
+
+                wrapper.dataset.paymentMethodReceiptsTableBound = 'true';
+
+                const rows = Array.from(wrapper.querySelectorAll('[data-payment-method-receipt-row]'));
+                const search = wrapper.querySelector('[data-payment-method-receipts-search]');
+                const body = wrapper.querySelector('[data-payment-method-receipts-body]');
+                const empty = wrapper.querySelector('[data-payment-method-receipts-empty]');
+                const visibleCount = wrapper.querySelector('[data-payment-method-receipts-visible-count]');
+                const totalCount = wrapper.querySelector('[data-payment-method-receipts-total-count]');
+                const pagination = wrapper.querySelector('[data-payment-method-receipts-pagination]');
+                const paginationCount = wrapper.querySelector('[data-payment-method-receipts-pagination-count]');
+                const paginationNav = wrapper.querySelector('[data-payment-method-receipts-pagination-nav]');
+                const perPage = 5;
+                let page = 1;
+                let sortIndex = null;
+                let sortType = 'text';
+                let sortDirection = 'asc';
+
+                if (totalCount) {
+                    totalCount.textContent = String(rows.length);
+                }
+
+                const render = () => {
+                    const query = normalize(search?.value || '');
+                    let filteredRows = rows.filter((row) => normalize(row.textContent || '').includes(query));
+
+                    if (sortIndex !== null) {
+                        filteredRows = filteredRows.sort((left, right) => {
+                            const leftValue = sortValue(left.cells[sortIndex], sortType);
+                            const rightValue = sortValue(right.cells[sortIndex], sortType);
+
+                            if (leftValue < rightValue) return sortDirection === 'asc' ? -1 : 1;
+                            if (leftValue > rightValue) return sortDirection === 'asc' ? 1 : -1;
+                            return 0;
+                        });
+                    }
+
+                    const totalPages = Math.max(1, Math.ceil(filteredRows.length / perPage));
+                    page = Math.min(page, totalPages);
+                    const pageRows = filteredRows.slice((page - 1) * perPage, page * perPage);
+
+                    rows.forEach((row) => {
+                        row.hidden = true;
+                    });
+
+                    pageRows.forEach((row) => {
+                        row.hidden = false;
+                        body.appendChild(row);
+                    });
+
+                    if (empty) {
+                        empty.hidden = filteredRows.length > 0;
+                    }
+
+                    if (visibleCount) {
+                        visibleCount.textContent = String(filteredRows.length);
+                    }
+
+                    if (!pagination || !paginationNav) {
+                        return;
+                    }
+
+                    paginationNav.innerHTML = '';
+                    if (paginationCount) {
+                        paginationCount.textContent = '';
+                    }
+
+                    if (filteredRows.length > perPage) {
+                        const previousLabel = pagination.dataset.previousLabel || 'Previous';
+                        const nextLabel = pagination.dataset.nextLabel || 'Next';
+                        const showingLabel = pagination.dataset.showingLabel || 'Showing';
+                        const toLabel = pagination.dataset.toLabel || 'to';
+                        const onLabel = pagination.dataset.onLabel || 'of';
+                        const start = ((page - 1) * perPage) + 1;
+                        const end = Math.min(page * perPage, filteredRows.length);
+
+                        pagination.hidden = false;
+                        if (paginationCount) {
+                            paginationCount.textContent = `${showingLabel} ${start} ${toLabel} ${end} ${onLabel} ${filteredRows.length}`;
+                        }
+
+                        paginationNav.innerHTML = `
+                            <button type="button" ${page === 1 ? 'disabled' : ''} data-payment-method-receipts-page="${page - 1}">${previousLabel}</button>
+                            ${Array.from({ length: totalPages }, (_, index) => {
+                                const currentPage = index + 1;
+                                return `<button type="button" class="${currentPage === page ? 'active' : ''}" data-payment-method-receipts-page="${currentPage}">${currentPage}</button>`;
+                            }).join('')}
+                            <button type="button" ${page === totalPages ? 'disabled' : ''} data-payment-method-receipts-page="${page + 1}">${nextLabel}</button>
+                        `;
+                    } else {
+                        pagination.hidden = true;
+                    }
+                };
+
+                search?.addEventListener('input', () => {
+                    page = 1;
+                    render();
+                });
+
+                wrapper.querySelectorAll('[data-payment-method-receipts-sort]').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        const nextIndex = Number(button.dataset.paymentMethodReceiptsSort);
+                        sortDirection = sortIndex === nextIndex && sortDirection === 'asc' ? 'desc' : 'asc';
+                        sortIndex = nextIndex;
+                        sortType = button.dataset.sortType || 'text';
+                        page = 1;
+
+                        wrapper.querySelectorAll('[data-payment-method-receipts-sort]').forEach((sortButton) => {
+                            sortButton.classList.remove('is-sorted-asc', 'is-sorted-desc');
+                        });
+
+                        button.classList.add(sortDirection === 'asc' ? 'is-sorted-asc' : 'is-sorted-desc');
+                        render();
+                    });
+                });
+
+                pagination?.addEventListener('click', (event) => {
+                    const button = event.target.closest('[data-payment-method-receipts-page]');
+
+                    if (!button || button.disabled) {
+                        return;
+                    }
+
+                    page = Number(button.dataset.paymentMethodReceiptsPage || '1');
+                    render();
+                });
+
+                render();
+            };
+
+            const initAllReceiptsTables = () => {
+                document.querySelectorAll('[data-payment-method-receipts-table]').forEach(initReceiptsTable);
+            };
+
+            initAllReceiptsTables();
+            document.addEventListener('exad:table-updated', initAllReceiptsTables);
+            document.addEventListener('shown.bs.modal', (event) => {
+                initReceiptsTable(event.target.querySelector('[data-payment-method-receipts-table]'));
+            });
+        })();
+    </script>
 </body>
 </html>

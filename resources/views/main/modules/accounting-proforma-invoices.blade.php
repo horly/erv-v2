@@ -148,7 +148,7 @@
                                     <tr>
                                         <td>{{ ($proformas->firstItem() ?? 1) + $loop->index }}</td>
                                         <td><span class="reference-pill">{{ $proforma->reference }}</span></td>
-                                        <td>{{ $proforma->client?->name ?? '-' }}</td>
+                                        <td>{{ $proforma->client?->display_name ?? '-' }}</td>
                                         <td>{{ optional($proforma->issue_date)->format('d/m/Y') }}</td>
                                         <td>{{ optional($proforma->expiration_date)->format('d/m/Y') ?: '-' }}</td>
                                         <td class="amount-cell text-end" data-sort-value="{{ $proforma->total_ttc }}">{{ number_format((float) $proforma->total_ttc, 2, ',', ' ') }} {{ $proforma->currency }}</td>

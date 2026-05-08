@@ -175,15 +175,60 @@ class AdminController extends Controller
             ->all();
     }
 
-    public function users(): View
+    private function tableSearch(Request $request): string
     {
+        return trim((string) $request->query('search', ''));
+    }
+
+    private function applyTableSearch($query, string $search, array $columns)
+    {
+        return $query->where(function ($searchQuery) use ($search, $columns): void {
+            foreach ($columns as $column) {
+                if (is_callable($column)) {
+                    $column($searchQuery, $search);
+
+                    continue;
+                }
+
+                $searchQuery->orWhere($column, 'like', "%{$search}%");
+            }
+        });
+    }
+
+    private function relationTableSearch(string $relation, array $columns): callable
+    {
+        return function ($query, string $search) use ($relation, $columns): void {
+            $query->orWhereHas($relation, function ($relationQuery) use ($columns, $search): void {
+                $relationQuery->where(function ($searchQuery) use ($columns, $search): void {
+                    foreach ($columns as $column) {
+                        $searchQuery->orWhere($column, 'like', "%{$search}%");
+                    }
+                });
+            });
+        };
+    }
+
+    public function users(Request $request): View
+    {
+        $search = $this->tableSearch($request);
+
         return view('admin.users', [
             'user' => Auth::user(),
             'users' => User::query()
                 ->with(['subscription' => fn ($query) => $query->withCount(['users', 'companies'])])
+                ->when($search !== '', fn ($query) => $this->applyTableSearch($query, $search, [
+                    'name',
+                    'email',
+                    'role',
+                    'phone_number',
+                    'grade',
+                    'address',
+                    $this->relationTableSearch('subscription', ['name', 'code', 'type', 'status']),
+                ]))
                 ->orderByRaw("case when role = 'superadmin' then 0 else 1 end")
                 ->latest()
-                ->paginate(5),
+                ->paginate(5)
+                ->withQueryString(),
             'subscriptionOptions' => Subscription::query()
                 ->orderBy('name')
                 ->get(['id', 'name', 'type']),
@@ -231,14 +276,24 @@ class AdminController extends Controller
         ]);
     }
 
-    public function subscriptions(): View
+    public function subscriptions(Request $request): View
     {
+        $search = $this->tableSearch($request);
+
         return view('admin.subscriptions', [
             'user' => Auth::user(),
             'subscriptions' => Subscription::query()
                 ->withCount(['users', 'companies'])
+                ->when($search !== '', fn ($query) => $this->applyTableSearch($query, $search, [
+                    'name',
+                    'code',
+                    'type',
+                    'status',
+                    'expires_at',
+                ]))
                 ->latest()
-                ->paginate(5),
+                ->paginate(5)
+                ->withQueryString(),
             'subscriptionOptions' => Subscription::query()
                 ->orderBy('name')
                 ->get(['id', 'name', 'type']),
@@ -246,8 +301,10 @@ class AdminController extends Controller
     }
 
 
-    public function companies(): View
+    public function companies(Request $request): View
     {
+        $search = $this->tableSearch($request);
+
         return view('admin.companies', [
             'user' => Auth::user(),
             'companies' => Company::query()
@@ -258,8 +315,20 @@ class AdminController extends Controller
                     'users' => fn ($query) => $query->orderBy('name'),
                 ])
                 ->withCount(['sites', 'users'])
+                ->when($search !== '', fn ($query) => $this->applyTableSearch($query, $search, [
+                    'name',
+                    'country',
+                    'email',
+                    'website',
+                    'address',
+                    $this->relationTableSearch('subscription', ['name', 'code', 'type']),
+                    $this->relationTableSearch('users', ['name', 'email', 'role']),
+                    $this->relationTableSearch('phones', ['label', 'phone_number']),
+                    $this->relationTableSearch('accounts', ['bank_name', 'account_number', 'currency']),
+                ]))
                 ->latest()
-                ->paginate(5),
+                ->paginate(5)
+                ->withQueryString(),
             'countries' => config('countries'),
         ]);
     }

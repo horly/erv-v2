@@ -503,6 +503,19 @@ input {
     border-color: rgba(37, 99, 235, .45);
 }
 
+.table-button:disabled,
+.table-button[aria-disabled="true"] {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.table-button:disabled:hover,
+.table-button[aria-disabled="true"]:hover {
+    color: var(--muted);
+    border-color: var(--line);
+    background: var(--surface);
+}
+
 .table-button-history:hover {
     border-color: rgba(14, 165, 233, .35);
     background: #eff6ff;
@@ -1090,6 +1103,12 @@ input {
     gap: .75rem;
 }
 
+.line-section-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: .9rem;
+}
+
 .proforma-search-select {
     position: relative;
 }
@@ -1186,6 +1205,59 @@ input {
 
 .proforma-line-card {
     background: #f8fafc;
+}
+
+.proforma-line-card .row > * {
+    min-width: 0;
+}
+
+.proforma-line-card .form-control,
+.proforma-line-card .form-select,
+.proforma-line-card .proforma-search-select,
+.proforma-line-card .proforma-search-select-toggle {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.customer-order-line-card > .row {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 0;
+}
+
+.customer-order-line-card > .row > * {
+    width: auto !important;
+    max-width: 100%;
+    padding: 0;
+}
+
+.customer-order-line-card > .row > :nth-child(1),
+.customer-order-line-card > .row > :nth-child(6),
+.customer-order-line-card > .row > :nth-child(7),
+.customer-order-line-card > .row > :nth-child(8),
+.customer-order-line-card > .row > :nth-child(9),
+.customer-order-line-card > .row > :nth-child(10),
+.customer-order-line-card > .row > :nth-child(11),
+.customer-order-line-card > .row > :nth-child(12),
+.customer-order-line-card > .row > :nth-child(13),
+.customer-order-line-card > .row > :nth-child(14) {
+    grid-column: span 2;
+}
+
+.customer-order-line-card > .row > :nth-child(2),
+.customer-order-line-card > .row > :nth-child(3) {
+    grid-column: span 3;
+}
+
+.customer-order-line-card > .row > :nth-child(4),
+.customer-order-line-card > .row > :nth-child(15),
+.customer-order-line-card > .row > :nth-child(16) {
+    grid-column: span 4;
+}
+
+.customer-order-line-card > .row > :nth-child(5) {
+    grid-column: span 1;
 }
 
 .customer-order-stock-check {
@@ -1459,6 +1531,27 @@ input {
     background: var(--surface);
 }
 
+.modal-total-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 1rem;
+    padding: .85rem 1rem;
+    border: 1px solid #bfdbfe;
+    border-radius: 10px;
+    background: #eff6ff;
+    color: #1e3a8a;
+    font-weight: 800;
+}
+
+.modal-total-strip strong {
+    margin-left: auto;
+    color: #1d4ed8;
+    text-align: right;
+    white-space: nowrap;
+}
+
 .modal-data-table {
     width: 100%;
     min-width: 760px;
@@ -1497,6 +1590,47 @@ input {
     margin-top: 1rem;
 }
 
+.modal-table-pagination .pagination-shell {
+    flex-wrap: wrap;
+}
+
+.modal-table-pagination .pagination-shell button {
+    display: inline-flex;
+    min-width: 42px;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    margin-left: -1px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--blue-600);
+    font: inherit;
+    font-weight: 700;
+    transition: background-color .2s ease, color .2s ease, border-color .2s ease;
+}
+
+.modal-table-pagination .pagination-shell button:first-child {
+    min-width: 108px;
+    border-radius: 12px 0 0 12px;
+}
+
+.modal-table-pagination .pagination-shell button:last-child {
+    min-width: 108px;
+    border-radius: 0 12px 12px 0;
+}
+
+.modal-table-pagination .pagination-shell button.active {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-color: #2563eb;
+    color: #fff;
+}
+
+.modal-table-pagination .pagination-shell button:disabled {
+    color: #a0aec0;
+    background: #fff;
+    cursor: not-allowed;
+}
+
 @media (max-width: 640px) {
     .subscription-modal.related-table-modal .modal-dialog {
         max-width: calc(100vw - 1rem);
@@ -1518,8 +1652,8 @@ input {
 
 .login-history-footer .pagination-shell button {
     display: inline-flex;
-    min-width: 38px;
-    min-height: 34px;
+    min-width: 42px;
+    min-height: 40px;
     align-items: center;
     justify-content: center;
     margin-left: -1px;
@@ -2087,6 +2221,23 @@ body.accounting-module-body {
 .accounting-dashboard-grid .dashboard-panel h2 {
     margin-bottom: .8rem;
     font-size: .92rem;
+}
+
+.receipt-filter-card {
+    margin-bottom: .95rem;
+    padding: 1rem 1.1rem;
+}
+
+.receipt-filter-form .form-label {
+    margin-bottom: .35rem;
+    font-size: .82rem;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+}
+
+.receipt-filter-actions .modal-cancel,
+.receipt-filter-actions .modal-submit {
+    min-height: 44px;
 }
 
 .accounting-chart,
@@ -2695,6 +2846,184 @@ body.accounting-module-body {
     color: #475569;
 }
 
+.status-pill.delivery-note-status-delivered,
+.status-pill.delivery-note-status-partial {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.status-pill.delivery-note-status-ready {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.status-pill.delivery-note-status-cancelled {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.status-pill.delivery-note-status-draft {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.status-pill.sales-invoice-status-paid,
+.status-pill.sales-invoice-status-partially_paid {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.status-pill.sales-invoice-status-issued {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.status-pill.sales-invoice-status-overdue,
+.status-pill.sales-invoice-status-cancelled {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.status-pill.sales-invoice-status-draft {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.sales-invoice-payment-modal .modal-dialog {
+    max-width: 640px;
+}
+
+.sales-invoice-payment-modal .modal-content {
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.sales-invoice-payment-modal .modal-header {
+    position: relative;
+    align-items: center;
+    padding: 1.35rem 1.65rem 1.05rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.sales-invoice-payment-modal .modal-title {
+    display: inline-flex;
+    align-items: center;
+    gap: .8rem;
+    margin: 0;
+    padding-right: 3rem;
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: 0;
+}
+
+.sales-invoice-payment-modal .modal-title i {
+    font-size: 1.45rem;
+}
+
+.sales-invoice-payment-modal form.admin-form {
+    padding: 1.35rem 1.65rem 1.55rem;
+}
+
+.sales-invoice-payment-modal .form-label {
+    margin-bottom: .45rem;
+}
+
+.sales-invoice-payment-modal .form-control,
+.sales-invoice-payment-modal .form-select {
+    width: 100%;
+    min-height: 48px;
+    padding: .6rem .85rem;
+    font-size: 1rem;
+}
+
+.sales-invoice-payment-modal textarea.form-control {
+    min-height: 106px;
+}
+
+.sales-invoice-payment-modal .modal-actions {
+    margin-top: 1.35rem;
+}
+
+@media (max-width: 575.98px) {
+    .sales-invoice-payment-modal .modal-title {
+        font-size: 1.25rem;
+    }
+
+    .sales-invoice-payment-modal .modal-header,
+    .sales-invoice-payment-modal form.admin-form {
+        padding-right: 1.1rem;
+        padding-left: 1.1rem;
+    }
+}
+
+.delivery-note-create-shortcut {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .75rem;
+}
+
+.delivery-note-create-shortcut .form-select {
+    width: min(320px, 100%);
+}
+
+.delivery-line-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.delivery-line-card {
+    padding: 1.15rem;
+    background: #f8fafc;
+}
+
+.delivery-serial-section {
+    padding-top: .35rem;
+}
+
+.delivery-serial-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .5rem;
+    margin-bottom: .75rem;
+    color: var(--ink);
+    font-weight: 800;
+}
+
+.delivery-serial-heading span {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+}
+
+.delivery-serial-heading small {
+    color: var(--muted);
+    font-size: .76rem;
+    font-weight: 700;
+}
+
+.delivery-serial-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: .75rem;
+}
+
+.delivery-serial-field {
+    display: grid;
+    gap: .35rem;
+}
+
+.delivery-serial-field span {
+    color: var(--muted);
+    font-size: .74rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
 .two-factor-empty,
 .two-factor-configured {
     display: grid;
@@ -3061,6 +3390,32 @@ body.accounting-module-body {
     .site-module-grid {
         grid-template-columns: 1fr;
     }
+
+    .customer-order-line-card > .row {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+
+    .customer-order-line-card > .row > :nth-child(1),
+    .customer-order-line-card > .row > :nth-child(5),
+    .customer-order-line-card > .row > :nth-child(6),
+    .customer-order-line-card > .row > :nth-child(7),
+    .customer-order-line-card > .row > :nth-child(8),
+    .customer-order-line-card > .row > :nth-child(9),
+    .customer-order-line-card > .row > :nth-child(10),
+    .customer-order-line-card > .row > :nth-child(11),
+    .customer-order-line-card > .row > :nth-child(12),
+    .customer-order-line-card > .row > :nth-child(13),
+    .customer-order-line-card > .row > :nth-child(14),
+    .customer-order-line-card > .row > :nth-child(15),
+    .customer-order-line-card > .row > :nth-child(16) {
+        grid-column: span 3;
+    }
+
+    .customer-order-line-card > .row > :nth-child(2),
+    .customer-order-line-card > .row > :nth-child(3),
+    .customer-order-line-card > .row > :nth-child(4) {
+        grid-column: span 6;
+    }
 }
 
 @media (max-width: 560px) {
@@ -3074,5 +3429,13 @@ body.accounting-module-body {
 
     .profile-name {
         display: none;
+    }
+
+    .customer-order-line-card > .row {
+        grid-template-columns: 1fr;
+    }
+
+    .customer-order-line-card > .row > * {
+        grid-column: 1 / -1 !important;
     }
 }

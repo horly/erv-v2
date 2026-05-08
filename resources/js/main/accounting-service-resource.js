@@ -19,6 +19,8 @@
     const relatedVisibleCount = relatedModal?.querySelector('[data-related-visible-count]');
     const relatedTotalCount = relatedModal?.querySelector('[data-related-total-count]');
     const relatedPagination = relatedModal?.querySelector('[data-related-pagination]');
+    const relatedPaginationCount = relatedModal?.querySelector('[data-related-pagination-count]');
+    const relatedPaginationNav = relatedModal?.querySelector('[data-related-pagination-nav]');
     let relatedRows = [];
     let relatedFilteredRows = [];
     let relatedSortKey = 'reference';
@@ -114,7 +116,7 @@
     };
 
     const renderRelatedRows = () => {
-        if (!relatedBody || !relatedEmpty || !relatedPagination) {
+        if (!relatedBody || !relatedEmpty || !relatedPagination || !relatedPaginationNav) {
             return;
         }
 
@@ -149,11 +151,25 @@
         if (relatedVisibleCount) relatedVisibleCount.textContent = String(relatedFilteredRows.length);
         if (relatedTotalCount) relatedTotalCount.textContent = String(relatedRows.length);
 
+        relatedPaginationNav.innerHTML = '';
+        if (relatedPaginationCount) {
+            relatedPaginationCount.textContent = '';
+        }
+
         if (relatedFilteredRows.length > relatedPerPage) {
             const previousLabel = relatedPagination.dataset.previousLabel || 'Previous';
             const nextLabel = relatedPagination.dataset.nextLabel || 'Next';
+            const showingLabel = relatedPagination.dataset.showingLabel || 'Showing';
+            const toLabel = relatedPagination.dataset.toLabel || 'to';
+            const onLabel = relatedPagination.dataset.onLabel || 'of';
+            const start = ((relatedPage - 1) * relatedPerPage) + 1;
+            const end = Math.min(relatedPage * relatedPerPage, relatedFilteredRows.length);
+
             relatedPagination.hidden = false;
-            relatedPagination.innerHTML = `
+            if (relatedPaginationCount) {
+                relatedPaginationCount.textContent = `${showingLabel} ${start} ${toLabel} ${end} ${onLabel} ${relatedFilteredRows.length}`;
+            }
+            relatedPaginationNav.innerHTML = `
                 <button type="button" ${relatedPage === 1 ? 'disabled' : ''} data-related-page="${relatedPage - 1}">${escapeHtml(previousLabel)}</button>
                 ${Array.from({ length: totalPages }, (_, index) => {
                     const page = index + 1;
@@ -163,7 +179,6 @@
             `;
         } else {
             relatedPagination.hidden = true;
-            relatedPagination.innerHTML = '';
         }
     };
 
@@ -189,14 +204,22 @@
         renderRelatedRows();
     };
 
-    document.querySelectorAll('[data-service-mode]').forEach((trigger) => {
-        trigger.addEventListener('click', () => setFormMode(trigger));
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-service-mode]');
+
+        if (trigger) {
+            setFormMode(trigger);
+        }
     });
 
     subcategorySelect?.addEventListener('change', syncCategoryFromSubcategory);
 
-    document.querySelectorAll('[data-service-related-rows]').forEach((trigger) => {
-        trigger.addEventListener('click', () => openRelatedModal(trigger));
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-service-related-rows]');
+
+        if (trigger) {
+            openRelatedModal(trigger);
+        }
     });
 
     relatedSearch?.addEventListener('input', () => {
