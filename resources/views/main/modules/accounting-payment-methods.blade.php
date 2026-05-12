@@ -212,7 +212,7 @@
                                                             <i class="bi bi-pencil" aria-hidden="true"></i>
                                                         </button>
                                                     @endif
-                                                    @if ($paymentMethodPermissions['can_delete'] && ! $method->is_default && (int) $method->sales_invoice_payments_count === 0)
+                                                    @if ($paymentMethodPermissions['can_delete'] && ! $method->is_default && (int) $method->sales_invoice_payments_count === 0 && (int) $method->other_incomes_count === 0)
                                                         <form method="POST" action="{{ route('main.accounting.payment-methods.destroy', [$company, $site, $method]) }}">
                                                             @csrf
                                                             @method('DELETE')
@@ -251,6 +251,10 @@
     </div>
 
     @foreach ($paymentMethods as $method)
+        @php
+            $methodReceiptsCount = (int) $method->salesInvoicePayments->count() + (int) $method->otherIncomes->count();
+            $methodReceiptsTotal = (float) ($method->receipts_total ?? $method->salesInvoicePayments->sum('amount')) + (float) ($method->other_incomes_total ?? $method->otherIncomes->sum('amount'));
+        @endphp
         <div class="modal fade subscription-modal related-table-modal payment-method-receipts-modal" id="paymentMethodReceiptsModal{{ $method->id }}" tabindex="-1" aria-labelledby="paymentMethodReceiptsModal{{ $method->id }}Label" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content admin-form modal-table-dialog">
@@ -267,16 +271,16 @@
                                 <input type="search" data-payment-method-receipts-search placeholder="{{ __('admin.search') }}" autocomplete="off">
                             </label>
                             <span class="row-count">
-                                <strong data-payment-method-receipts-visible-count>{{ $method->salesInvoicePayments->count() }}</strong>
+                                <strong data-payment-method-receipts-visible-count>{{ $methodReceiptsCount }}</strong>
                                 /
-                                <strong data-payment-method-receipts-total-count>{{ $method->salesInvoicePayments->count() }}</strong>
+                                <strong data-payment-method-receipts-total-count>{{ $methodReceiptsCount }}</strong>
                                 {{ __('admin.rows') }}
                             </span>
                         </section>
 
                         <div class="modal-total-strip">
                             <span>{{ __('main.payment_method_receipts_total') }}</span>
-                            <strong>{{ number_format((float) ($method->receipts_total ?? $method->salesInvoicePayments->sum('amount')), 2, ',', ' ') }} {{ $method->currency_code }}</strong>
+                            <strong>{{ number_format($methodReceiptsTotal, 2, ',', ' ') }} {{ $method->currency_code }}</strong>
                         </div>
 
                         <div class="modal-table-frame">
@@ -302,6 +306,17 @@
                                             <td class="amount-cell text-end" data-sort-value="{{ $payment->amount }}">{{ number_format((float) $payment->amount, 2, ',', ' ') }} {{ $payment->currency }}</td>
                                             <td>{{ $payment->reference ?: '-' }}</td>
                                             <td>{{ $payment->receiver?->name ?? '-' }}</td>
+                                        </tr>
+                                    @endforeach
+                                    @foreach ($method->otherIncomes->sortByDesc('income_date')->values() as $income)
+                                        <tr data-payment-method-receipt-row>
+                                            <td data-sort-value="{{ $method->salesInvoicePayments->count() + $loop->iteration }}">{{ $method->salesInvoicePayments->count() + $loop->iteration }}</td>
+                                            <td>{{ __('main.other_income') }}</td>
+                                            <td>{{ $income->label }}</td>
+                                            <td data-sort-value="{{ optional($income->income_date)->format('Y-m-d') }}">{{ optional($income->income_date)->format('d/m/Y') }}</td>
+                                            <td class="amount-cell text-end" data-sort-value="{{ $income->amount }}">{{ number_format((float) $income->amount, 2, ',', ' ') }} {{ $income->currency }}</td>
+                                            <td>{{ $income->payment_reference ?: $income->reference }}</td>
+                                            <td>{{ $income->creator?->name ?? '-' }}</td>
                                         </tr>
                                     @endforeach
                                 </tbody>

@@ -121,6 +121,16 @@ class CompanySite extends Model
         return $this->hasMany(AccountingPaymentMethod::class);
     }
 
+    public function accountingOtherIncomes(): HasMany
+    {
+        return $this->hasMany(AccountingOtherIncome::class);
+    }
+
+    public function accountingPurchases(): HasMany
+    {
+        return $this->hasMany(AccountingPurchase::class);
+    }
+
     public function accountingStockCategories(): HasMany
     {
         return $this->hasMany(AccountingStockCategory::class);
@@ -164,6 +174,11 @@ class CompanySite extends Model
     public function accountingSalesInvoices(): HasMany
     {
         return $this->hasMany(AccountingSalesInvoice::class);
+    }
+
+    public function accountingCreditNotes(): HasMany
+    {
+        return $this->hasMany(AccountingCreditNote::class);
     }
 
     public function accountingCashRegisterSessions(): HasMany

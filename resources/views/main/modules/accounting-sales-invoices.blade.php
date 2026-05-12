@@ -19,6 +19,12 @@
             \App\Models\AccountingSalesInvoice::STATUS_PARTIALLY_PAID,
             \App\Models\AccountingSalesInvoice::STATUS_OVERDUE,
         ];
+        $creditableStatuses = [
+            \App\Models\AccountingSalesInvoice::STATUS_ISSUED,
+            \App\Models\AccountingSalesInvoice::STATUS_PARTIALLY_PAID,
+            \App\Models\AccountingSalesInvoice::STATUS_PAID,
+            \App\Models\AccountingSalesInvoice::STATUS_OVERDUE,
+        ];
     @endphp
 
     <div class="dashboard-shell main-shell accounting-shell" data-theme="light">
@@ -80,8 +86,9 @@
                                     <th><button class="table-sort" type="button" data-sort-index="4">{{ __('main.due_date') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th class="text-end"><button class="table-sort" type="button" data-sort-index="5" data-sort-type="number">{{ __('main.total_ttc') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th class="text-end"><button class="table-sort" type="button" data-sort-index="6" data-sort-type="number">{{ __('main.paid_total') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    <th class="text-end"><button class="table-sort" type="button" data-sort-index="7" data-sort-type="number">{{ __('main.balance_due') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    <th><button class="table-sort" type="button" data-sort-index="8">{{ __('main.status') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th class="text-end"><button class="table-sort" type="button" data-sort-index="7" data-sort-type="number">{{ __('main.credit_total') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th class="text-end"><button class="table-sort" type="button" data-sort-index="8" data-sort-type="number">{{ __('main.balance_due') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="9">{{ __('main.status') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th class="text-end">{{ __('admin.actions') }}</th>
                                 </tr>
                             </thead>
@@ -95,6 +102,7 @@
                                         <td>{{ optional($invoice->due_date)->format('d/m/Y') }}</td>
                                         <td class="amount-cell text-end" data-sort-value="{{ $invoice->total_ttc }}">{{ number_format((float) $invoice->total_ttc, 2, ',', ' ') }} {{ $invoice->currency }}</td>
                                         <td class="amount-cell text-end" data-sort-value="{{ $invoice->paid_total }}">{{ number_format((float) $invoice->paid_total, 2, ',', ' ') }} {{ $invoice->currency }}</td>
+                                        <td class="amount-cell text-end" data-sort-value="{{ $invoice->credit_total }}">{{ number_format((float) $invoice->credit_total, 2, ',', ' ') }} {{ $invoice->currency }}</td>
                                         <td class="amount-cell text-end" data-sort-value="{{ $invoice->balance_due }}">{{ number_format((float) $invoice->balance_due, 2, ',', ' ') }} {{ $invoice->currency }}</td>
                                         <td><span class="status-pill sales-invoice-status-{{ $invoice->status }}">{{ $statusLabels[$invoice->status] ?? $invoice->status }}</span></td>
                                         <td>
@@ -111,6 +119,11 @@
                                                     <button class="table-button table-button-edit" type="button" data-bs-toggle="modal" data-bs-target="#salesInvoicePaymentModal{{ $invoice->id }}" aria-label="{{ __('main.add_payment') }}" title="{{ __('main.add_payment') }}">
                                                         <i class="bi bi-cash-coin" aria-hidden="true"></i>
                                                     </button>
+                                                @endif
+                                                @if ($invoicePermissions['can_create'] && in_array($invoice->status, $creditableStatuses, true) && $invoice->creditableAmount() > 0)
+                                                    <a class="table-button table-button-history" href="{{ route('main.accounting.credit-notes.create', [$company, $site, 'invoice' => $invoice->id]) }}" aria-label="{{ __('main.create_credit_note') }}" title="{{ __('main.create_credit_note') }}">
+                                                        <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                                                    </a>
                                                 @endif
                                                 @if ($invoicePermissions['can_update'] && $invoice->isEditable())
                                                     <a class="table-button table-button-edit" href="{{ route('main.accounting.sales-invoices.edit', [$company, $site, $invoice]) }}" aria-label="{{ __('admin.edit') }}">
@@ -130,9 +143,9 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr class="empty-row"><td colspan="10">{{ __('main.no_sales_invoices') }}</td></tr>
+                                    <tr class="empty-row"><td colspan="11">{{ __('main.no_sales_invoices') }}</td></tr>
                                 @endforelse
-                                <tr class="empty-row search-empty-row" hidden><td colspan="10">{{ __('admin.no_results') }}</td></tr>
+                                <tr class="empty-row search-empty-row" hidden><td colspan="11">{{ __('admin.no_results') }}</td></tr>
                             </tbody>
                         </table>
                     </div>

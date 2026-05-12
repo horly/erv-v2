@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AccountingClient;
 use App\Models\AccountingCashRegisterSession;
+use App\Models\AccountingCreditNote;
 use App\Models\AccountingCreditor;
 use App\Models\AccountingCurrency;
 use App\Models\AccountingCustomerOrder;
@@ -12,6 +13,7 @@ use App\Models\AccountingDebtor;
 use App\Models\AccountingDeliveryNote;
 use App\Models\AccountingDeliveryNoteLine;
 use App\Models\AccountingDeliveryNoteSerial;
+use App\Models\AccountingOtherIncome;
 use App\Models\AccountingPaymentMethod;
 use App\Models\AccountingPartner;
 use App\Models\AccountingProformaInvoice;
@@ -2984,6 +2986,55 @@ class ExampleTest extends TestCase
         $this->assertSame('0.00', $invoice->fresh()->balance_due);
         $this->assertSame(2, AccountingSalesInvoicePayment::query()->count());
 
+        $line = $invoice->lines()->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.credit-notes.create', [$company, $site, 'invoice' => $invoice->id]))
+            ->assertOk()
+            ->assertSee(__('main.credit_note_lines'), false);
+
+        $this->actingAs($admin)->post(route('main.accounting.credit-notes.store', [$company, $site]), [
+            'sales_invoice_id' => $invoice->id,
+            'credit_date' => '2026-05-10',
+            'status' => AccountingCreditNote::STATUS_VALIDATED,
+            'reason' => 'Correction commerciale',
+            'lines' => [
+                [
+                    'sales_invoice_line_id' => $line->id,
+                    'description' => $line->description,
+                    'details' => $line->details,
+                    'quantity' => 1,
+                    'unit_price' => 50,
+                ],
+            ],
+        ])->assertRedirect(route('main.accounting.credit-notes', [$company, $site]));
+
+        $this->assertDatabaseHas('accounting_credit_notes', [
+            'reference' => 'AVR-000001',
+            'sales_invoice_id' => $invoice->id,
+            'client_id' => $client->id,
+            'status' => AccountingCreditNote::STATUS_VALIDATED,
+            'subtotal' => 50,
+            'tax_amount' => 8,
+            'total_ttc' => 58,
+        ]);
+
+        $this->assertSame('58.00', $invoice->fresh()->credit_total);
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.credit-notes', [$company, $site]))
+            ->assertOk()
+            ->assertSee('AVR-000001')
+            ->assertSee('FAC-000001')
+            ->assertSee('58,00 CDF', false);
+
+        $creditNote = AccountingCreditNote::query()->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.credit-notes.print', [$company, $site, $creditNote]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+
         $this->actingAs($admin)
             ->get(route('main.accounting.sales-invoices.print', [$company, $site, $invoice]))
             ->assertOk()
@@ -3105,6 +3156,115 @@ class ExampleTest extends TestCase
             ->assertOk()
             ->assertSee('PAY-REC-001')
             ->assertSee('>1</strong>', false);
+    }
+
+    public function test_accounting_other_incomes_page_manages_miscellaneous_receipts(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Other income',
+            'code' => 'OTHER_INCOME',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'other income admin',
+            'email' => 'other-income-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Other Income Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'other-income-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Other Income Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'USD',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        AccountingCurrency::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'code' => 'USD',
+            'name' => 'Dollar américain',
+            'symbol' => '$',
+            'exchange_rate' => 1,
+            'is_base' => true,
+            'is_default' => true,
+            'status' => AccountingCurrency::STATUS_ACTIVE,
+        ]);
+
+        $method = AccountingPaymentMethod::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Caisse USD',
+            'type' => AccountingPaymentMethod::TYPE_CASH,
+            'currency_code' => 'USD',
+            'is_default' => false,
+            'status' => AccountingPaymentMethod::STATUS_ACTIVE,
+        ]);
+
+        $route = route('main.accounting.other-incomes', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.other_income'), false)
+            ->assertSee(__('main.new_other_income'), false);
+
+        $this->actingAs($admin)->post(route('main.accounting.other-incomes.store', [$company, $site]), [
+            'income_date' => '2026-05-12',
+            'type' => AccountingOtherIncome::TYPE_REFUND,
+            'label' => 'Remboursement fournisseur',
+            'amount' => 150,
+            'currency' => 'USD',
+            'payment_method_id' => $method->id,
+            'payment_reference' => 'REF-RET-001',
+            'status' => AccountingOtherIncome::STATUS_DRAFT,
+        ])->assertRedirect($route);
+
+        $income = AccountingOtherIncome::query()->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_other_incomes', [
+            'reference' => 'ENT-000001',
+            'company_site_id' => $site->id,
+            'payment_method_id' => $method->id,
+            'label' => 'Remboursement fournisseur',
+            'status' => AccountingOtherIncome::STATUS_DRAFT,
+            'amount' => 150,
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.other-incomes.validate', [$company, $site, $income]))
+            ->assertRedirect($route);
+
+        $this->assertSame(AccountingOtherIncome::STATUS_VALIDATED, $income->fresh()->status);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee('ENT-000001')
+            ->assertSee('Remboursement fournisseur')
+            ->assertSee('150,00 USD', false)
+            ->assertSee(__('main.other_income_status_validated'), false);
+
+        $this->actingAs($admin)->delete(route('main.accounting.payment-methods.destroy', [$company, $site, $method]))
+            ->assertRedirect(route('main.accounting.payment-methods', [$company, $site]))
+            ->assertSessionHas('success', __('main.payment_method_with_movements_cannot_delete'));
+
+        $this->actingAs($admin)->get(route('main.accounting.payment-methods', [$company, $site]))
+            ->assertOk()
+            ->assertSee(__('main.payment_method_receipts_total'), false)
+            ->assertSee('150,00 USD', false)
+            ->assertSee(__('main.other_income'), false);
     }
 
     public function test_accounting_cash_register_creates_quick_paid_sale_and_releases_stock(): void

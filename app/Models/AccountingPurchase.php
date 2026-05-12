@@ -8,36 +8,30 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class AccountingSalesInvoice extends Model
+class AccountingPurchase extends Model
 {
     use HasAccountingReference;
     use HasFactory;
 
-    public const REFERENCE_PREFIX = 'FAC';
+    public const REFERENCE_PREFIX = 'ACH';
     public const STATUS_DRAFT = 'draft';
-    public const STATUS_ISSUED = 'issued';
+    public const STATUS_VALIDATED = 'validated';
     public const STATUS_PARTIALLY_PAID = 'partially_paid';
     public const STATUS_PAID = 'paid';
     public const STATUS_OVERDUE = 'overdue';
     public const STATUS_CANCELLED = 'cancelled';
-    public const STATUS_CREDITED = 'credited';
-    public const TITLE_CASH_REGISTER = '__cash_register_sale__';
 
     protected $fillable = [
         'company_site_id',
-        'cash_register_session_id',
-        'client_id',
-        'customer_order_id',
-        'delivery_note_id',
-        'proforma_invoice_id',
+        'supplier_id',
         'created_by',
         'reference',
+        'supplier_invoice_reference',
         'title',
-        'invoice_date',
+        'purchase_date',
         'due_date',
         'currency',
         'status',
-        'payment_terms',
         'subtotal',
         'discount_total',
         'total_ht',
@@ -45,7 +39,6 @@ class AccountingSalesInvoice extends Model
         'tax_amount',
         'total_ttc',
         'paid_total',
-        'credit_total',
         'balance_due',
         'notes',
         'terms',
@@ -54,7 +47,7 @@ class AccountingSalesInvoice extends Model
     protected function casts(): array
     {
         return [
-            'invoice_date' => 'date',
+            'purchase_date' => 'date',
             'due_date' => 'date',
             'subtotal' => 'decimal:2',
             'discount_total' => 'decimal:2',
@@ -63,7 +56,6 @@ class AccountingSalesInvoice extends Model
             'tax_amount' => 'decimal:2',
             'total_ttc' => 'decimal:2',
             'paid_total' => 'decimal:2',
-            'credit_total' => 'decimal:2',
             'balance_due' => 'decimal:2',
         ];
     }
@@ -73,29 +65,9 @@ class AccountingSalesInvoice extends Model
         return $this->belongsTo(CompanySite::class, 'company_site_id');
     }
 
-    public function cashRegisterSession(): BelongsTo
+    public function supplier(): BelongsTo
     {
-        return $this->belongsTo(AccountingCashRegisterSession::class, 'cash_register_session_id');
-    }
-
-    public function client(): BelongsTo
-    {
-        return $this->belongsTo(AccountingClient::class, 'client_id');
-    }
-
-    public function customerOrder(): BelongsTo
-    {
-        return $this->belongsTo(AccountingCustomerOrder::class, 'customer_order_id');
-    }
-
-    public function deliveryNote(): BelongsTo
-    {
-        return $this->belongsTo(AccountingDeliveryNote::class, 'delivery_note_id');
-    }
-
-    public function proformaInvoice(): BelongsTo
-    {
-        return $this->belongsTo(AccountingProformaInvoice::class, 'proforma_invoice_id');
+        return $this->belongsTo(AccountingSupplier::class, 'supplier_id');
     }
 
     public function creator(): BelongsTo
@@ -105,22 +77,12 @@ class AccountingSalesInvoice extends Model
 
     public function lines(): HasMany
     {
-        return $this->hasMany(AccountingSalesInvoiceLine::class, 'sales_invoice_id');
+        return $this->hasMany(AccountingPurchaseLine::class, 'purchase_id');
     }
 
     public function payments(): HasMany
     {
-        return $this->hasMany(AccountingSalesInvoicePayment::class, 'sales_invoice_id');
-    }
-
-    public function creditNotes(): HasMany
-    {
-        return $this->hasMany(AccountingCreditNote::class, 'sales_invoice_id');
-    }
-
-    public function creditableAmount(): float
-    {
-        return max(0, round((float) $this->total_ttc - (float) $this->credit_total, 2));
+        return $this->hasMany(AccountingPurchasePayment::class, 'purchase_id');
     }
 
     public function isEditable(): bool
@@ -132,12 +94,11 @@ class AccountingSalesInvoice extends Model
     {
         return [
             self::STATUS_DRAFT,
-            self::STATUS_ISSUED,
+            self::STATUS_VALIDATED,
             self::STATUS_PARTIALLY_PAID,
             self::STATUS_PAID,
             self::STATUS_OVERDUE,
             self::STATUS_CANCELLED,
-            self::STATUS_CREDITED,
         ];
     }
 }

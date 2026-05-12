@@ -9277,3 +9277,119 @@ Verification :
 
 - `php -l resources\views\main\modules\accounting-cash-register.blade.php` passe.
 - `php artisan test --filter=accounting_cash_register` passe.
+
+### 2026-05-12 - Module avoirs et notes de credit
+
+Prompt utilisateur :
+
+```text
+applique ton idee professionnellement
+```
+
+Correction appliquee :
+
+- Ajout d'un module complet d'avoirs / notes de credit rattache aux factures de vente.
+- Creation des tables `accounting_credit_notes` et `accounting_credit_note_lines`, avec liaison vers la facture, le client, le site, l'utilisateur createur et les lignes de facture.
+- Ajout du champ `credit_total` sur les factures de vente pour suivre le total des avoirs valides.
+- Creation de la page de liste des avoirs, de la page de creation depuis une facture, de la validation, de l'annulation, de la suppression des brouillons et de l'impression PDF via Dompdf.
+- Mise a jour de la liste des factures : colonne `Avoirs`, bouton de creation d'avoir uniquement quand la facture peut encore etre creditee, et statut `Creditée`.
+- Mise a jour du dossier client pour afficher les avoirs avec statut, total et lien d'impression.
+- Recalcul automatique du solde facture apres paiement ou validation/annulation d'un avoir.
+- Traductions FR/EN ajoutees pour les libelles, statuts, erreurs et actions du module.
+
+Fichiers modifies :
+
+- `database/migrations/2026_05_12_000001_create_accounting_credit_notes_tables.php`
+- `app/Models/AccountingCreditNote.php`
+- `app/Models/AccountingCreditNoteLine.php`
+- `app/Models/AccountingSalesInvoice.php`
+- `app/Models/AccountingSalesInvoiceLine.php`
+- `app/Models/AccountingClient.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-credit-notes.blade.php`
+- `resources/views/main/modules/accounting-credit-note-create.blade.php`
+- `resources/views/main/modules/accounting-credit-note-print.blade.php`
+- `resources/views/main/modules/accounting-sales-invoices.blade.php`
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan migrate` passe.
+- `php artisan route:list --name=credit-notes` affiche les 7 routes du module.
+- `php artisan test --filter=test_accounting_sales_invoices_page_manages_invoice_payments_and_pdf` passe : 1 test, 62 assertions.
+- `php artisan test --filter=accounting_sales_invoices` passe.
+- `php artisan test --filter=accounting_clients` passe.
+
+### 2026-05-12 - Module autres entrees
+
+Prompt utilisateur :
+
+```text
+applique ton idee
+```
+
+Correction appliquee :
+
+- Ajout d'un module `Autres entrees` pour enregistrer les recettes hors cycle de vente classique.
+- Creation de la table `accounting_other_incomes` avec reference automatique, type, libelle, date, montant, devise, mode de paiement, reference de paiement et statut.
+- Ajout du modele `AccountingOtherIncome` avec statuts brouillon, validee et annulee.
+- Creation de la page liste avec filtres, recherche, pagination, total des entrees validees, details, creation, modification des brouillons, validation, annulation et suppression des brouillons.
+- Ajout du lien actif dans la sidebar comptabilite.
+- Integration avec les modes de paiement : les entrees validees apparaissent dans le modal des encaissements du mode de paiement et bloquent la suppression du mode.
+- Ajout des traductions FR/EN et des styles de statuts.
+
+Fichiers modifies :
+
+- `database/migrations/2026_05_12_000002_create_accounting_other_incomes_table.php`
+- `app/Models/AccountingOtherIncome.php`
+- `app/Models/AccountingPaymentMethod.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-other-incomes.blade.php`
+- `resources/views/main/modules/accounting-payment-methods.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan migrate` passe.
+- `php artisan route:list --name=other-incomes` affiche les 6 routes du module.
+- `php artisan test --filter="accounting_other_incomes|accounting_payment_methods|accounting_receipts"` passe : 3 tests, 67 assertions.
+
+### 2026-05-12 - Type autres dans les autres entrees
+
+Prompt utilisateur :
+
+```text
+sur le type d'entrée, ajoute l'option Autres
+```
+
+Correction appliquee :
+
+- L'option technique `miscellaneous` des autres entrees est maintenant affichee comme `Autres` en francais.
+- La traduction anglaise correspondante est ajustee en `Other`.
+
+Fichiers modifies :
+
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan test --filter=test_accounting_other_incomes_page_manages_miscellaneous_receipts` passe : 1 test, 21 assertions.

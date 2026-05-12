@@ -5,9 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class AccountingSalesInvoiceLine extends Model
+class AccountingPurchaseLine extends Model
 {
     use HasFactory;
 
@@ -18,12 +17,10 @@ class AccountingSalesInvoiceLine extends Model
     public const DISCOUNT_PERCENT = 'percent';
 
     protected $fillable = [
-        'sales_invoice_id',
+        'purchase_id',
         'line_type',
         'item_id',
         'service_id',
-        'customer_order_line_id',
-        'delivery_note_line_id',
         'description',
         'details',
         'quantity',
@@ -43,9 +40,9 @@ class AccountingSalesInvoiceLine extends Model
         ];
     }
 
-    public function salesInvoice(): BelongsTo
+    public function purchase(): BelongsTo
     {
-        return $this->belongsTo(AccountingSalesInvoice::class, 'sales_invoice_id');
+        return $this->belongsTo(AccountingPurchase::class, 'purchase_id');
     }
 
     public function item(): BelongsTo
@@ -56,21 +53,6 @@ class AccountingSalesInvoiceLine extends Model
     public function service(): BelongsTo
     {
         return $this->belongsTo(AccountingService::class, 'service_id');
-    }
-
-    public function customerOrderLine(): BelongsTo
-    {
-        return $this->belongsTo(AccountingCustomerOrderLine::class, 'customer_order_line_id');
-    }
-
-    public function deliveryNoteLine(): BelongsTo
-    {
-        return $this->belongsTo(AccountingDeliveryNoteLine::class, 'delivery_note_line_id');
-    }
-
-    public function creditNoteLines(): HasMany
-    {
-        return $this->hasMany(AccountingCreditNoteLine::class, 'sales_invoice_line_id');
     }
 
     public static function types(): array

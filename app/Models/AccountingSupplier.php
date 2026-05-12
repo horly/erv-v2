@@ -65,6 +65,11 @@ class AccountingSupplier extends Model
         return $this->hasMany(AccountingSupplierContact::class);
     }
 
+    public function purchases(): HasMany
+    {
+        return $this->hasMany(AccountingPurchase::class, 'supplier_id');
+    }
+
     public function isCompany(): bool
     {
         return $this->type === self::TYPE_COMPANY;

@@ -11,7 +11,9 @@
     $customerOrdersRoute = route('main.accounting.customer-orders', [$company, $site]);
     $deliveryNotesRoute = route('main.accounting.delivery-notes', [$company, $site]);
     $salesInvoicesRoute = route('main.accounting.sales-invoices', [$company, $site]);
+    $creditNotesRoute = route('main.accounting.credit-notes', [$company, $site]);
     $receiptsRoute = route('main.accounting.receipts', [$company, $site]);
+    $otherIncomesRoute = route('main.accounting.other-incomes', [$company, $site]);
     $cashRegisterRoute = route('main.accounting.cash-register', [$company, $site]);
     $stockRoute = fn (string $resource) => route('main.accounting.stock.index', [$company, $site, $resource]);
     $serviceRoute = fn (string $resource) => route('main.accounting.services.index', [$company, $site, $resource]);
@@ -62,10 +64,10 @@
         ['label' => __('main.customer_orders'), 'icon' => 'bi-clipboard-check', 'href' => $customerOrdersRoute, 'active' => $activeAccountingPage === 'customer-orders'],
         ['label' => __('main.delivery_notes'), 'icon' => 'bi-box-arrow-up', 'href' => $deliveryNotesRoute, 'active' => $activeAccountingPage === 'delivery-notes'],
         ['label' => __('main.sales_invoices'), 'icon' => 'bi-receipt', 'href' => $salesInvoicesRoute, 'active' => $activeAccountingPage === 'sales-invoices'],
+        ['label' => __('main.credit_notes'), 'icon' => 'bi-arrow-counterclockwise', 'href' => $creditNotesRoute, 'active' => $activeAccountingPage === 'credit-notes'],
         ['label' => __('main.payments_received'), 'icon' => 'bi-cash-coin', 'href' => $receiptsRoute, 'active' => $activeAccountingPage === 'receipts'],
         ['label' => __('main.cash_register'), 'icon' => 'bi-calculator', 'href' => $cashRegisterRoute, 'active' => $activeAccountingPage === 'cash-register'],
-        ['label' => __('main.credit_notes'), 'icon' => 'bi-arrow-counterclockwise'],
-        ['label' => __('main.other_income'), 'icon' => 'bi-plus-circle'],
+        ['label' => __('main.other_income'), 'icon' => 'bi-plus-circle', 'href' => $otherIncomesRoute, 'active' => $activeAccountingPage === 'other-incomes'],
     ];
     $salesIsOpen = collect($salesItems)->contains(fn ($item) => $item['active'] ?? false);
     $expenseItems = [

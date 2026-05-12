@@ -207,6 +207,18 @@
                                                 'print_url' => route('main.accounting.sales-invoices.print', [$company, $site, $document]),
                                                 'print_label' => __('main.print_pdf'),
                                             ]))
+                                            ->merge($client->creditNotes->map(fn ($document) => [
+                                                'kind' => __('main.credit_notes'),
+                                                'reference' => $document->reference,
+                                                'date' => optional($document->credit_date)->format('d/m/Y') ?: '-',
+                                                'date_sort' => optional($document->credit_date)->format('Y-m-d') ?: '',
+                                                'status' => __('main.credit_note_status_' . $document->status),
+                                                'status_class' => 'credit-note-status-' . $document->status,
+                                                'total' => number_format((float) $document->total_ttc, 2, ',', ' ') . ' ' . $document->currency,
+                                                'total_sort' => (float) $document->total_ttc,
+                                                'print_url' => route('main.accounting.credit-notes.print', [$company, $site, $document]),
+                                                'print_label' => __('main.print_pdf'),
+                                            ]))
                                             ->sortByDesc('date_sort')
                                             ->values();
                                         $clientDocumentsCount = $documentsPayload->count();

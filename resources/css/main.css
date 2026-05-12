@@ -957,7 +957,8 @@ input {
 .stock-resource-form h2,
 .service-resource-form h2,
 .currency-form h2,
-.payment-method-form h2 {
+.payment-method-form h2,
+[data-other-income-form] h2 {
     display: inline-flex;
     align-items: center;
     gap: .65rem;
@@ -969,7 +970,8 @@ input {
 .currency-status-active,
 .currency-status-base,
 .payment-method-status-active,
-.payment-method-status-default {
+.payment-method-status-default,
+.other-income-status-validated {
     background: #dcfce7;
     color: #047857;
 }
@@ -980,7 +982,8 @@ input {
 .currency-status-inactive,
 .currency-status-secondary,
 .payment-method-status-inactive,
-.payment-method-status-secondary {
+.payment-method-status-secondary,
+.other-income-status-draft {
     background: #f1f5f9;
     color: #475569;
 }
@@ -1015,7 +1018,8 @@ input {
     background: color-mix(in srgb, var(--surface) 92%, #eff6ff 8%);
 }
 
-.stock-status-cancelled {
+.stock-status-cancelled,
+.other-income-status-cancelled {
     background: #fee2e2;
     color: #b91c1c;
 }
@@ -2868,6 +2872,7 @@ body.accounting-module-body {
 }
 
 .status-pill.sales-invoice-status-paid,
+.status-pill.sales-invoice-status-credited,
 .status-pill.sales-invoice-status-partially_paid {
     background: #d1fae5;
     color: #047857;
@@ -2885,6 +2890,21 @@ body.accounting-module-body {
 }
 
 .status-pill.sales-invoice-status-draft {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.status-pill.credit-note-status-validated {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.status-pill.credit-note-status-cancelled {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.status-pill.credit-note-status-draft {
     background: #f1f5f9;
     color: #475569;
 }
