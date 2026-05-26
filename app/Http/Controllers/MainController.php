@@ -7,25 +7,40 @@ use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
+use Carbon\Carbon;
+use App\Models\AccountingBankReconciliation;
+use App\Models\AccountingBankStatementLine;
 use App\Models\AccountingCashRegisterSession;
 use App\Models\AccountingClient;
 use App\Models\AccountingCreditor;
+use App\Models\AccountingCreditorPayment;
 use App\Models\AccountingCreditNote;
 use App\Models\AccountingCreditNoteLine;
 use App\Models\AccountingCurrency;
 use App\Models\AccountingCustomerOrder;
 use App\Models\AccountingCustomerOrderLine;
+use App\Models\AccountingMenuPermission;
+use App\Models\AccountingModuleSetting;
+use App\Models\AccountingNotification;
 use App\Models\AccountingDebtor;
+use App\Models\AccountingDebtorPayment;
 use App\Models\AccountingDeliveryNote;
 use App\Models\AccountingDeliveryNoteLine;
+use App\Models\AccountingExpense;
+use App\Models\AccountingExpenseCategory;
 use App\Models\AccountingOtherIncome;
 use App\Models\AccountingPaymentMethod;
+use App\Models\AccountingPaymentPromise;
+use App\Models\AccountingPaymentReminder;
+use App\Models\AccountingPaymentReminderAction;
 use App\Models\AccountingPartner;
 use App\Models\AccountingProformaInvoice;
 use App\Models\AccountingProformaInvoiceLine;
 use App\Models\AccountingProspect;
 use App\Models\AccountingPurchase;
 use App\Models\AccountingPurchaseLine;
+use App\Models\AccountingPurchaseOrder;
+use App\Models\AccountingPurchaseOrderLine;
 use App\Models\AccountingPurchasePayment;
 use App\Models\AccountingRecurringService;
 use App\Models\AccountingSalesRepresentative;
@@ -37,6 +52,10 @@ use App\Models\AccountingServiceCategory;
 use App\Models\AccountingServiceSubcategory;
 use App\Models\AccountingServiceUnit;
 use App\Models\AccountingSupplier;
+use App\Models\AccountingTask;
+use App\Models\AccountingTaskActivity;
+use App\Models\AccountingTax;
+use App\Models\AccountingTreasuryMovement;
 use App\Models\AccountingStockAlert;
 use App\Models\AccountingStockBatch;
 use App\Models\AccountingStockCategory;
@@ -50,6 +69,8 @@ use App\Models\AccountingStockWarehouse;
 use App\Models\Company;
 use App\Models\CompanySite;
 use App\Models\User;
+use App\Support\AccountingModuleNavigation;
+use App\Support\AccountingActivityFeed;
 use App\Support\CurrencyCatalog;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\View\View;
@@ -309,6 +330,197 @@ class MainController extends Controller
             'salesRepresentativeStats' => $module === CompanySite::MODULE_ACCOUNTING
                 ? $this->accountingSalesRepresentativeStats($site)
                 : [],
+            'accountingDashboard' => $module === CompanySite::MODULE_ACCOUNTING
+                ? $this->accountingDashboardData($site)
+                : [],
+        ]);
+    }
+
+    public function accountingSettings(Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        abort_unless($user->isAdmin() || $user->isSuperadmin(), Response::HTTP_FORBIDDEN);
+
+        $settings = AccountingModuleSetting::query()
+            ->firstOrNew(['company_site_id' => $site->id], AccountingModuleSetting::defaults());
+        $managedUsers = $site->users()
+            ->where('users.role', User::ROLE_USER)
+            ->orderBy('users.name')
+            ->paginate(1, ['users.*'], 'users_page')
+            ->withQueryString();
+        $savedMenuPermissions = AccountingMenuPermission::query()
+            ->where('company_site_id', $site->id)
+            ->whereIn('user_id', $managedUsers->getCollection()->pluck('id'))
+            ->get()
+            ->groupBy('user_id');
+        $allMenuKeys = AccountingModuleNavigation::keys();
+        $menuSelections = $managedUsers->getCollection()->mapWithKeys(function (User $account) use ($allMenuKeys, $savedMenuPermissions): array {
+            $permissionRows = $savedMenuPermissions->get($account->id, collect());
+
+            return [
+                $account->id => $permissionRows->isEmpty()
+                    ? $allMenuKeys
+                    : $permissionRows->where('is_allowed', true)->pluck('menu_key')->all(),
+            ];
+        });
+
+        return view('main.modules.accounting-settings', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'settings' => $settings,
+            'managedUsers' => $managedUsers,
+            'menuSelections' => $menuSelections,
+            'menuGroups' => $this->accountingSettingsMenuGroups(),
+        ]);
+    }
+
+    public function updateAccountingSettings(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        abort_unless($user->isAdmin() || $user->isSuperadmin(), Response::HTTP_FORBIDDEN);
+
+        $menuKeys = AccountingModuleNavigation::keys();
+        $managedUserIds = $site->users()
+            ->where('users.role', User::ROLE_USER)
+            ->pluck('users.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $validated = $request->validate([
+            'pdf_primary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'pdf_accent_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'pdf_tint_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'pdf_show_qr_code' => ['nullable', 'boolean'],
+            'pdf_show_footer_branding' => ['nullable', 'boolean'],
+            'access_user_ids' => ['nullable', 'array'],
+            'access_user_ids.*' => ['integer', Rule::in($managedUserIds)],
+            'menu_access' => ['nullable', 'array'],
+            'menu_access.*' => ['nullable', 'array'],
+            'menu_access.*.*' => ['string', Rule::in($menuKeys)],
+        ], [
+            'pdf_primary_color.regex' => __('main.pdf_color_invalid'),
+            'pdf_accent_color.regex' => __('main.pdf_color_invalid'),
+            'pdf_tint_color.regex' => __('main.pdf_color_invalid'),
+        ]);
+
+        $submittedUserIds = collect($validated['access_user_ids'] ?? array_keys($validated['menu_access'] ?? []))
+            ->map(fn ($id) => (int) $id)
+            ->intersect($managedUserIds)
+            ->values()
+            ->all();
+
+        DB::transaction(function () use ($request, $site, $validated, $menuKeys, $submittedUserIds): void {
+            AccountingModuleSetting::query()->updateOrCreate(
+                ['company_site_id' => $site->id],
+                [
+                    'pdf_primary_color' => strtoupper($validated['pdf_primary_color']),
+                    'pdf_accent_color' => strtoupper($validated['pdf_accent_color']),
+                    'pdf_tint_color' => strtoupper($validated['pdf_tint_color']),
+                    'pdf_show_qr_code' => $request->boolean('pdf_show_qr_code'),
+                    'pdf_show_footer_branding' => $request->boolean('pdf_show_footer_branding'),
+                ],
+            );
+
+            AccountingMenuPermission::query()
+                ->where('company_site_id', $site->id)
+                ->whereIn('user_id', $submittedUserIds)
+                ->delete();
+
+            foreach ($submittedUserIds as $managedUserId) {
+                $selectedMenuKeys = data_get($validated, 'menu_access.'.$managedUserId, []);
+
+                foreach ($menuKeys as $menuKey) {
+                    AccountingMenuPermission::query()->create([
+                        'company_site_id' => $site->id,
+                        'user_id' => $managedUserId,
+                        'menu_key' => $menuKey,
+                        'is_allowed' => in_array($menuKey, $selectedMenuKeys, true),
+                    ]);
+                }
+            }
+        });
+
+        return redirect()
+            ->route('main.accounting.settings', [$company, $site])
+            ->with('success', __('main.module_settings_saved'));
+    }
+
+    public function accountingNotifications(Request $request, Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+        AccountingActivityFeed::syncSite($site);
+
+        $status = $request->query('status', 'all');
+        $notifications = AccountingNotification::query()
+            ->with(['actor:id,name,email', 'reads' => fn ($query) => $query->where('user_id', $user->id)])
+            ->where('company_site_id', $site->id)
+            ->when($status === 'unread', fn ($query) => $query->whereDoesntHave('reads', fn ($readQuery) => $readQuery->where('user_id', $user->id)->whereNotNull('read_at')))
+            ->latest('occurred_at')
+            ->latest('id')
+            ->paginate(12)
+            ->withQueryString();
+
+        return view('main.modules.accounting-notifications', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'notifications' => $notifications,
+            'status' => $status,
+        ]);
+    }
+
+    public function showAccountingNotification(Company $company, CompanySite $site, AccountingNotification $notification): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        abort_unless((int) $notification->company_site_id === (int) $site->id, Response::HTTP_NOT_FOUND);
+
+        $notification->load(['actor:id,name,email', 'reads' => fn ($query) => $query->where('user_id', $user->id)]);
+        $notification->markReadBy($user);
+        $moduleUrl = $this->canOpenAccountingNotificationModule($user, $site, $notification->module_key)
+            ? AccountingModuleNavigation::urlForKey($notification->module_key, $company, $site)
+            : null;
+
+        return view('main.modules.accounting-notification-show', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'notification' => $notification->fresh(['actor:id,name,email', 'reads' => fn ($query) => $query->where('user_id', $user->id)]),
+            'moduleLabel' => $this->accountingModuleLabel($notification->module_key),
+            'moduleUrl' => $moduleUrl,
         ]);
     }
 
@@ -596,6 +808,47 @@ class MainController extends Controller
 
         [$user, $moduleMeta] = $access;
 
+        $creditorsQuery = AccountingCreditor::query()
+            ->selectRaw('
+                MIN(id) as id,
+                MIN(reference) as reference,
+                company_site_id,
+                type,
+                name,
+                phone,
+                email,
+                address,
+                currency,
+                SUM(initial_amount) as initial_amount,
+                SUM(paid_amount) as paid_amount,
+                MIN(due_date) as due_date,
+                MIN(description) as description,
+                MIN(priority) as priority,
+                CASE
+                    WHEN SUM(paid_amount) >= SUM(initial_amount) THEN ?
+                    ELSE ?
+                END as status,
+                COUNT(*) as debt_count,
+                MAX(created_at) as created_at,
+                MAX(updated_at) as updated_at
+            ', [AccountingCreditor::STATUS_SETTLED, AccountingCreditor::STATUS_ACTIVE])
+            ->where('company_site_id', $site->id)
+            ->when($search !== '', fn ($query) => $this->applyTableSearch($query, $search, [
+                'reference',
+                'type',
+                'name',
+                'phone',
+                'email',
+                'address',
+                'currency',
+                'due_date',
+                'description',
+                'priority',
+                'status',
+            ]))
+            ->groupBy('company_site_id', 'type', 'name', 'phone', 'email', 'address', 'currency')
+            ->latest('updated_at');
+
         return view('main.modules.accounting-creditors', [
             'user' => $user,
             'company' => $company->load('subscription'),
@@ -603,24 +856,7 @@ class MainController extends Controller
             'module' => CompanySite::MODULE_ACCOUNTING,
             'moduleMeta' => $moduleMeta,
             'creditorPermissions' => $this->sitePermissionFlags($user, $site),
-            'creditors' => AccountingCreditor::query()
-                ->where('company_site_id', $site->id)
-                ->when($search !== '', fn ($query) => $this->applyTableSearch($query, $search, [
-                    'reference',
-                    'type',
-                    'name',
-                    'phone',
-                    'email',
-                    'address',
-                    'currency',
-                    'due_date',
-                    'description',
-                    'priority',
-                    'status',
-                ]))
-                ->latest()
-                ->paginate(5)
-                ->withQueryString(),
+            'creditors' => $creditorsQuery->paginate(5)->withQueryString(),
             'currencies' => CurrencyCatalog::sorted(),
             'typeLabels' => $this->accountingCreditorTypeLabels(),
             'priorityLabels' => $this->accountingCreditorPriorityLabels(),
@@ -713,6 +949,45 @@ class MainController extends Controller
 
         [$user, $moduleMeta] = $access;
 
+        $debtorsQuery = AccountingDebtor::query()
+            ->selectRaw('
+                MIN(id) as id,
+                MIN(reference) as reference,
+                company_site_id,
+                type,
+                name,
+                phone,
+                email,
+                address,
+                currency,
+                SUM(initial_amount) as initial_amount,
+                SUM(received_amount) as received_amount,
+                MIN(due_date) as due_date,
+                MIN(description) as description,
+                CASE
+                    WHEN SUM(received_amount) >= SUM(initial_amount) THEN ?
+                    ELSE ?
+                END as status,
+                COUNT(*) as receivable_count,
+                MAX(created_at) as created_at,
+                MAX(updated_at) as updated_at
+            ', [AccountingDebtor::STATUS_SETTLED, AccountingDebtor::STATUS_ACTIVE])
+            ->where('company_site_id', $site->id)
+            ->when($search !== '', fn ($query) => $this->applyTableSearch($query, $search, [
+                'reference',
+                'type',
+                'name',
+                'phone',
+                'email',
+                'address',
+                'currency',
+                'due_date',
+                'description',
+                'status',
+            ]))
+            ->groupBy('company_site_id', 'type', 'name', 'phone', 'email', 'address', 'currency')
+            ->latest('updated_at');
+
         return view('main.modules.accounting-debtors', [
             'user' => $user,
             'company' => $company->load('subscription'),
@@ -720,23 +995,7 @@ class MainController extends Controller
             'module' => CompanySite::MODULE_ACCOUNTING,
             'moduleMeta' => $moduleMeta,
             'debtorPermissions' => $this->sitePermissionFlags($user, $site),
-            'debtors' => AccountingDebtor::query()
-                ->where('company_site_id', $site->id)
-                ->when($search !== '', fn ($query) => $this->applyTableSearch($query, $search, [
-                    'reference',
-                    'type',
-                    'name',
-                    'phone',
-                    'email',
-                    'address',
-                    'currency',
-                    'due_date',
-                    'description',
-                    'status',
-                ]))
-                ->latest()
-                ->paginate(5)
-                ->withQueryString(),
+            'debtors' => $debtorsQuery->paginate(5)->withQueryString(),
             'currencies' => CurrencyCatalog::sorted(),
             'typeLabels' => $this->accountingDebtorTypeLabels(),
             'statusLabels' => $this->accountingDebtorStatusLabels(),
@@ -1479,11 +1738,29 @@ class MainController extends Controller
                     'salesInvoicePayments.receiver',
                     'otherIncomes' => fn ($incomeQuery) => $incomeQuery->where('status', AccountingOtherIncome::STATUS_VALIDATED),
                     'otherIncomes.creator',
+                    'purchasePayments.purchase.supplier',
+                    'purchasePayments.payer',
+                    'expenses' => fn ($expenseQuery) => $expenseQuery->where('status', AccountingExpense::STATUS_VALIDATED),
+                    'expenses.category',
+                    'expenses.creator',
+                    'creditorPayments.creditor',
+                    'creditorPayments.payer',
+                    'debtorPayments.debtor',
+                    'debtorPayments.receiver',
                 ])
                 ->withCount('salesInvoicePayments')
+                ->withCount('purchasePayments')
+                ->withCount('creditorPayments')
+                ->withCount('debtorPayments')
+                ->withCount('bankReconciliations')
                 ->withSum('salesInvoicePayments as receipts_total', 'amount')
+                ->withSum('purchasePayments as disbursements_total', 'amount')
+                ->withSum('creditorPayments as creditor_payments_total', 'amount')
+                ->withSum('debtorPayments as debtor_payments_total', 'amount')
                 ->withCount(['otherIncomes' => fn ($incomeQuery) => $incomeQuery->where('status', AccountingOtherIncome::STATUS_VALIDATED)])
                 ->withSum(['otherIncomes as other_incomes_total' => fn ($incomeQuery) => $incomeQuery->where('status', AccountingOtherIncome::STATUS_VALIDATED)], 'amount')
+                ->withCount(['expenses' => fn ($expenseQuery) => $expenseQuery->where('status', AccountingExpense::STATUS_VALIDATED)])
+                ->withSum(['expenses as expenses_total' => fn ($expenseQuery) => $expenseQuery->where('status', AccountingExpense::STATUS_VALIDATED)], 'amount')
                 ->where('company_site_id', $site->id)
                 ->when($search !== '', fn ($query) => $this->applyTableSearch($query, $search, [
                     'reference',
@@ -1615,7 +1892,13 @@ class MainController extends Controller
                 ->with('toast_type', 'danger');
         }
 
-        if ($method->salesInvoicePayments()->exists() || $method->otherIncomes()->where('status', AccountingOtherIncome::STATUS_VALIDATED)->exists()) {
+        if ($method->salesInvoicePayments()->exists()
+            || $method->debtorPayments()->exists()
+            || $method->otherIncomes()->where('status', AccountingOtherIncome::STATUS_VALIDATED)->exists()
+            || $method->purchasePayments()->exists()
+            || $method->creditorPayments()->exists()
+            || $method->expenses()->where('status', AccountingExpense::STATUS_VALIDATED)->exists()
+            || $method->bankReconciliations()->exists()) {
             return redirect()
                 ->route('main.accounting.payment-methods', [$company, $site])
                 ->with('success', __('main.payment_method_with_movements_cannot_delete'))
@@ -1627,6 +1910,2078 @@ class MainController extends Controller
         return redirect()
             ->route('main.accounting.payment-methods', [$company, $site])
             ->with('success', __('main.payment_method_deleted'))
+            ->with('toast_type', 'danger');
+    }
+
+    public function accountingTaxes(Request $request, Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+        $search = $this->tableSearch($request);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+        $this->ensureDefaultAccountingTaxRecords($site, $company);
+
+        return view('main.modules.accounting-taxes', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'taxPermissions' => $this->sitePermissionFlags($user, $site),
+            'taxes' => AccountingTax::query()
+                ->where('company_site_id', $site->id)
+                ->when($search !== '', fn ($query) => $this->applyTableSearch($query, $search, [
+                    'reference',
+                    'code',
+                    'name',
+                    'kind',
+                    'calculation_type',
+                    'value',
+                    'nature',
+                    'applies_to',
+                    'status',
+                ]))
+                ->orderByDesc('is_default')
+                ->orderByDesc('is_system_default')
+                ->orderBy('name')
+                ->paginate(5)
+                ->withQueryString(),
+            'kindLabels' => $this->accountingTaxKindLabels(),
+            'calculationTypeLabels' => $this->accountingTaxCalculationTypeLabels(),
+            'natureLabels' => $this->accountingTaxNatureLabels(),
+            'applicationLabels' => $this->accountingTaxApplicationLabels(),
+            'statusLabels' => $this->accountingTaxStatusLabels(),
+        ]);
+    }
+
+    public function storeAccountingTax(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.taxes', [$company, $site]);
+        }
+
+        $validated = $request->validate($this->accountingTaxRules($site));
+        $this->ensureAccountingTaxCanBeDefault($validated);
+
+        DB::transaction(function () use ($site, $validated, $user): void {
+            $payload = $this->accountingTaxPayload($validated, $user);
+
+            if ($payload['is_default']) {
+                AccountingTax::query()
+                    ->where('company_site_id', $site->id)
+                    ->update(['is_default' => false]);
+            }
+
+            $tax = $site->accountingTaxes()->create($payload);
+
+            if (blank($tax->code)) {
+                $tax->forceFill(['code' => $tax->reference])->save();
+            }
+        });
+
+        return redirect()
+            ->route('main.accounting.taxes', [$company, $site])
+            ->with('success', __('main.tax_saved'));
+    }
+
+    public function updateAccountingTax(Request $request, Company $company, CompanySite $site, AccountingTax $tax): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ($tax->company_site_id !== $site->id || ! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.taxes', [$company, $site]);
+        }
+
+        $validated = $request->validate($this->accountingTaxRules($site, $tax));
+        $this->ensureAccountingTaxCanBeDefault($validated);
+
+        DB::transaction(function () use ($site, $tax, $validated, $user): void {
+            $payload = $this->accountingTaxPayload($validated, $user, false, $tax);
+
+            if ($payload['is_default']) {
+                AccountingTax::query()
+                    ->where('company_site_id', $site->id)
+                    ->whereKeyNot($tax->id)
+                    ->update(['is_default' => false]);
+            }
+
+            $tax->update($payload);
+        });
+
+        return redirect()
+            ->route('main.accounting.taxes', [$company, $site])
+            ->with('success', __('main.tax_updated'));
+    }
+
+    public function destroyAccountingTax(Company $company, CompanySite $site, AccountingTax $tax): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ($tax->company_site_id !== $site->id || ! $this->sitePermissionFlags($user, $site)['can_delete']) {
+            return redirect()->route('main.accounting.taxes', [$company, $site]);
+        }
+
+        if ($tax->is_system_default || $tax->is_default) {
+            return redirect()
+                ->route('main.accounting.taxes', [$company, $site])
+                ->with('success', __('main.default_tax_cannot_delete'))
+                ->with('toast_type', 'danger');
+        }
+
+        if ($this->accountingTaxIsUsed($site, $tax)) {
+            return redirect()
+                ->route('main.accounting.taxes', [$company, $site])
+                ->with('success', __('main.tax_with_documents_cannot_delete'))
+                ->with('toast_type', 'danger');
+        }
+
+        $tax->delete();
+
+        return redirect()
+            ->route('main.accounting.taxes', [$company, $site])
+            ->with('success', __('main.tax_deleted'))
+            ->with('toast_type', 'danger');
+    }
+
+    public function accountingTreasury(Request $request, Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+        $search = $this->tableSearch($request);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingPaymentMethodRecord($site);
+        $this->syncAccountingTreasuryMovements($site);
+
+        $currencyOptions = $this->siteCurrencyOptions($site);
+        $currency = strtoupper(trim((string) $request->query('currency', $site->currency ?: array_key_first($currencyOptions) ?: 'CDF')));
+
+        if (! array_key_exists($currency, $currencyOptions)) {
+            $currency = strtoupper($site->currency ?: array_key_first($currencyOptions) ?: 'CDF');
+        }
+
+        $direction = trim((string) $request->query('direction', ''));
+        $movementType = trim((string) $request->query('movement_type', ''));
+        $paymentMethodId = (int) $request->query('payment_method_id', 0);
+        $dateFrom = trim((string) $request->query('date_from', ''));
+        $dateTo = trim((string) $request->query('date_to', ''));
+
+        $baseQuery = AccountingTreasuryMovement::query()
+            ->with(['paymentMethod', 'creator'])
+            ->where('company_site_id', $site->id)
+            ->where('currency', $currency)
+            ->when($direction !== '', fn ($query) => $query->where('direction', $direction))
+            ->when($movementType !== '', fn ($query) => $query->where('movement_type', $movementType))
+            ->when($paymentMethodId > 0, fn ($query) => $query->where('payment_method_id', $paymentMethodId))
+            ->when($dateFrom !== '', fn ($query) => $query->whereDate('movement_date', '>=', $dateFrom))
+            ->when($dateTo !== '', fn ($query) => $query->whereDate('movement_date', '<=', $dateTo))
+            ->when($search !== '', fn ($query) => $this->applyTableSearch($query, $search, [
+                'reference',
+                'source_reference',
+                'movement_type',
+                'direction',
+                'label',
+                'description',
+                'amount',
+                'currency',
+                'movement_date',
+                'status',
+                $this->relationTableSearch('paymentMethod', ['name', 'code', 'currency_code']),
+                $this->relationTableSearch('creator', ['name', 'email']),
+            ]));
+
+        $validatedQuery = AccountingTreasuryMovement::query()
+            ->where('company_site_id', $site->id)
+            ->where('currency', $currency)
+            ->where('status', AccountingTreasuryMovement::STATUS_VALIDATED);
+        $totalInflows = (float) (clone $validatedQuery)->where('direction', AccountingTreasuryMovement::DIRECTION_INFLOW)->sum('amount');
+        $totalOutflows = (float) (clone $validatedQuery)->where('direction', AccountingTreasuryMovement::DIRECTION_OUTFLOW)->sum('amount');
+        $forecast = $this->accountingTreasuryForecast($site, $currency);
+
+        $paymentMethods = AccountingPaymentMethod::query()
+            ->where('company_site_id', $site->id)
+            ->where('currency_code', $currency)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get();
+
+        return view('main.modules.accounting-treasury', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'movements' => (clone $baseQuery)->latest('movement_date')->latest()->paginate(5)->withQueryString(),
+            'movementCount' => (clone $baseQuery)->count(),
+            'movementTypeLabels' => $this->accountingTreasuryMovementTypeLabels(),
+            'movementDirectionLabels' => $this->accountingTreasuryDirectionLabels(),
+            'movementStatusLabels' => $this->accountingTreasuryStatusLabels(),
+            'currencyOptions' => $currencyOptions,
+            'paymentMethods' => $paymentMethods,
+            'accountBalances' => $paymentMethods->map(function (AccountingPaymentMethod $method) use ($validatedQuery): array {
+                $methodMovements = (clone $validatedQuery)->where('payment_method_id', $method->id);
+                $inflows = (float) (clone $methodMovements)->where('direction', AccountingTreasuryMovement::DIRECTION_INFLOW)->sum('amount');
+                $outflows = (float) (clone $methodMovements)->where('direction', AccountingTreasuryMovement::DIRECTION_OUTFLOW)->sum('amount');
+
+                return compact('method', 'inflows', 'outflows') + ['balance' => round($inflows - $outflows, 2)];
+            }),
+            'metrics' => [
+                'inflows' => $totalInflows,
+                'outflows' => $totalOutflows,
+                'balance' => round($totalInflows - $totalOutflows, 2),
+                'receivables' => $forecast['receivables'],
+                'debts' => $forecast['debts'],
+                'projected_balance' => round($totalInflows - $totalOutflows + $forecast['receivables'] - $forecast['debts'], 2),
+            ],
+            'chartData' => [
+                'currency' => $currency,
+                'labels' => [
+                    'inflows' => __('main.treasury_inflows'),
+                    'outflows' => __('main.treasury_outflows'),
+                    'net' => __('main.treasury_net_flow'),
+                    'balance' => __('main.treasury_available_balance'),
+                ],
+                'periods' => [
+                    'week' => $this->accountingTreasuryPeriodData($site, $currency, 'week'),
+                    'month' => $this->accountingTreasuryPeriodData($site, $currency, 'month'),
+                    'year' => $this->accountingTreasuryPeriodData($site, $currency, 'year'),
+                ],
+                'accounts' => [
+                    'labels' => $paymentMethods->pluck('name')->all(),
+                    'series' => $paymentMethods->map(function (AccountingPaymentMethod $method) use ($validatedQuery): float {
+                        $query = (clone $validatedQuery)->where('payment_method_id', $method->id);
+
+                        return round(
+                            (float) (clone $query)->where('direction', AccountingTreasuryMovement::DIRECTION_INFLOW)->sum('amount')
+                            - (float) (clone $query)->where('direction', AccountingTreasuryMovement::DIRECTION_OUTFLOW)->sum('amount'),
+                            2
+                        );
+                    })->all(),
+                ],
+                'forecast' => [
+                    'labels' => [__('main.treasury_available_balance'), __('main.receivables'), __('main.debts'), __('main.treasury_projected_balance')],
+                    'series' => [
+                        round($totalInflows - $totalOutflows, 2),
+                        $forecast['receivables'],
+                        -$forecast['debts'],
+                        round($totalInflows - $totalOutflows + $forecast['receivables'] - $forecast['debts'], 2),
+                    ],
+                ],
+            ],
+            'filters' => compact('currency', 'direction', 'movementType', 'paymentMethodId', 'dateFrom', 'dateTo'),
+        ]);
+    }
+
+    public function accountingBankReconciliations(Request $request, Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+        $this->ensureDefaultAccountingPaymentMethodRecord($site);
+        $this->syncAccountingTreasuryMovements($site);
+
+        $bankMethods = AccountingPaymentMethod::query()
+            ->where('company_site_id', $site->id)
+            ->where('type', AccountingPaymentMethod::TYPE_BANK)
+            ->where('status', AccountingPaymentMethod::STATUS_ACTIVE)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get();
+
+        $reconciliations = AccountingBankReconciliation::query()
+            ->with(['paymentMethod', 'creator', 'closer'])
+            ->withCount('lines')
+            ->where('company_site_id', $site->id)
+            ->latest('period_end')
+            ->latest()
+            ->paginate(5)
+            ->withQueryString();
+
+        $selectedId = (int) $request->integer('reconciliation');
+        $activeReconciliation = AccountingBankReconciliation::query()
+            ->with(['paymentMethod', 'creator', 'closer', 'lines.matches.treasuryMovement'])
+            ->where('company_site_id', $site->id)
+            ->when($selectedId > 0, fn ($query) => $query->whereKey($selectedId))
+            ->when($selectedId === 0, fn ($query) => $query->latest('period_end')->latest())
+            ->first();
+
+        $availableMovements = collect();
+
+        if ($activeReconciliation) {
+            $this->refreshAccountingBankReconciliationTotals($activeReconciliation);
+            $activeReconciliation->refresh()->load(['paymentMethod', 'creator', 'closer', 'lines.matches.treasuryMovement']);
+
+            if ($activeReconciliation->status !== AccountingBankReconciliation::STATUS_CLOSED) {
+                $availableMovements = AccountingTreasuryMovement::query()
+                    ->where('company_site_id', $site->id)
+                    ->where('payment_method_id', $activeReconciliation->payment_method_id)
+                    ->where('currency', $activeReconciliation->currency)
+                    ->where('status', AccountingTreasuryMovement::STATUS_VALIDATED)
+                    ->whereBetween('movement_date', [$activeReconciliation->period_start, $activeReconciliation->period_end])
+                    ->whereDoesntHave('reconciliationMatches')
+                    ->orderBy('movement_date')
+                    ->get();
+            }
+        }
+
+        return view('main.modules.accounting-bank-reconciliations', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'bankMethods' => $bankMethods,
+            'reconciliations' => $reconciliations,
+            'activeReconciliation' => $activeReconciliation,
+            'availableMovements' => $availableMovements,
+            'reconciliationStatusLabels' => $this->accountingBankReconciliationStatusLabels(),
+            'lineStatusLabels' => $this->accountingBankStatementLineStatusLabels(),
+            'directionLabels' => $this->accountingTreasuryDirectionLabels(),
+            'permissions' => $this->sitePermissionFlags($user, $site),
+        ]);
+    }
+
+    public function storeAccountingBankReconciliation(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.bank-reconciliations', [$company, $site]);
+        }
+
+        $validated = $request->validate([
+            'payment_method_id' => [
+                'required',
+                Rule::exists('accounting_payment_methods', 'id')->where(fn ($query) => $query
+                    ->where('company_site_id', $site->id)
+                    ->where('type', AccountingPaymentMethod::TYPE_BANK)
+                    ->where('status', AccountingPaymentMethod::STATUS_ACTIVE)),
+            ],
+            'period_start' => ['required', 'date'],
+            'period_end' => ['required', 'date', 'after_or_equal:period_start'],
+            'statement_opening_balance' => ['required', 'numeric'],
+            'statement_closing_balance' => ['required', 'numeric'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $method = AccountingPaymentMethod::query()->findOrFail((int) $validated['payment_method_id']);
+
+        $reconciliation = AccountingBankReconciliation::create([
+            'company_site_id' => $site->id,
+            'payment_method_id' => $method->id,
+            'created_by' => $user->id,
+            'period_start' => $validated['period_start'],
+            'period_end' => $validated['period_end'],
+            'statement_opening_balance' => $validated['statement_opening_balance'],
+            'statement_closing_balance' => $validated['statement_closing_balance'],
+            'currency' => $method->currency_code,
+            'status' => AccountingBankReconciliation::STATUS_IN_PROGRESS,
+            'notes' => $validated['notes'] ?? null,
+        ]);
+
+        $this->refreshAccountingBankReconciliationTotals($reconciliation);
+
+        return redirect()
+            ->route('main.accounting.bank-reconciliations', [$company, $site, 'reconciliation' => $reconciliation->id])
+            ->with('success', __('main.bank_reconciliation_created'));
+    }
+
+    public function storeAccountingBankStatementLine(Request $request, Company $company, CompanySite $site, AccountingBankReconciliation $reconciliation): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $this->ensureEditableBankReconciliation($site, $reconciliation);
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return $this->bankReconciliationRedirect($company, $site, $reconciliation);
+        }
+
+        $validated = $request->validate([
+            'transaction_date' => ['required', 'date', 'after_or_equal:'.$reconciliation->period_start->format('Y-m-d'), 'before_or_equal:'.$reconciliation->period_end->format('Y-m-d')],
+            'bank_reference' => ['nullable', 'string', 'max:255'],
+            'description' => ['required', 'string', 'max:255'],
+            'direction' => ['required', Rule::in([AccountingBankStatementLine::DIRECTION_INFLOW, AccountingBankStatementLine::DIRECTION_OUTFLOW])],
+            'amount' => ['required', 'numeric', 'gt:0'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $reconciliation->lines()->create($validated + [
+            'created_by' => $user->id,
+            'status' => AccountingBankStatementLine::STATUS_UNMATCHED,
+        ]);
+
+        return $this->bankReconciliationRedirect($company, $site, $reconciliation)
+            ->with('success', __('main.bank_statement_line_created'));
+    }
+
+    public function importAccountingBankStatement(Request $request, Company $company, CompanySite $site, AccountingBankReconciliation $reconciliation): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $this->ensureEditableBankReconciliation($site, $reconciliation);
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return $this->bankReconciliationRedirect($company, $site, $reconciliation);
+        }
+
+        $validated = $request->validate([
+            'statement_file' => ['required', 'file', 'mimes:csv,txt', 'max:4096'],
+        ]);
+        $rows = $this->readAccountingBankStatementCsv($validated['statement_file'], $reconciliation);
+
+        if ($rows === []) {
+            throw ValidationException::withMessages([
+                'statement_file' => __('main.bank_statement_import_empty'),
+            ]);
+        }
+
+        $batch = 'CSV-'.now()->format('YmdHis');
+
+        DB::transaction(function () use ($rows, $reconciliation, $user, $batch): void {
+            foreach ($rows as $row) {
+                $reconciliation->lines()->create($row + [
+                    'created_by' => $user->id,
+                    'import_batch' => $batch,
+                    'status' => AccountingBankStatementLine::STATUS_UNMATCHED,
+                ]);
+            }
+        });
+
+        return $this->bankReconciliationRedirect($company, $site, $reconciliation)
+            ->with('success', __('main.bank_statement_imported', ['count' => count($rows)]));
+    }
+
+    public function matchAccountingBankStatementLine(Request $request, Company $company, CompanySite $site, AccountingBankReconciliation $reconciliation, AccountingBankStatementLine $line): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return $this->bankReconciliationRedirect($company, $site, $reconciliation);
+        }
+
+        $this->ensureEditableBankReconciliation($site, $reconciliation, $line);
+        $validated = $request->validate(['treasury_movement_id' => ['required', 'integer']]);
+
+        $movement = AccountingTreasuryMovement::query()
+            ->whereKey($validated['treasury_movement_id'])
+            ->where('company_site_id', $site->id)
+            ->where('payment_method_id', $reconciliation->payment_method_id)
+            ->where('currency', $reconciliation->currency)
+            ->where('status', AccountingTreasuryMovement::STATUS_VALIDATED)
+            ->where('direction', $line->direction)
+            ->whereBetween('movement_date', [$reconciliation->period_start, $reconciliation->period_end])
+            ->firstOrFail();
+
+        if (abs((float) $movement->amount - (float) $line->amount) > 0.009) {
+            throw ValidationException::withMessages([
+                'treasury_movement_id' => __('main.bank_match_amount_mismatch'),
+            ]);
+        }
+
+        if ($movement->reconciliationMatches()->where('statement_line_id', '!=', $line->id)->exists()) {
+            throw ValidationException::withMessages([
+                'treasury_movement_id' => __('main.bank_match_already_used'),
+            ]);
+        }
+
+        DB::transaction(function () use ($line, $movement, $user): void {
+            $line->matches()->delete();
+            $line->matches()->create([
+                'treasury_movement_id' => $movement->id,
+                'created_by' => $user->id,
+                'amount' => $line->amount,
+                'matched_at' => now(),
+            ]);
+            $line->update(['status' => AccountingBankStatementLine::STATUS_MATCHED]);
+        });
+
+        $this->refreshAccountingBankReconciliationTotals($reconciliation);
+
+        return $this->bankReconciliationRedirect($company, $site, $reconciliation)
+            ->with('success', __('main.bank_line_matched'));
+    }
+
+    public function unmatchAccountingBankStatementLine(Company $company, CompanySite $site, AccountingBankReconciliation $reconciliation, AccountingBankStatementLine $line): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return $this->bankReconciliationRedirect($company, $site, $reconciliation);
+        }
+
+        $this->ensureEditableBankReconciliation($site, $reconciliation, $line);
+
+        DB::transaction(function () use ($line): void {
+            $generatedAdjustments = $line->matches()
+                ->with('treasuryMovement')
+                ->get()
+                ->pluck('treasuryMovement')
+                ->filter(fn ($movement) => $movement
+                    && $movement->movement_type === AccountingTreasuryMovement::TYPE_BANK_ADJUSTMENT
+                    && $movement->source_type === AccountingBankStatementLine::class
+                    && (int) $movement->source_id === $line->id);
+
+            $line->matches()->delete();
+            $generatedAdjustments->each->delete();
+            $line->update(['status' => AccountingBankStatementLine::STATUS_UNMATCHED]);
+        });
+
+        $this->refreshAccountingBankReconciliationTotals($reconciliation);
+
+        return $this->bankReconciliationRedirect($company, $site, $reconciliation)
+            ->with('success', __('main.bank_line_unmatched'));
+    }
+
+    public function createAccountingBankStatementAdjustment(Request $request, Company $company, CompanySite $site, AccountingBankReconciliation $reconciliation, AccountingBankStatementLine $line): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return $this->bankReconciliationRedirect($company, $site, $reconciliation);
+        }
+
+        $this->ensureEditableBankReconciliation($site, $reconciliation, $line);
+        $validated = $request->validate([
+            'adjustment_label' => ['required', 'string', 'max:255'],
+        ]);
+
+        if ($line->status !== AccountingBankStatementLine::STATUS_UNMATCHED) {
+            throw ValidationException::withMessages(['adjustment_label' => __('main.bank_line_already_processed')]);
+        }
+
+        DB::transaction(function () use ($site, $reconciliation, $line, $validated, $user): void {
+            $movement = AccountingTreasuryMovement::create([
+                'company_site_id' => $site->id,
+                'payment_method_id' => $reconciliation->payment_method_id,
+                'created_by' => $user->id,
+                'movement_type' => AccountingTreasuryMovement::TYPE_BANK_ADJUSTMENT,
+                'source_type' => AccountingBankStatementLine::class,
+                'source_id' => $line->id,
+                'source_reference' => $line->bank_reference,
+                'direction' => $line->direction,
+                'label' => $validated['adjustment_label'],
+                'description' => $line->description,
+                'amount' => $line->amount,
+                'currency' => $reconciliation->currency,
+                'movement_date' => $line->transaction_date,
+                'status' => AccountingTreasuryMovement::STATUS_VALIDATED,
+            ]);
+
+            $line->matches()->create([
+                'treasury_movement_id' => $movement->id,
+                'created_by' => $user->id,
+                'amount' => $line->amount,
+                'matched_at' => now(),
+            ]);
+            $line->update(['status' => AccountingBankStatementLine::STATUS_MATCHED]);
+        });
+
+        $this->refreshAccountingBankReconciliationTotals($reconciliation);
+
+        return $this->bankReconciliationRedirect($company, $site, $reconciliation)
+            ->with('success', __('main.bank_adjustment_created'));
+    }
+
+    public function ignoreAccountingBankStatementLine(Company $company, CompanySite $site, AccountingBankReconciliation $reconciliation, AccountingBankStatementLine $line): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return $this->bankReconciliationRedirect($company, $site, $reconciliation);
+        }
+
+        $this->ensureEditableBankReconciliation($site, $reconciliation, $line);
+
+        if ($line->matches()->exists()) {
+            throw ValidationException::withMessages(['line' => __('main.bank_line_already_processed')]);
+        }
+
+        $line->update(['status' => AccountingBankStatementLine::STATUS_IGNORED]);
+        $this->refreshAccountingBankReconciliationTotals($reconciliation);
+
+        return $this->bankReconciliationRedirect($company, $site, $reconciliation)
+            ->with('success', __('main.bank_line_ignored'));
+    }
+
+    public function closeAccountingBankReconciliation(Company $company, CompanySite $site, AccountingBankReconciliation $reconciliation): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $this->ensureEditableBankReconciliation($site, $reconciliation);
+
+        if (! $user->isAdmin()) {
+            return $this->bankReconciliationRedirect($company, $site, $reconciliation)
+                ->with('success', __('main.bank_close_admin_required'))
+                ->with('toast_type', 'danger');
+        }
+
+        $this->refreshAccountingBankReconciliationTotals($reconciliation);
+        $reconciliation->refresh();
+
+        if (! $reconciliation->lines()->exists() || $reconciliation->lines()->where('status', AccountingBankStatementLine::STATUS_UNMATCHED)->exists()) {
+            return $this->bankReconciliationRedirect($company, $site, $reconciliation)
+                ->with('success', __('main.bank_close_pending_lines'))
+                ->with('toast_type', 'danger');
+        }
+
+        if (abs((float) $reconciliation->difference) > 0.009) {
+            return $this->bankReconciliationRedirect($company, $site, $reconciliation)
+                ->with('success', __('main.bank_close_difference_remaining'))
+                ->with('toast_type', 'danger');
+        }
+
+        $reconciliation->update([
+            'status' => AccountingBankReconciliation::STATUS_CLOSED,
+            'closed_by' => $user->id,
+            'closed_at' => now(),
+        ]);
+
+        return $this->bankReconciliationRedirect($company, $site, $reconciliation)
+            ->with('success', __('main.bank_reconciliation_closed'));
+    }
+
+    public function printAccountingBankReconciliation(Company $company, CompanySite $site, AccountingBankReconciliation $reconciliation): Response|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ($reconciliation->company_site_id !== $site->id) {
+            abort(404);
+        }
+
+        $this->refreshAccountingBankReconciliationTotals($reconciliation);
+        $reconciliation->refresh()->load(['paymentMethod', 'creator', 'closer', 'lines.matches.treasuryMovement']);
+
+        return Pdf::loadView('main.modules.accounting-bank-reconciliation-report', [
+            'user' => $user,
+            'company' => $company,
+            'site' => $site,
+            'reconciliation' => $reconciliation,
+            'statusLabels' => $this->accountingBankReconciliationStatusLabels(),
+            'lineStatusLabels' => $this->accountingBankStatementLineStatusLabels(),
+            'directionLabels' => $this->accountingTreasuryDirectionLabels(),
+        ])->setPaper('a4')->stream('rapprochement-bancaire-'.$reconciliation->reference.'.pdf');
+    }
+
+    public function accountingPaymentReminders(Request $request, Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+        $search = Str::lower($this->tableSearch($request));
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+        $this->refreshOverdueSalesInvoices($site);
+        $this->syncAccountingPaymentReminderStatuses($site, $user);
+
+        $status = trim((string) $request->query('status', ''));
+        $currency = strtoupper(trim((string) $request->query('currency', '')));
+        $today = now()->startOfDay();
+
+        $reminders = AccountingPaymentReminder::query()
+            ->with(['actions.creator', 'promises.creator'])
+            ->where('company_site_id', $site->id)
+            ->get()
+            ->keyBy(fn (AccountingPaymentReminder $reminder): string => $reminder->sales_invoice_id
+                ? 'invoice:'.$reminder->sales_invoice_id
+                : 'receivable:'.$reminder->debtor_id);
+
+        $invoiceRows = AccountingSalesInvoice::query()
+            ->with('client')
+            ->where('company_site_id', $site->id)
+            ->whereNotIn('status', [AccountingSalesInvoice::STATUS_DRAFT, AccountingSalesInvoice::STATUS_CANCELLED, AccountingSalesInvoice::STATUS_CREDITED])
+            ->where(function ($query): void {
+                $query->where('balance_due', '>', 0)
+                    ->orWhereHas('paymentReminders');
+            })
+            ->when($currency !== '', fn ($query) => $query->where('currency', $currency))
+            ->get()
+            ->map(function (AccountingSalesInvoice $invoice) use ($reminders, $today, $company, $site): array {
+                $reminder = $reminders->get('invoice:'.$invoice->id);
+                $overdueDays = $invoice->due_date && $invoice->due_date->lt($today)
+                    ? $invoice->due_date->diffInDays($today)
+                    : 0;
+
+                return [
+                    'source_type' => 'invoice',
+                    'source_id' => $invoice->id,
+                    'source_reference' => $invoice->reference,
+                    'source_label' => __('main.sales_invoice'),
+                    'customer' => $invoice->client?->display_name ?? '-',
+                    'total' => (float) $invoice->total_ttc,
+                    'paid' => (float) $invoice->paid_total + (float) $invoice->credit_total,
+                    'balance' => (float) $invoice->balance_due,
+                    'currency' => $invoice->currency,
+                    'due_date' => $invoice->due_date,
+                    'overdue_days' => $overdueDays,
+                    'reminder' => $reminder,
+                    'row_status' => $reminder?->status ?? ($overdueDays > 0 ? 'overdue' : 'due'),
+                    'document_url' => route('main.accounting.sales-invoices.print', [$company, $site, $invoice]),
+                ];
+            })
+            ->toBase();
+
+        $receivableRows = AccountingDebtor::query()
+            ->where('company_site_id', $site->id)
+            ->where('status', '!=', AccountingDebtor::STATUS_INACTIVE)
+            ->when($currency !== '', fn ($query) => $query->where('currency', $currency))
+            ->get()
+            ->filter(fn (AccountingDebtor $debtor): bool => $debtor->balanceReceivable() > 0 || $reminders->has('receivable:'.$debtor->id))
+            ->map(function (AccountingDebtor $debtor) use ($reminders, $today): array {
+                $reminder = $reminders->get('receivable:'.$debtor->id);
+                $overdueDays = $debtor->due_date && $debtor->due_date->lt($today)
+                    ? $debtor->due_date->diffInDays($today)
+                    : 0;
+
+                return [
+                    'source_type' => 'receivable',
+                    'source_id' => $debtor->id,
+                    'source_reference' => $debtor->reference,
+                    'source_label' => __('main.manual_receivable'),
+                    'customer' => $debtor->name,
+                    'total' => (float) $debtor->initial_amount,
+                    'paid' => (float) $debtor->received_amount,
+                    'balance' => $debtor->balanceReceivable(),
+                    'currency' => $debtor->currency,
+                    'due_date' => $debtor->due_date,
+                    'overdue_days' => $overdueDays,
+                    'reminder' => $reminder,
+                    'row_status' => $reminder?->status ?? ($overdueDays > 0 ? 'overdue' : 'due'),
+                    'document_url' => null,
+                ];
+            })
+            ->toBase();
+
+        $rows = $invoiceRows
+            ->merge($receivableRows)
+            ->when($status !== '', fn ($items) => $items->where('row_status', $status))
+            ->when($search !== '', fn ($items) => $items->filter(fn (array $row): bool => Str::contains(Str::lower(implode(' ', [
+                $row['source_reference'],
+                $row['source_label'],
+                $row['customer'],
+                $row['currency'],
+                $row['row_status'],
+                $row['reminder']?->reference,
+            ])), $search)))
+            ->sortBy([
+                fn (array $left, array $right) => $right['overdue_days'] <=> $left['overdue_days'],
+                fn (array $left, array $right) => strcmp((string) $left['due_date'], (string) $right['due_date']),
+            ])
+            ->values();
+        $outstandingRows = $rows->where('balance', '>', 0);
+
+        $page = \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage();
+        $followUps = new \Illuminate\Pagination\LengthAwarePaginator(
+            $rows->forPage($page, 5)->values(),
+            $rows->count(),
+            5,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return view('main.modules.accounting-payment-reminders', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'followUps' => $followUps,
+            'permissions' => $this->sitePermissionFlags($user, $site),
+            'currencies' => $this->siteCurrencyOptions($site),
+            'filters' => compact('status', 'currency'),
+            'levelLabels' => $this->accountingPaymentReminderLevelLabels(),
+            'channelLabels' => $this->accountingPaymentReminderChannelLabels(),
+            'statusLabels' => $this->accountingPaymentReminderStatusLabels(),
+            'actionLabels' => $this->accountingPaymentReminderActionLabels(),
+            'promiseStatusLabels' => $this->accountingPaymentPromiseStatusLabels(),
+            'metrics' => [
+                'balances' => $outstandingRows->groupBy('currency')
+                    ->map(fn ($items, string $code): array => [
+                        'amount' => (float) $items->sum('balance'),
+                        'currency' => $code,
+                    ])
+                    ->values(),
+                'overdue' => $outstandingRows->where('overdue_days', '>', 0)->count(),
+                'older_than_30' => $outstandingRows->where('overdue_days', '>', 30)->count(),
+                'promises' => AccountingPaymentPromise::query()
+                    ->whereHas('reminder', fn ($query) => $query->where('company_site_id', $site->id))
+                    ->where('status', AccountingPaymentPromise::STATUS_PENDING)
+                    ->count(),
+            ],
+        ]);
+    }
+
+    public function storeAccountingPaymentReminder(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.payment-reminders', [$company, $site]);
+        }
+
+        $validated = $request->validate([
+            'source_type' => ['required', Rule::in(['invoice', 'receivable'])],
+            'source_id' => ['required', 'integer'],
+            'level' => ['required', Rule::in(AccountingPaymentReminder::levels())],
+            'channel' => ['required', Rule::in(AccountingPaymentReminder::channels())],
+            'subject' => ['required', 'string', 'max:255'],
+            'message' => ['required', 'string', 'max:4000'],
+            'next_reminder_date' => ['nullable', 'date', 'after_or_equal:today'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+        $source = $this->resolveAccountingPaymentReminderSource($site, $validated['source_type'], (int) $validated['source_id']);
+
+        $reminder = DB::transaction(function () use ($site, $user, $validated, $source): AccountingPaymentReminder {
+            $match = $source['type'] === 'invoice'
+                ? ['sales_invoice_id' => $source['model']->id]
+                : ['debtor_id' => $source['model']->id];
+
+            $reminder = AccountingPaymentReminder::query()->updateOrCreate(
+                ['company_site_id' => $site->id] + $match,
+                [
+                    'client_id' => $source['client_id'],
+                    'created_by' => $user->id,
+                    'level' => $validated['level'],
+                    'channel' => $validated['channel'],
+                    'status' => AccountingPaymentReminder::STATUS_SENT,
+                    'subject' => $validated['subject'],
+                    'message' => $validated['message'],
+                    'next_reminder_date' => $validated['next_reminder_date'] ?? null,
+                    'notes' => $validated['notes'] ?? null,
+                    'sent_at' => now(),
+                ]
+            );
+
+            $reminder->actions()->create([
+                'created_by' => $user->id,
+                'action_type' => AccountingPaymentReminderAction::TYPE_REMINDER_SENT,
+                'channel' => $validated['channel'],
+                'subject' => $validated['subject'],
+                'message' => $validated['message'],
+                'next_reminder_date' => $validated['next_reminder_date'] ?? null,
+                'action_at' => now(),
+            ]);
+
+            return $reminder;
+        });
+
+        return redirect()
+            ->route('main.accounting.payment-reminders', [$company, $site])
+            ->with('success', __('main.payment_reminder_saved', ['reference' => $reminder->reference]));
+    }
+
+    public function storeAccountingPaymentPromise(Request $request, Company $company, CompanySite $site, AccountingPaymentReminder $reminder): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $this->ensureAccountingPaymentReminderBelongsToSite($site, $reminder);
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.payment-reminders', [$company, $site]);
+        }
+
+        $outstanding = $this->accountingPaymentReminderBalance($reminder);
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'gt:0'],
+            'promised_date' => ['required', 'date', 'after_or_equal:today'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        if ((float) $validated['amount'] > $outstanding) {
+            throw ValidationException::withMessages(['amount' => __('main.payment_promise_amount_exceeds_balance')]);
+        }
+
+        DB::transaction(function () use ($reminder, $user, $validated): void {
+            $reminder->promises()->create([
+                'created_by' => $user->id,
+                'amount' => round((float) $validated['amount'], 2),
+                'currency' => $this->accountingPaymentReminderCurrency($reminder),
+                'promised_date' => $validated['promised_date'],
+                'status' => AccountingPaymentPromise::STATUS_PENDING,
+                'notes' => $validated['notes'] ?? null,
+            ]);
+            $reminder->update(['status' => AccountingPaymentReminder::STATUS_PROMISE]);
+            $reminder->actions()->create([
+                'created_by' => $user->id,
+                'action_type' => AccountingPaymentReminderAction::TYPE_PROMISE,
+                'message' => $validated['notes'] ?? null,
+                'action_at' => now(),
+            ]);
+        });
+
+        return redirect()
+            ->route('main.accounting.payment-reminders', [$company, $site])
+            ->with('success', __('main.payment_promise_saved'));
+    }
+
+    public function suspendAccountingPaymentReminder(Company $company, CompanySite $site, AccountingPaymentReminder $reminder): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $this->ensureAccountingPaymentReminderBelongsToSite($site, $reminder);
+
+        if ($this->sitePermissionFlags($user, $site)['can_update']) {
+            $reminder->update(['status' => AccountingPaymentReminder::STATUS_SUSPENDED]);
+            $reminder->actions()->create([
+                'created_by' => $user->id,
+                'action_type' => AccountingPaymentReminderAction::TYPE_SUSPENDED,
+                'action_at' => now(),
+            ]);
+        }
+
+        return redirect()
+            ->route('main.accounting.payment-reminders', [$company, $site])
+            ->with('success', __('main.payment_reminder_suspended'));
+    }
+
+    public function disputeAccountingPaymentReminder(Request $request, Company $company, CompanySite $site, AccountingPaymentReminder $reminder): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $this->ensureAccountingPaymentReminderBelongsToSite($site, $reminder);
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update'] || $this->accountingPaymentReminderBalance($reminder) <= 0) {
+            return redirect()->route('main.accounting.payment-reminders', [$company, $site]);
+        }
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        DB::transaction(function () use ($reminder, $user, $validated): void {
+            $reminder->update([
+                'status' => AccountingPaymentReminder::STATUS_DISPUTED,
+                'notes' => $validated['reason'],
+            ]);
+            $reminder->actions()->create([
+                'created_by' => $user->id,
+                'action_type' => AccountingPaymentReminderAction::TYPE_DISPUTED,
+                'message' => $validated['reason'],
+                'action_at' => now(),
+            ]);
+        });
+
+        return redirect()
+            ->route('main.accounting.payment-reminders', [$company, $site])
+            ->with('success', __('main.payment_reminder_disputed'));
+    }
+
+    public function printAccountingPaymentReminder(Company $company, CompanySite $site, AccountingPaymentReminder $reminder): Response|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $this->ensureAccountingPaymentReminderBelongsToSite($site, $reminder);
+        $reminder->load(['client', 'salesInvoice.client', 'debtor', 'creator']);
+
+        return Pdf::loadView('main.modules.accounting-payment-reminder-letter', [
+            'user' => $user,
+            'company' => $company,
+            'site' => $site,
+            'reminder' => $reminder,
+            'sourceReference' => $reminder->salesInvoice?->reference ?: $reminder->debtor?->reference,
+            'customerName' => $reminder->client?->display_name ?: $reminder->debtor?->name,
+            'balance' => $this->accountingPaymentReminderBalance($reminder),
+            'currency' => $this->accountingPaymentReminderCurrency($reminder),
+            'levelLabels' => $this->accountingPaymentReminderLevelLabels(),
+        ])->setPaper('a4')->stream('relance-paiement-'.$reminder->reference.'.pdf');
+    }
+
+    public function accountingTasks(Request $request, Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+        $this->refreshOverdueSalesInvoices($site);
+        $this->syncAccountingPaymentReminderStatuses($site, $user);
+        $this->syncAccountingTasks($site, $user);
+
+        $filters = [
+            'status' => trim((string) $request->query('status', '')),
+            'priority' => trim((string) $request->query('priority', '')),
+            'assigned_to' => (int) $request->integer('assigned_to'),
+        ];
+        $search = $this->tableSearch($request);
+        $baseQuery = $this->accountingTaskQueryForUser($site, $user);
+
+        $metrics = [
+            'open' => (clone $baseQuery)->whereNotIn('status', [AccountingTask::STATUS_COMPLETED, AccountingTask::STATUS_CANCELLED])->count(),
+            'overdue' => (clone $baseQuery)->whereNotIn('status', [AccountingTask::STATUS_COMPLETED, AccountingTask::STATUS_CANCELLED])->whereDate('due_date', '<', now()->toDateString())->count(),
+            'due_today' => (clone $baseQuery)->whereNotIn('status', [AccountingTask::STATUS_COMPLETED, AccountingTask::STATUS_CANCELLED])->whereDate('due_date', now()->toDateString())->count(),
+            'urgent' => (clone $baseQuery)->whereNotIn('status', [AccountingTask::STATUS_COMPLETED, AccountingTask::STATUS_CANCELLED])->where('priority', AccountingTask::PRIORITY_URGENT)->count(),
+            'completed_this_week' => (clone $baseQuery)->where('status', AccountingTask::STATUS_COMPLETED)->where('completed_at', '>=', now()->startOfWeek())->count(),
+        ];
+
+        $tasks = $baseQuery
+            ->with(['assignee', 'creator', 'client', 'supplier', 'activities.creator'])
+            ->when($filters['status'] !== '', fn ($query) => $query->where('status', $filters['status']))
+            ->when($filters['priority'] !== '', fn ($query) => $query->where('priority', $filters['priority']))
+            ->when($filters['assigned_to'] > 0, fn ($query) => $query->where('assigned_to', $filters['assigned_to']))
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($searchQuery) use ($search): void {
+                    $searchQuery->where('reference', 'like', "%{$search}%")
+                        ->orWhere('title', 'like', "%{$search}%")
+                        ->orWhere('source_reference', 'like', "%{$search}%")
+                        ->orWhereHas('assignee', fn ($relation) => $relation->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('client', fn ($relation) => $relation->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('supplier', fn ($relation) => $relation->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->orderByRaw("case priority when 'urgent' then 0 when 'high' then 1 when 'normal' then 2 else 3 end")
+            ->orderByRaw('case when due_date is null then 1 else 0 end')
+            ->orderBy('due_date')
+            ->latest('id')
+            ->paginate(5)
+            ->withQueryString();
+
+        $tasks->getCollection()->each(function (AccountingTask $task) use ($company, $site): void {
+            $task->setAttribute('document_url', $this->accountingTaskDocumentUrl($task, $company, $site));
+        });
+
+        return view('main.modules.accounting-tasks', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'tasks' => $tasks,
+            'permissions' => $this->sitePermissionFlags($user, $site),
+            'filters' => $filters,
+            'metrics' => $metrics,
+            'assignees' => $this->siteResponsibleOptions($company),
+            'clients' => $site->accountingClients()->orderBy('name')->get(),
+            'suppliers' => $site->accountingSuppliers()->orderBy('name')->get(),
+            'documents' => $this->accountingTaskDocumentOptions($site),
+            'typeLabels' => $this->accountingTaskTypeLabels(),
+            'priorityLabels' => $this->accountingTaskPriorityLabels(),
+            'statusLabels' => $this->accountingTaskStatusLabels(),
+            'activityLabels' => $this->accountingTaskActivityLabels(),
+        ]);
+    }
+
+    public function storeAccountingTask(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.tasks', [$company, $site]);
+        }
+
+        $validated = $request->validate($this->accountingTaskRules($company, $site));
+        $task = DB::transaction(function () use ($validated, $user, $site): AccountingTask {
+            $task = $site->accountingTasks()->create($this->accountingTaskPayload($validated, $site, $user));
+            $task->activities()->create([
+                'created_by' => $user->id,
+                'action_type' => AccountingTaskActivity::TYPE_CREATED,
+                'to_status' => $task->status,
+            ]);
+
+            return $task;
+        });
+
+        return redirect()
+            ->route('main.accounting.tasks', [$company, $site])
+            ->with('success', __('main.task_saved', ['reference' => $task->reference]));
+    }
+
+    public function updateAccountingTask(Request $request, Company $company, CompanySite $site, AccountingTask $task): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $this->ensureAccountingTaskAccessible($site, $task, $user);
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.tasks', [$company, $site]);
+        }
+
+        $validated = $request->validate($this->accountingTaskRules($company, $site));
+        DB::transaction(function () use ($validated, $task, $site, $user): void {
+            $previousStatus = $task->status;
+            $payload = $this->accountingTaskPayload($validated, $site, $user, $task);
+            $task->update($payload);
+            $actionType = $task->status === AccountingTask::STATUS_COMPLETED && $previousStatus !== AccountingTask::STATUS_COMPLETED
+                ? AccountingTaskActivity::TYPE_COMPLETED
+                : AccountingTaskActivity::TYPE_UPDATED;
+            $task->activities()->create([
+                'created_by' => $user->id,
+                'action_type' => $actionType,
+                'from_status' => $previousStatus,
+                'to_status' => $task->status,
+                'notes' => $validated['completion_notes'] ?? null,
+            ]);
+        });
+
+        return redirect()
+            ->route('main.accounting.tasks', [$company, $site])
+            ->with('success', __('main.task_updated'));
+    }
+
+    public function completeAccountingTask(Request $request, Company $company, CompanySite $site, AccountingTask $task): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $this->ensureAccountingTaskAccessible($site, $task, $user);
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.tasks', [$company, $site]);
+        }
+
+        $validated = $request->validate(['completion_notes' => ['nullable', 'string', 'max:2000']]);
+        $previousStatus = $task->status;
+        $task->update([
+            'status' => AccountingTask::STATUS_COMPLETED,
+            'completed_by' => $user->id,
+            'completed_at' => now(),
+            'completion_notes' => $validated['completion_notes'] ?? $task->completion_notes,
+        ]);
+        $task->activities()->create([
+            'created_by' => $user->id,
+            'action_type' => AccountingTaskActivity::TYPE_COMPLETED,
+            'from_status' => $previousStatus,
+            'to_status' => AccountingTask::STATUS_COMPLETED,
+            'notes' => $validated['completion_notes'] ?? null,
+        ]);
+
+        return redirect()
+            ->route('main.accounting.tasks', [$company, $site])
+            ->with('success', __('main.task_completed'));
+    }
+
+    public function destroyAccountingTask(Company $company, CompanySite $site, AccountingTask $task): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $this->ensureAccountingTaskAccessible($site, $task, $user);
+
+        if (! $this->sitePermissionFlags($user, $site)['can_delete'] || $task->is_automatic) {
+            return redirect()
+                ->route('main.accounting.tasks', [$company, $site])
+                ->with('success', __('main.automatic_task_cannot_be_deleted'))
+                ->with('toast_type', 'danger');
+        }
+
+        $task->delete();
+
+        return redirect()
+            ->route('main.accounting.tasks', [$company, $site])
+            ->with('success', __('main.task_deleted'));
+    }
+
+    public function accountingReports(Request $request, Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+        $this->syncAccountingTreasuryMovements($site);
+        $this->refreshOverdueSalesInvoices($site);
+        $this->refreshOverdueAccountingPurchases($site);
+
+        return view('main.modules.accounting-reports', array_merge([
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+        ], $this->accountingReportData($request, $site)));
+    }
+
+    public function printAccountingReport(Request $request, Company $company, CompanySite $site): Response|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+        $this->syncAccountingTreasuryMovements($site);
+        $this->refreshOverdueSalesInvoices($site);
+        $this->refreshOverdueAccountingPurchases($site);
+
+        return Pdf::loadView('main.modules.accounting-report-print', array_merge([
+            'user' => $user,
+            'company' => $company,
+            'site' => $site,
+        ], $this->accountingReportData($request, $site, false)))
+            ->setPaper('a4', 'landscape')
+            ->stream('rapport-'.$site->id.'-'.now()->format('Ymd').'.pdf');
+    }
+
+    public function exportAccountingReport(Request $request, Company $company, CompanySite $site)
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        $this->syncAccountingTreasuryMovements($site);
+        $this->refreshOverdueSalesInvoices($site);
+        $this->refreshOverdueAccountingPurchases($site);
+
+        $data = $this->accountingReportData($request, $site, false);
+        $fileName = 'rapport-'.$data['section'].'-'.$site->id.'-'.now()->format('Ymd').'.csv';
+
+        return response()->streamDownload(function () use ($data): void {
+            $handle = fopen('php://output', 'w');
+
+            fwrite($handle, "\xEF\xBB\xBF");
+            fputcsv($handle, $this->accountingReportCsvHeaders($data['section']), ';');
+
+            foreach ($data['records'] as $record) {
+                fputcsv($handle, $this->accountingReportCsvRow($data['section'], $record), ';');
+            }
+
+            fclose($handle);
+        }, $fileName, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    private function accountingReportData(Request $request, CompanySite $site, bool $paginate = true): array
+    {
+        $sections = ['sales', 'receipts', 'purchases', 'treasury', 'stock'];
+        $section = in_array($request->query('section'), $sections, true) ? (string) $request->query('section') : 'sales';
+        [$period, $dateFrom, $dateTo] = $this->accountingReportPeriod($request);
+        $currency = strtoupper($site->currency ?: 'CDF');
+        $search = $this->tableSearch($request);
+        $filters = [
+            'period' => $period,
+            'date_from' => $dateFrom->toDateString(),
+            'date_to' => $dateTo->toDateString(),
+            'client_id' => (int) $request->integer('client_id'),
+            'supplier_id' => (int) $request->integer('supplier_id'),
+            'payment_method_id' => (int) $request->integer('payment_method_id'),
+            'status' => trim((string) $request->query('status', '')),
+            'search' => $search,
+        ];
+
+        $metrics = [];
+        $statusLabels = [];
+        $query = null;
+
+        if ($section === 'sales') {
+            $query = AccountingSalesInvoice::query()
+                ->with('client')
+                ->where('company_site_id', $site->id)
+                ->whereBetween('invoice_date', [$filters['date_from'], $filters['date_to']])
+                ->when($filters['client_id'] > 0, fn ($builder) => $builder->where('client_id', $filters['client_id']))
+                ->when($filters['status'] !== '', fn ($builder) => $builder->where('status', $filters['status']))
+                ->when($search !== '', fn ($builder) => $this->applyTableSearch($builder, $search, [
+                    'reference', 'title', 'invoice_date', 'due_date', 'status', 'total_ttc', 'paid_total', 'balance_due',
+                    $this->relationTableSearch('client', ['reference', 'name']),
+                ]));
+            $financialQuery = clone $query;
+            if ($filters['status'] === '') {
+                $financialQuery->whereNotIn('status', [AccountingSalesInvoice::STATUS_CANCELLED]);
+            }
+            $metrics = [
+                $this->reportMetric(__('main.report_revenue'), (float) (clone $financialQuery)->sum('total_ttc'), 'bi-receipt', 'blue'),
+                $this->reportMetric(__('main.report_collected'), (float) (clone $financialQuery)->sum('paid_total'), 'bi-cash-coin', 'green'),
+                $this->reportMetric(__('main.balance_due'), (float) (clone $financialQuery)->sum('balance_due'), 'bi-hourglass-split', 'amber'),
+                $this->reportMetric(__('main.report_overdue_invoices'), (float) (clone $financialQuery)->where('status', AccountingSalesInvoice::STATUS_OVERDUE)->count(), 'bi-exclamation-circle', 'rose', false),
+            ];
+            $statusLabels = $this->salesInvoiceStatusLabels();
+            $query->latest('invoice_date')->latest();
+        } elseif ($section === 'receipts') {
+            $query = AccountingSalesInvoicePayment::query()
+                ->with(['salesInvoice.client', 'paymentMethod', 'receiver'])
+                ->whereHas('salesInvoice', fn ($builder) => $builder->where('company_site_id', $site->id)
+                    ->when($filters['client_id'] > 0, fn ($invoiceQuery) => $invoiceQuery->where('client_id', $filters['client_id'])))
+                ->whereBetween('payment_date', [$filters['date_from'], $filters['date_to']])
+                ->when($filters['payment_method_id'] > 0, fn ($builder) => $builder->where('payment_method_id', $filters['payment_method_id']))
+                ->when($search !== '', fn ($builder) => $this->applyTableSearch($builder, $search, [
+                    'reference', 'payment_date', 'amount', 'currency', 'notes',
+                    $this->relationTableSearch('paymentMethod', ['name', 'code']),
+                    $this->relationTableSearch('salesInvoice', ['reference']),
+                ]));
+            $total = (float) (clone $query)->sum('amount');
+            $count = (clone $query)->count();
+            $metrics = [
+                $this->reportMetric(__('main.report_receipts_total'), $total, 'bi-cash-coin', 'green'),
+                $this->reportMetric(__('main.report_payments_count'), (float) $count, 'bi-receipt-cutoff', 'blue', false),
+                $this->reportMetric(__('main.report_average_payment'), $count > 0 ? $total / $count : 0, 'bi-calculator', 'violet'),
+                $this->reportMetric(__('main.report_payment_methods_used'), (float) (clone $query)->distinct('payment_method_id')->count('payment_method_id'), 'bi-credit-card-2-front', 'amber', false),
+            ];
+            $query->latest('payment_date')->latest();
+        } elseif ($section === 'purchases') {
+            $query = AccountingPurchase::query()
+                ->with('supplier')
+                ->where('company_site_id', $site->id)
+                ->whereBetween('purchase_date', [$filters['date_from'], $filters['date_to']])
+                ->when($filters['supplier_id'] > 0, fn ($builder) => $builder->where('supplier_id', $filters['supplier_id']))
+                ->when($filters['status'] !== '', fn ($builder) => $builder->where('status', $filters['status']))
+                ->when($search !== '', fn ($builder) => $this->applyTableSearch($builder, $search, [
+                    'reference', 'supplier_invoice_reference', 'title', 'purchase_date', 'due_date', 'status', 'total_ttc', 'paid_total', 'balance_due',
+                    $this->relationTableSearch('supplier', ['reference', 'name']),
+                ]));
+            $financialQuery = clone $query;
+            if ($filters['status'] === '') {
+                $financialQuery->whereNotIn('status', [AccountingPurchase::STATUS_CANCELLED]);
+            }
+            $expenses = AccountingExpense::query()
+                ->where('company_site_id', $site->id)
+                ->where('status', AccountingExpense::STATUS_VALIDATED)
+                ->whereBetween('expense_date', [$filters['date_from'], $filters['date_to']])
+                ->sum('amount');
+            $metrics = [
+                $this->reportMetric(__('main.purchases'), (float) (clone $financialQuery)->sum('total_ttc'), 'bi-bag-check', 'blue'),
+                $this->reportMetric(__('main.expenses'), (float) $expenses, 'bi-wallet2', 'rose'),
+                $this->reportMetric(__('main.report_paid_suppliers'), (float) (clone $financialQuery)->sum('paid_total'), 'bi-cash-stack', 'green'),
+                $this->reportMetric(__('main.debts'), (float) (clone $financialQuery)->sum('balance_due'), 'bi-hourglass-split', 'amber'),
+            ];
+            $statusLabels = $this->purchaseStatusLabels();
+            $query->latest('purchase_date')->latest();
+        } elseif ($section === 'treasury') {
+            $query = AccountingTreasuryMovement::query()
+                ->with('paymentMethod')
+                ->where('company_site_id', $site->id)
+                ->where('status', AccountingTreasuryMovement::STATUS_VALIDATED)
+                ->whereBetween('movement_date', [$filters['date_from'], $filters['date_to']])
+                ->when($filters['payment_method_id'] > 0, fn ($builder) => $builder->where('payment_method_id', $filters['payment_method_id']))
+                ->when($search !== '', fn ($builder) => $this->applyTableSearch($builder, $search, [
+                    'reference', 'source_reference', 'label', 'movement_type', 'direction', 'amount', 'movement_date',
+                    $this->relationTableSearch('paymentMethod', ['name', 'code']),
+                ]));
+            $inflows = (float) (clone $query)->where('direction', AccountingTreasuryMovement::DIRECTION_INFLOW)->sum('amount');
+            $outflows = (float) (clone $query)->where('direction', AccountingTreasuryMovement::DIRECTION_OUTFLOW)->sum('amount');
+            $forecast = $this->accountingTreasuryForecast($site, $currency);
+            $metrics = [
+                $this->reportMetric(__('main.treasury_inflows'), $inflows, 'bi-arrow-down-left-circle', 'green'),
+                $this->reportMetric(__('main.treasury_outflows'), $outflows, 'bi-arrow-up-right-circle', 'rose'),
+                $this->reportMetric(__('main.treasury_net_flow'), $inflows - $outflows, 'bi-activity', 'blue'),
+                $this->reportMetric(__('main.treasury_projected_balance'), $inflows - $outflows + $forecast['receivables'] - $forecast['debts'], 'bi-graph-up-arrow', 'violet'),
+            ];
+            $query->latest('movement_date')->latest();
+        } else {
+            $query = AccountingStockItem::query()
+                ->with(['category', 'subcategory', 'unit'])
+                ->where('company_site_id', $site->id)
+                ->when($search !== '', fn ($builder) => $this->applyTableSearch($builder, $search, [
+                    'reference', 'name', 'sku', 'barcode', 'type', 'current_stock', 'min_stock', 'status',
+                    $this->relationTableSearch('category', ['name']),
+                    $this->relationTableSearch('subcategory', ['name']),
+                ]));
+            $movementsQuery = AccountingStockMovement::query()
+                ->where('company_site_id', $site->id)
+                ->whereBetween('movement_date', [$filters['date_from'], $filters['date_to']]);
+            $lowStockCount = AccountingStockItem::query()
+                ->where('company_site_id', $site->id)
+                ->whereColumn('current_stock', '<=', 'min_stock')
+                ->count();
+            $inventoryValue = AccountingStockItem::query()
+                ->where('company_site_id', $site->id)
+                ->get(['current_stock', 'purchase_price'])
+                ->sum(fn (AccountingStockItem $item) => $item->current_stock * $item->purchase_price);
+            $metrics = [
+                $this->reportMetric(__('main.items'), (float) (clone $query)->count(), 'bi-box-seam', 'blue', false),
+                $this->reportMetric(__('main.report_inventory_value'), (float) $inventoryValue, 'bi-cash-stack', 'green'),
+                $this->reportMetric(__('main.report_low_stock'), (float) $lowStockCount, 'bi-exclamation-triangle', 'rose', false),
+                $this->reportMetric(__('main.report_stock_movements'), (float) (clone $movementsQuery)->count(), 'bi-arrow-left-right', 'amber', false),
+            ];
+            $query->orderByRaw('case when current_stock <= min_stock then 0 else 1 end')->orderBy('name');
+        }
+
+        $records = $paginate ? $query->paginate(5)->withQueryString() : $query->get();
+
+        return [
+            'section' => $section,
+            'sections' => [
+                'sales' => __('main.report_section_sales'),
+                'receipts' => __('main.report_section_receipts'),
+                'purchases' => __('main.report_section_purchases'),
+                'treasury' => __('main.report_section_treasury'),
+                'stock' => __('main.report_section_stock'),
+            ],
+            'filters' => $filters,
+            'currency' => $currency,
+            'records' => $records,
+            'metrics' => $metrics,
+            'statusLabels' => $statusLabels,
+            'movementTypeLabels' => $this->accountingTreasuryMovementTypeLabels(),
+            'movementDirectionLabels' => $this->accountingTreasuryDirectionLabels(),
+            'clients' => AccountingClient::query()->where('company_site_id', $site->id)->orderBy('name')->get(),
+            'suppliers' => AccountingSupplier::query()->where('company_site_id', $site->id)->orderBy('name')->get(),
+            'paymentMethods' => AccountingPaymentMethod::query()->where('company_site_id', $site->id)->orderByDesc('is_default')->orderBy('name')->get(),
+            'chartData' => $this->accountingReportChartData($site, $section, $filters),
+            'periodLabel' => $dateFrom->translatedFormat('d M Y').' - '.$dateTo->translatedFormat('d M Y'),
+        ];
+    }
+
+    private function accountingReportPeriod(Request $request): array
+    {
+        $period = in_array($request->query('period'), ['week', 'month', 'quarter', 'year', 'custom'], true)
+            ? (string) $request->query('period')
+            : 'month';
+        $now = Carbon::now();
+
+        if ($period === 'custom' && filled($request->query('date_from')) && filled($request->query('date_to'))) {
+            try {
+                $start = Carbon::parse((string) $request->query('date_from'))->startOfDay();
+                $end = Carbon::parse((string) $request->query('date_to'))->endOfDay();
+
+                if ($start->lte($end)) {
+                    return [$period, $start, $end];
+                }
+            } catch (\Throwable) {
+                $period = 'month';
+            }
+        }
+
+        return match ($period) {
+            'week' => [$period, $now->copy()->startOfWeek(), $now->copy()->endOfWeek()],
+            'quarter' => [$period, $now->copy()->startOfQuarter(), $now->copy()->endOfQuarter()],
+            'year' => [$period, $now->copy()->startOfYear(), $now->copy()->endOfYear()],
+            default => ['month', $now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
+        };
+    }
+
+    private function reportMetric(string $label, float $value, string $icon, string $tone, bool $isMoney = true): array
+    {
+        return compact('label', 'value', 'icon', 'tone', 'isMoney');
+    }
+
+    private function accountingReportChartData(CompanySite $site, string $section, array $filters): array
+    {
+        $buckets = $this->accountingReportBuckets(
+            Carbon::parse($filters['date_from']),
+            Carbon::parse($filters['date_to']),
+            $filters['period']
+        );
+        $labels = $buckets->pluck('label')->all();
+        $series = [];
+
+        if ($section === 'sales') {
+            $series = [
+                ['name' => __('main.report_revenue'), 'data' => $buckets->map(fn ($bucket) => round((float) AccountingSalesInvoice::query()
+                    ->where('company_site_id', $site->id)
+                    ->whereBetween('invoice_date', [$bucket['start'], $bucket['end']])
+                    ->whereNotIn('status', [AccountingSalesInvoice::STATUS_CANCELLED])
+                    ->when($filters['client_id'] > 0, fn ($query) => $query->where('client_id', $filters['client_id']))
+                    ->when($filters['status'] !== '', fn ($query) => $query->where('status', $filters['status']))
+                    ->sum('total_ttc'), 2))->all()],
+                ['name' => __('main.report_collected'), 'data' => $buckets->map(fn ($bucket) => round((float) AccountingSalesInvoice::query()
+                    ->where('company_site_id', $site->id)
+                    ->whereBetween('invoice_date', [$bucket['start'], $bucket['end']])
+                    ->whereNotIn('status', [AccountingSalesInvoice::STATUS_CANCELLED])
+                    ->when($filters['client_id'] > 0, fn ($query) => $query->where('client_id', $filters['client_id']))
+                    ->when($filters['status'] !== '', fn ($query) => $query->where('status', $filters['status']))
+                    ->sum('paid_total'), 2))->all()],
+            ];
+        } elseif ($section === 'receipts') {
+            $series = [
+                ['name' => __('main.report_receipts_total'), 'data' => $buckets->map(fn ($bucket) => round((float) AccountingSalesInvoicePayment::query()
+                    ->whereHas('salesInvoice', fn ($query) => $query->where('company_site_id', $site->id)
+                        ->when($filters['client_id'] > 0, fn ($invoiceQuery) => $invoiceQuery->where('client_id', $filters['client_id'])))
+                    ->whereBetween('payment_date', [$bucket['start'], $bucket['end']])
+                    ->when($filters['payment_method_id'] > 0, fn ($query) => $query->where('payment_method_id', $filters['payment_method_id']))
+                    ->sum('amount'), 2))->all()],
+            ];
+        } elseif ($section === 'purchases') {
+            $series = [
+                ['name' => __('main.purchases'), 'data' => $buckets->map(fn ($bucket) => round((float) AccountingPurchase::query()
+                    ->where('company_site_id', $site->id)
+                    ->whereBetween('purchase_date', [$bucket['start'], $bucket['end']])
+                    ->whereNotIn('status', [AccountingPurchase::STATUS_CANCELLED])
+                    ->when($filters['supplier_id'] > 0, fn ($query) => $query->where('supplier_id', $filters['supplier_id']))
+                    ->when($filters['status'] !== '', fn ($query) => $query->where('status', $filters['status']))
+                    ->sum('total_ttc'), 2))->all()],
+                ['name' => __('main.expenses'), 'data' => $buckets->map(fn ($bucket) => round((float) AccountingExpense::query()
+                    ->where('company_site_id', $site->id)
+                    ->where('status', AccountingExpense::STATUS_VALIDATED)
+                    ->whereBetween('expense_date', [$bucket['start'], $bucket['end']])
+                    ->sum('amount'), 2))->all()],
+            ];
+        } elseif ($section === 'treasury') {
+            $series = [
+                ['name' => __('main.treasury_inflows'), 'data' => $buckets->map(fn ($bucket) => round((float) AccountingTreasuryMovement::query()
+                    ->where('company_site_id', $site->id)
+                    ->where('status', AccountingTreasuryMovement::STATUS_VALIDATED)
+                    ->where('direction', AccountingTreasuryMovement::DIRECTION_INFLOW)
+                    ->whereBetween('movement_date', [$bucket['start'], $bucket['end']])
+                    ->when($filters['payment_method_id'] > 0, fn ($query) => $query->where('payment_method_id', $filters['payment_method_id']))
+                    ->sum('amount'), 2))->all()],
+                ['name' => __('main.treasury_outflows'), 'data' => $buckets->map(fn ($bucket) => round((float) AccountingTreasuryMovement::query()
+                    ->where('company_site_id', $site->id)
+                    ->where('status', AccountingTreasuryMovement::STATUS_VALIDATED)
+                    ->where('direction', AccountingTreasuryMovement::DIRECTION_OUTFLOW)
+                    ->whereBetween('movement_date', [$bucket['start'], $bucket['end']])
+                    ->when($filters['payment_method_id'] > 0, fn ($query) => $query->where('payment_method_id', $filters['payment_method_id']))
+                    ->sum('amount'), 2))->all()],
+            ];
+        } else {
+            $series = [
+                ['name' => __('main.report_entries'), 'data' => $buckets->map(fn ($bucket) => round((float) AccountingStockMovement::query()
+                    ->where('company_site_id', $site->id)
+                    ->where('type', AccountingStockMovement::TYPE_ENTRY)
+                    ->whereBetween('movement_date', [$bucket['start'], $bucket['end']])
+                    ->sum('quantity'), 2))->all()],
+                ['name' => __('main.report_exits'), 'data' => $buckets->map(fn ($bucket) => round((float) AccountingStockMovement::query()
+                    ->where('company_site_id', $site->id)
+                    ->where('type', AccountingStockMovement::TYPE_EXIT)
+                    ->whereBetween('movement_date', [$bucket['start'], $bucket['end']])
+                    ->sum('quantity'), 2))->all()],
+            ];
+        }
+
+        return [
+            'currency' => $section === 'stock' ? '' : strtoupper($site->currency ?: 'CDF'),
+            'labels' => $labels,
+            'series' => $series,
+            'title' => [
+                'sales' => __('main.report_chart_sales'),
+                'receipts' => __('main.report_chart_receipts'),
+                'purchases' => __('main.report_chart_purchases'),
+                'treasury' => __('main.report_chart_treasury'),
+                'stock' => __('main.report_chart_stock'),
+            ][$section],
+        ];
+    }
+
+    private function accountingReportBuckets(Carbon $dateFrom, Carbon $dateTo, string $period)
+    {
+        $buckets = collect();
+        $cursor = $dateFrom->copy()->startOfDay();
+
+        while ($cursor->lte($dateTo)) {
+            $end = match ($period) {
+                'week' => $cursor->copy()->endOfDay(),
+                'year' => $cursor->copy()->endOfMonth(),
+                default => $cursor->copy()->addDays(6)->endOfDay(),
+            };
+            $end = $end->gt($dateTo) ? $dateTo->copy()->endOfDay() : $end;
+            $label = $period === 'year'
+                ? $cursor->translatedFormat('M')
+                : ($period === 'week' ? $cursor->translatedFormat('d M') : $cursor->translatedFormat('d M').' - '.$end->translatedFormat('d M'));
+
+            $buckets->push([
+                'start' => $cursor->toDateString(),
+                'end' => $end->toDateString(),
+                'label' => $label,
+            ]);
+            $cursor = $end->copy()->addDay()->startOfDay();
+        }
+
+        return $buckets;
+    }
+
+    private function accountingReportCsvHeaders(string $section): array
+    {
+        return match ($section) {
+            'receipts' => [__('main.date'), __('main.reference'), __('main.sales_invoices'), __('main.customer'), __('main.payment_method'), __('main.amount'), __('main.currency')],
+            'purchases' => [__('main.reference'), __('main.supplier'), __('main.purchase_date'), __('main.due_date'), __('main.total_ttc'), __('main.paid_total'), __('main.balance_due'), __('main.status')],
+            'treasury' => [__('main.date'), __('main.reference'), __('main.treasury_source'), __('main.type'), __('main.payment_method'), __('main.direction'), __('main.amount')],
+            'stock' => [__('main.reference'), __('main.items'), __('main.categories'), __('main.subcategories'), __('main.current_stock'), __('main.min_stock'), __('main.report_inventory_value')],
+            default => [__('main.reference'), __('main.customer'), __('main.date'), __('main.due_date'), __('main.total_ttc'), __('main.paid_total'), __('main.balance_due'), __('main.status')],
+        };
+    }
+
+    private function accountingReportCsvRow(string $section, Model $record): array
+    {
+        return match ($section) {
+            'receipts' => [
+                optional($record->payment_date)->format('d/m/Y'), $record->reference, $record->salesInvoice?->reference,
+                $record->salesInvoice?->client?->display_name, $record->paymentMethod?->name, number_format((float) $record->amount, 2, ',', ' '), $record->currency,
+            ],
+            'purchases' => [
+                $record->reference, $record->supplier?->name, optional($record->purchase_date)->format('d/m/Y'),
+                optional($record->due_date)->format('d/m/Y'), number_format((float) $record->total_ttc, 2, ',', ' '),
+                number_format((float) $record->paid_total, 2, ',', ' '), number_format((float) $record->balance_due, 2, ',', ' '),
+                $this->purchaseStatusLabels()[$record->status] ?? $record->status,
+            ],
+            'treasury' => [
+                optional($record->movement_date)->format('d/m/Y'), $record->reference, $record->source_reference ?: $record->label,
+                $this->accountingTreasuryMovementTypeLabels()[$record->movement_type] ?? $record->movement_type,
+                $record->paymentMethod?->name, $this->accountingTreasuryDirectionLabels()[$record->direction] ?? $record->direction,
+                number_format((float) $record->amount, 2, ',', ' '),
+            ],
+            'stock' => [
+                $record->reference, $record->name, $record->category?->name, $record->subcategory?->name,
+                number_format((float) $record->current_stock, 2, ',', ' '), number_format((float) $record->min_stock, 2, ',', ' '),
+                number_format((float) ($record->current_stock * $record->purchase_price), 2, ',', ' '),
+            ],
+            default => [
+                $record->reference, $record->client?->display_name, optional($record->invoice_date)->format('d/m/Y'),
+                optional($record->due_date)->format('d/m/Y'), number_format((float) $record->total_ttc, 2, ',', ' '),
+                number_format((float) $record->paid_total, 2, ',', ' '), number_format((float) $record->balance_due, 2, ',', ' '),
+                $this->salesInvoiceStatusLabels()[$record->status] ?? $record->status,
+            ],
+        };
+    }
+
+    public function accountingPurchaseOrders(Request $request, Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+        $search = $this->tableSearch($request);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingStockRecords($site);
+
+        $filters = [
+            'supplier_id' => (int) $request->integer('supplier_id'),
+            'status' => (string) $request->query('status', ''),
+            'currency' => (string) $request->query('currency', ''),
+            'date_from' => (string) $request->query('date_from', ''),
+            'date_to' => (string) $request->query('date_to', ''),
+        ];
+
+        $query = AccountingPurchaseOrder::query()
+            ->with(['supplier', 'purchase', 'lines'])
+            ->where('company_site_id', $site->id)
+            ->when($filters['supplier_id'] > 0, fn ($query) => $query->where('supplier_id', $filters['supplier_id']))
+            ->when($filters['status'] !== '', fn ($query) => $query->where('status', $filters['status']))
+            ->when($filters['currency'] !== '', fn ($query) => $query->where('currency', $filters['currency']))
+            ->when($filters['date_from'] !== '', fn ($query) => $query->whereDate('order_date', '>=', $filters['date_from']))
+            ->when($filters['date_to'] !== '', fn ($query) => $query->whereDate('order_date', '<=', $filters['date_to']))
+            ->when($search !== '', fn ($query) => $this->applyTableSearch($query, $search, [
+                'reference',
+                'supplier_reference',
+                'title',
+                'order_date',
+                'expected_delivery_date',
+                'currency',
+                'status',
+                'notes',
+                'terms',
+                $this->relationTableSearch('supplier', ['reference', 'name', 'email', 'phone', 'address']),
+            ]));
+
+        return view('main.modules.accounting-purchase-orders', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'purchaseOrderPermissions' => $this->sitePermissionFlags($user, $site),
+            'purchaseOrders' => (clone $query)->latest('order_date')->latest()->paginate(5)->withQueryString(),
+            'suppliers' => AccountingSupplier::query()->where('company_site_id', $site->id)->orderBy('name')->get(),
+            'currencies' => $this->siteCurrencyOptions($site),
+            'statusLabels' => $this->purchaseOrderStatusLabels(),
+            'filters' => $filters,
+        ]);
+    }
+
+    public function createAccountingPurchaseOrder(Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.purchase-orders', [$company, $site]);
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingStockRecords($site);
+
+        return view('main.modules.accounting-purchase-order-create', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'suppliers' => $this->purchaseSupplierOptions($site),
+            'items' => $this->purchaseItemOptions($site),
+            'services' => $this->purchaseServiceOptions($site),
+            'currencies' => $this->siteCurrencyOptions($site),
+            'statusLabels' => $this->purchaseOrderStatusLabels(),
+            'lineTypeLabels' => $this->purchaseOrderLineTypeLabels(),
+            'defaultTaxRate' => $this->defaultAccountingTaxRate($site, $company, AccountingTax::APPLIES_PURCHASES),
+        ]);
+    }
+
+    public function editAccountingPurchaseOrder(Company $company, CompanySite $site, AccountingPurchaseOrder $purchaseOrder): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        if ($purchaseOrder->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.purchase-orders', [$company, $site]);
+        }
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.purchase-orders', [$company, $site]);
+        }
+
+        if (! $purchaseOrder->isEditable()) {
+            return redirect()
+                ->route('main.accounting.purchase-orders', [$company, $site])
+                ->with('success', __('main.purchase_order_cannot_update'))
+                ->with('toast_type', 'danger');
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingStockRecords($site);
+
+        return view('main.modules.accounting-purchase-order-create', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'purchaseOrder' => $purchaseOrder->load('lines'),
+            'suppliers' => $this->purchaseSupplierOptions($site),
+            'items' => $this->purchaseItemOptions($site),
+            'services' => $this->purchaseServiceOptions($site),
+            'currencies' => $this->siteCurrencyOptions($site),
+            'statusLabels' => $this->purchaseOrderStatusLabels(),
+            'lineTypeLabels' => $this->purchaseOrderLineTypeLabels(),
+            'defaultTaxRate' => $this->defaultAccountingTaxRate($site, $company, AccountingTax::APPLIES_PURCHASES),
+        ]);
+    }
+
+    public function storeAccountingPurchaseOrder(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.purchase-orders', [$company, $site]);
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingStockRecords($site);
+
+        $validated = $request->validate($this->purchaseOrderRules($site));
+
+        DB::transaction(function () use ($site, $user, $validated): void {
+            $totals = $this->calculatePurchaseOrderTotals($validated['lines'], (float) $validated['tax_rate']);
+            $purchaseOrder = $site->accountingPurchaseOrders()->create($this->purchaseOrderPayload($validated, $user, $totals));
+            $this->syncPurchaseOrderLines($purchaseOrder, $site, $user, $validated['lines'], $validated['currency']);
+        });
+
+        return redirect()
+            ->route('main.accounting.purchase-orders', [$company, $site])
+            ->with('success', __('main.purchase_order_saved'));
+    }
+
+    public function updateAccountingPurchaseOrder(Request $request, Company $company, CompanySite $site, AccountingPurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ($purchaseOrder->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.purchase-orders', [$company, $site]);
+        }
+
+        if (! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.purchase-orders', [$company, $site]);
+        }
+
+        if (! $purchaseOrder->isEditable()) {
+            return redirect()
+                ->route('main.accounting.purchase-orders', [$company, $site])
+                ->with('success', __('main.purchase_order_cannot_update'))
+                ->with('toast_type', 'danger');
+        }
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingStockRecords($site);
+
+        $validated = $request->validate($this->purchaseOrderRules($site, true));
+
+        DB::transaction(function () use ($purchaseOrder, $site, $user, $validated): void {
+            $totals = $this->calculatePurchaseOrderTotals($validated['lines'], (float) $validated['tax_rate']);
+            $purchaseOrder->update($this->purchaseOrderPayload($validated, $user, $totals, false));
+            $this->syncPurchaseOrderLines($purchaseOrder, $site, $user, $validated['lines'], $validated['currency']);
+        });
+
+        return redirect()
+            ->route('main.accounting.purchase-orders', [$company, $site])
+            ->with('success', __('main.purchase_order_updated'));
+    }
+
+    public function convertAccountingPurchaseOrderToPurchase(Company $company, CompanySite $site, AccountingPurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ($purchaseOrder->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.purchase-orders', [$company, $site]);
+        }
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.purchase-orders', [$company, $site]);
+        }
+
+        if (! $purchaseOrder->isConvertible()) {
+            return redirect()
+                ->route('main.accounting.purchase-orders', [$company, $site])
+                ->with('success', __('main.purchase_order_cannot_convert'))
+                ->with('toast_type', 'danger');
+        }
+
+        DB::transaction(function () use ($purchaseOrder, $site, $user): void {
+            $purchaseOrder->load('lines');
+
+            $purchase = $site->accountingPurchases()->create([
+                'supplier_id' => $purchaseOrder->supplier_id,
+                'created_by' => $user->id,
+                'supplier_invoice_reference' => $purchaseOrder->reference,
+                'title' => $purchaseOrder->title,
+                'purchase_date' => now()->toDateString(),
+                'due_date' => null,
+                'currency' => $purchaseOrder->currency,
+                'status' => AccountingPurchase::STATUS_VALIDATED,
+                'subtotal' => $purchaseOrder->subtotal,
+                'discount_total' => $purchaseOrder->discount_total,
+                'total_ht' => $purchaseOrder->total_ht,
+                'tax_rate' => $purchaseOrder->tax_rate,
+                'tax_amount' => $purchaseOrder->tax_amount,
+                'total_ttc' => $purchaseOrder->total_ttc,
+                'paid_total' => 0,
+                'balance_due' => $purchaseOrder->total_ttc,
+                'notes' => $purchaseOrder->notes,
+                'terms' => $purchaseOrder->terms,
+            ]);
+
+            foreach ($purchaseOrder->lines as $line) {
+                $purchase->lines()->create([
+                    'line_type' => $line->line_type,
+                    'item_id' => $line->item_id,
+                    'service_id' => $line->service_id,
+                    'description' => $line->description,
+                    'details' => $line->details,
+                    'quantity' => $line->quantity,
+                    'unit_price' => $line->unit_price,
+                    'discount_type' => $line->discount_type,
+                    'discount_amount' => $line->discount_amount,
+                    'line_total' => $line->line_total,
+                ]);
+            }
+
+            $purchaseOrder->forceFill([
+                'purchase_id' => $purchase->id,
+                'status' => AccountingPurchaseOrder::STATUS_CONVERTED,
+                'converted_at' => now(),
+            ])->save();
+        });
+
+        return redirect()
+            ->route('main.accounting.purchases', [$company, $site])
+            ->with('success', __('main.purchase_order_converted'));
+    }
+
+    public function printAccountingPurchaseOrder(Company $company, CompanySite $site, AccountingPurchaseOrder $purchaseOrder): Response|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ($purchaseOrder->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.purchase-orders', [$company, $site]);
+        }
+
+        $purchaseOrder->load(['supplier', 'creator', 'lines.item.unit', 'lines.service.unit']);
+        $purchaseOrderUrl = route('main.accounting.purchase-orders.print', [$company, $site, $purchaseOrder]);
+
+        return Pdf::loadView('main.modules.accounting-purchase-order-print', [
+            'user' => $user,
+            'company' => $company->load(['subscription', 'accounts']),
+            'site' => $site->load('responsible'),
+            'purchaseOrder' => $purchaseOrder,
+            'purchaseOrderQrCodeDataUri' => $this->qrCodeSvgDataUri($purchaseOrderUrl),
+            'statusLabels' => $this->purchaseOrderStatusLabels(),
+            'isPdf' => true,
+        ])->setPaper('a4')->stream('bon-de-commande-'.$purchaseOrder->reference.'.pdf');
+    }
+
+    public function destroyAccountingPurchaseOrder(Company $company, CompanySite $site, AccountingPurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ($purchaseOrder->company_site_id !== $site->id) {
+            return redirect()->route('main.accounting.purchase-orders', [$company, $site]);
+        }
+
+        if (! $this->sitePermissionFlags($user, $site)['can_delete'] || ! $purchaseOrder->isEditable()) {
+            return redirect()
+                ->route('main.accounting.purchase-orders', [$company, $site])
+                ->with('success', __('main.purchase_order_cannot_delete'))
+                ->with('toast_type', 'danger');
+        }
+
+        $purchaseOrder->delete();
+
+        return redirect()
+            ->route('main.accounting.purchase-orders', [$company, $site])
+            ->with('success', __('main.purchase_order_deleted'))
             ->with('toast_type', 'danger');
     }
 
@@ -1676,7 +4031,7 @@ class MainController extends Controller
             'statusLabels' => $this->proformaStatusLabels(),
             'lineTypeLabels' => $this->proformaLineTypeLabels(),
             'paymentTermLabels' => $this->proformaPaymentTermLabels(),
-            'proformaDefaultTaxRate' => $this->companyCountryVatRate($company),
+            'proformaDefaultTaxRate' => $this->defaultAccountingTaxRate($site, $company, AccountingTax::APPLIES_SALES),
         ]);
     }
 
@@ -1709,7 +4064,7 @@ class MainController extends Controller
             'statusLabels' => $this->proformaStatusLabels(),
             'lineTypeLabels' => $this->proformaLineTypeLabels(),
             'paymentTermLabels' => $this->proformaPaymentTermLabels(),
-            'proformaDefaultTaxRate' => $this->companyCountryVatRate($company),
+            'proformaDefaultTaxRate' => $this->defaultAccountingTaxRate($site, $company, AccountingTax::APPLIES_SALES),
         ]);
     }
 
@@ -1809,7 +4164,7 @@ class MainController extends Controller
             'statusLabels' => $this->proformaStatusLabels(),
             'lineTypeLabels' => $this->proformaLineTypeLabels(),
             'paymentTermLabels' => $this->proformaPaymentTermLabels(),
-            'proformaDefaultTaxRate' => $this->companyCountryVatRate($company),
+            'proformaDefaultTaxRate' => $this->defaultAccountingTaxRate($site, $company, AccountingTax::APPLIES_SALES),
         ]);
     }
 
@@ -2115,7 +4470,7 @@ class MainController extends Controller
             'statusLabels' => $this->customerOrderStatusLabels(),
             'lineTypeLabels' => $this->customerOrderLineTypeLabels(),
             'paymentTermLabels' => $this->proformaPaymentTermLabels(),
-            'defaultTaxRate' => $this->companyCountryVatRate($company),
+            'defaultTaxRate' => $this->defaultAccountingTaxRate($site, $company, AccountingTax::APPLIES_SALES),
         ]);
     }
 
@@ -2153,7 +4508,7 @@ class MainController extends Controller
             'statusLabels' => $this->customerOrderStatusLabels(),
             'lineTypeLabels' => $this->customerOrderLineTypeLabels(),
             'paymentTermLabels' => $this->proformaPaymentTermLabels(),
-            'defaultTaxRate' => $this->companyCountryVatRate($company),
+            'defaultTaxRate' => $this->defaultAccountingTaxRate($site, $company, AccountingTax::APPLIES_SALES),
         ]);
     }
 
@@ -2838,6 +5193,790 @@ class MainController extends Controller
             ->with('toast_type', 'danger');
     }
 
+    public function accountingExpenses(Request $request, Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+        $search = $this->tableSearch($request);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingPaymentMethodRecord($site);
+        $this->ensureDefaultAccountingExpenseCategories($site);
+
+        $categoryId = (int) $request->query('expense_category_id', 0);
+        $paymentMethodId = (int) $request->query('payment_method_id', 0);
+        $status = trim((string) $request->query('status', ''));
+        $currency = strtoupper(trim((string) $request->query('currency', '')));
+        $dateFrom = trim((string) $request->query('date_from', ''));
+        $dateTo = trim((string) $request->query('date_to', ''));
+
+        $query = AccountingExpense::query()
+            ->with(['category', 'paymentMethod', 'creator'])
+            ->where('company_site_id', $site->id)
+            ->when($categoryId > 0, fn ($expenseQuery) => $expenseQuery->where('expense_category_id', $categoryId))
+            ->when($paymentMethodId > 0, fn ($expenseQuery) => $expenseQuery->where('payment_method_id', $paymentMethodId))
+            ->when($status !== '', fn ($expenseQuery) => $expenseQuery->where('status', $status))
+            ->when($currency !== '', fn ($expenseQuery) => $expenseQuery->where('currency', $currency))
+            ->when($dateFrom !== '', fn ($expenseQuery) => $expenseQuery->whereDate('expense_date', '>=', $dateFrom))
+            ->when($dateTo !== '', fn ($expenseQuery) => $expenseQuery->whereDate('expense_date', '<=', $dateTo))
+            ->when($search !== '', fn ($expenseQuery) => $this->applyTableSearch($expenseQuery, $search, [
+                'reference',
+                'expense_date',
+                'label',
+                'beneficiary',
+                'description',
+                'amount',
+                'currency',
+                'payment_reference',
+                'status',
+                $this->relationTableSearch('category', ['name', 'slug']),
+                $this->relationTableSearch('paymentMethod', ['name', 'currency_code', 'code']),
+                $this->relationTableSearch('creator', ['name', 'email']),
+            ]));
+
+        $expenses = (clone $query)
+            ->latest('expense_date')
+            ->latest()
+            ->paginate(5)
+            ->withQueryString();
+
+        return view('main.modules.accounting-expenses', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'expensePermissions' => $this->sitePermissionFlags($user, $site),
+            'expenses' => $expenses,
+            'totalValidated' => (float) (clone $query)->where('status', AccountingExpense::STATUS_VALIDATED)->sum('amount'),
+            'statusLabels' => $this->expenseStatusLabels(),
+            'categories' => AccountingExpenseCategory::query()
+                ->where('company_site_id', $site->id)
+                ->where('status', AccountingExpenseCategory::STATUS_ACTIVE)
+                ->orderByDesc('is_system_default')
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'paymentMethods' => AccountingPaymentMethod::query()
+                ->where('company_site_id', $site->id)
+                ->where('status', AccountingPaymentMethod::STATUS_ACTIVE)
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->get(['id', 'name', 'currency_code']),
+            'currencies' => $this->siteCurrencyOptions($site),
+            'filters' => [
+                'expense_category_id' => $categoryId,
+                'payment_method_id' => $paymentMethodId,
+                'status' => $status,
+                'currency' => $currency,
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+            ],
+        ]);
+    }
+
+    public function storeAccountingExpense(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.expenses', [$company, $site]);
+        }
+
+        $this->ensureDefaultAccountingExpenseCategories($site);
+        $validated = $request->validate($this->expenseRules($site));
+
+        $site->accountingExpenses()->create($this->expensePayload($validated, $user));
+
+        return redirect()
+            ->route('main.accounting.expenses', [$company, $site])
+            ->with('success', __('main.expense_saved'));
+    }
+
+    public function updateAccountingExpense(Request $request, Company $company, CompanySite $site, AccountingExpense $expense): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ((int) $expense->company_site_id !== (int) $site->id || ! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.expenses', [$company, $site]);
+        }
+
+        if (! $expense->isDraft()) {
+            return redirect()
+                ->route('main.accounting.expenses', [$company, $site])
+                ->with('success', __('main.expense_cannot_update'))
+                ->with('toast_type', 'danger');
+        }
+
+        $this->ensureDefaultAccountingExpenseCategories($site);
+        $validated = $request->validate($this->expenseRules($site));
+        $expense->update($this->expensePayload($validated, $user, false));
+
+        return redirect()
+            ->route('main.accounting.expenses', [$company, $site])
+            ->with('success', __('main.expense_updated'));
+    }
+
+    public function validateAccountingExpense(Company $company, CompanySite $site, AccountingExpense $expense): RedirectResponse
+    {
+        return $this->changeAccountingExpenseStatus($company, $site, $expense, AccountingExpense::STATUS_VALIDATED, __('main.expense_validated'));
+    }
+
+    public function cancelAccountingExpense(Company $company, CompanySite $site, AccountingExpense $expense): RedirectResponse
+    {
+        return $this->changeAccountingExpenseStatus($company, $site, $expense, AccountingExpense::STATUS_CANCELLED, __('main.expense_cancelled'));
+    }
+
+    public function destroyAccountingExpense(Company $company, CompanySite $site, AccountingExpense $expense): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ((int) $expense->company_site_id !== (int) $site->id || ! $this->sitePermissionFlags($user, $site)['can_delete']) {
+            return redirect()->route('main.accounting.expenses', [$company, $site]);
+        }
+
+        if (! $expense->isDraft()) {
+            return redirect()
+                ->route('main.accounting.expenses', [$company, $site])
+                ->with('success', __('main.expense_cannot_delete'))
+                ->with('toast_type', 'danger');
+        }
+
+        $expense->delete();
+
+        return redirect()
+            ->route('main.accounting.expenses', [$company, $site])
+            ->with('success', __('main.expense_deleted'))
+            ->with('toast_type', 'danger');
+    }
+
+    public function accountingDebts(Request $request, Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+        $search = Str::lower($this->tableSearch($request));
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingPaymentMethodRecord($site);
+        $this->refreshOverdueAccountingPurchases($site);
+
+        $source = trim((string) $request->query('source', ''));
+        $status = trim((string) $request->query('status', ''));
+        $currency = strtoupper(trim((string) $request->query('currency', '')));
+        $dateFrom = trim((string) $request->query('date_from', ''));
+        $dateTo = trim((string) $request->query('date_to', ''));
+
+        $creditorsQuery = AccountingCreditor::query()
+            ->with(['payments.paymentMethod', 'payments.payer'])
+            ->where('company_site_id', $site->id)
+            ->when($currency !== '', fn ($query) => $query->where('currency', $currency))
+            ->when($status !== '', fn ($query) => $query->where('status', $status))
+            ->when($dateFrom !== '', fn ($query) => $query->whereDate('due_date', '>=', $dateFrom))
+            ->when($dateTo !== '', fn ($query) => $query->whereDate('due_date', '<=', $dateTo));
+
+        $purchasesQuery = AccountingPurchase::query()
+            ->with(['supplier', 'payments.paymentMethod', 'payments.payer'])
+            ->where('company_site_id', $site->id)
+            ->where('balance_due', '>', 0)
+            ->when($currency !== '', fn ($query) => $query->where('currency', $currency))
+            ->when($status !== '', fn ($query) => $query->where('status', $status))
+            ->when($dateFrom !== '', fn ($query) => $query->whereDate('due_date', '>=', $dateFrom))
+            ->when($dateTo !== '', fn ($query) => $query->whereDate('due_date', '<=', $dateTo));
+
+        $manualDebts = $source === 'purchase' ? collect() : $creditorsQuery->get();
+        $purchaseDebts = $source === 'manual' ? collect() : $purchasesQuery->get();
+
+        $rows = $manualDebts
+            ->map(fn (AccountingCreditor $creditor) => [
+                'source' => 'manual',
+                'id' => $creditor->id,
+                'reference' => $creditor->reference,
+                'third_party' => $creditor->name,
+                'type' => $this->accountingCreditorTypeLabels()[$creditor->type] ?? $creditor->type,
+                'date' => optional($creditor->created_at)->format('Y-m-d'),
+                'due_date' => optional($creditor->due_date)->format('Y-m-d'),
+                'total' => (float) $creditor->initial_amount,
+                'paid' => (float) $creditor->paid_amount,
+                'balance' => $creditor->balanceDue(),
+                'currency' => $creditor->currency,
+                'status' => $this->accountingCreditorStatusLabels()[$creditor->status] ?? $creditor->status,
+                'raw_status' => $creditor->status,
+                'model' => $creditor,
+            ])
+            ->merge($purchaseDebts->map(fn (AccountingPurchase $purchase) => [
+                'source' => 'purchase',
+                'id' => $purchase->id,
+                'reference' => $purchase->reference,
+                'third_party' => $purchase->supplier?->name ?? '-',
+                'type' => __('main.supplier_purchase'),
+                'date' => optional($purchase->purchase_date)->format('Y-m-d'),
+                'due_date' => optional($purchase->due_date)->format('Y-m-d'),
+                'total' => (float) $purchase->total_ttc,
+                'paid' => (float) $purchase->paid_total,
+                'balance' => (float) $purchase->balance_due,
+                'currency' => $purchase->currency,
+                'status' => $this->purchaseStatusLabels()[$purchase->status] ?? $purchase->status,
+                'raw_status' => $purchase->status,
+                'model' => $purchase,
+            ]));
+
+        if ($search !== '') {
+            $rows = $rows->filter(fn (array $row) => Str::contains(Str::lower(implode(' ', [
+                $row['reference'],
+                $row['third_party'],
+                $row['type'],
+                $row['status'],
+                $row['currency'],
+            ])), $search));
+        }
+
+        $rows = $rows->sortBy([
+            fn (array $a, array $b) => strcmp($a['due_date'] ?: '9999-12-31', $b['due_date'] ?: '9999-12-31'),
+            fn (array $a, array $b) => strcmp($b['reference'], $a['reference']),
+        ])->values();
+
+        $page = \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage();
+        $perPage = 5;
+        $debts = new \Illuminate\Pagination\LengthAwarePaginator(
+            $rows->forPage($page, $perPage)->values(),
+            $rows->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        $totalBalance = (float) $rows->sum('balance');
+        $overdueBalance = (float) $rows
+            ->filter(fn (array $row) => filled($row['due_date']) && $row['due_date'] < now()->toDateString() && (float) $row['balance'] > 0)
+            ->sum('balance');
+
+        return view('main.modules.accounting-debts', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'debtPermissions' => $this->sitePermissionFlags($user, $site),
+            'debts' => $debts,
+            'manualDebts' => $manualDebts,
+            'purchaseDebts' => $purchaseDebts,
+            'existingCreditors' => AccountingCreditor::query()
+                ->where('company_site_id', $site->id)
+                ->orderBy('name')
+                ->get(['id', 'reference', 'type', 'name', 'phone', 'email', 'address', 'currency'])
+                ->unique(fn (AccountingCreditor $creditor) => implode('|', [
+                    $creditor->type,
+                    Str::lower($creditor->name),
+                    Str::lower((string) $creditor->phone),
+                    Str::lower((string) $creditor->email),
+                    Str::lower((string) $creditor->address),
+                    $creditor->currency,
+                ]))
+                ->values(),
+            'totalBalance' => $totalBalance,
+            'overdueBalance' => $overdueBalance,
+            'currencies' => $this->siteCurrencyOptions($site),
+            'allCurrencies' => CurrencyCatalog::sorted(),
+            'paymentMethods' => AccountingPaymentMethod::query()
+                ->where('company_site_id', $site->id)
+                ->where('status', AccountingPaymentMethod::STATUS_ACTIVE)
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->get(['id', 'name', 'currency_code']),
+            'typeLabels' => $this->accountingCreditorTypeLabels(),
+            'priorityLabels' => $this->accountingCreditorPriorityLabels(),
+            'statusLabels' => $this->accountingCreditorStatusLabels(),
+            'purchaseStatusLabels' => $this->purchaseStatusLabels(),
+            'filters' => compact('source', 'status', 'currency', 'dateFrom', 'dateTo'),
+        ]);
+    }
+
+    public function storeAccountingDebt(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.debts', [$company, $site]);
+        }
+
+        $validated = $request->validate($this->accountingCreditorRules());
+        $existingCreditorId = (int) ($validated['existing_creditor_id'] ?? 0);
+
+        if ($existingCreditorId > 0) {
+            $creditor = AccountingCreditor::query()
+                ->where('company_site_id', $site->id)
+                ->find($existingCreditorId);
+
+            if (! $creditor) {
+                return redirect()
+                    ->route('main.accounting.debts', [$company, $site])
+                    ->withErrors(['existing_creditor_id' => __('main.existing_creditor_not_found')])
+                    ->withInput();
+            }
+
+            if ($creditor->currency !== $validated['currency']) {
+                return redirect()
+                    ->route('main.accounting.debts', [$company, $site])
+                    ->withErrors(['currency' => __('main.existing_creditor_currency_mismatch')])
+                    ->withInput();
+            }
+
+            $site->accountingCreditors()->create([
+                'created_by' => $user->id,
+                'type' => $creditor->type,
+                'name' => $creditor->name,
+                'phone' => $creditor->phone,
+                'email' => $creditor->email,
+                'address' => $creditor->address,
+                'currency' => $creditor->currency,
+                'initial_amount' => round((float) $validated['initial_amount'], 2),
+                'paid_amount' => round((float) $validated['paid_amount'], 2),
+                'due_date' => $validated['due_date'] ?? null,
+                'description' => $validated['description'] ?? null,
+                'priority' => $validated['priority'],
+                'status' => (float) $validated['paid_amount'] >= (float) $validated['initial_amount']
+                    ? AccountingCreditor::STATUS_SETTLED
+                    : $validated['status'],
+            ]);
+
+            return redirect()
+                ->route('main.accounting.debts', [$company, $site])
+                ->with('success', __('main.debt_added_to_existing_creditor'));
+        }
+
+        $payload = $this->accountingCreditorPayload($validated, $user);
+        unset($payload['existing_creditor_id']);
+
+        $site->accountingCreditors()->create($payload);
+
+        return redirect()
+            ->route('main.accounting.debts', [$company, $site])
+            ->with('success', __('main.debt_saved'));
+    }
+
+    public function updateAccountingDebt(Request $request, Company $company, CompanySite $site, AccountingCreditor $creditor): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ((int) $creditor->company_site_id !== (int) $site->id || ! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.debts', [$company, $site]);
+        }
+
+        $validated = $request->validate($this->accountingCreditorRules());
+        $creditor->update($this->accountingCreditorPayload($validated, $user, false));
+
+        return redirect()
+            ->route('main.accounting.debts', [$company, $site])
+            ->with('success', __('main.debt_updated'));
+    }
+
+    public function storeAccountingDebtPayment(Request $request, Company $company, CompanySite $site, AccountingCreditor $creditor): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ((int) $creditor->company_site_id !== (int) $site->id || ! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.debts', [$company, $site]);
+        }
+
+        $validated = $request->validate($this->creditorPaymentRules($site, $creditor));
+
+        DB::transaction(function () use ($creditor, $validated, $user): void {
+            $creditor->payments()->create([
+                'payment_method_id' => $validated['payment_method_id'],
+                'paid_by' => $user->id,
+                'payment_date' => $validated['payment_date'],
+                'amount' => round((float) $validated['amount'], 2),
+                'currency' => $creditor->currency,
+                'reference' => $validated['reference'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+            ]);
+
+            $paidAmount = round((float) $creditor->paid_amount + (float) $validated['amount'], 2);
+            $creditor->update([
+                'paid_amount' => $paidAmount,
+                'status' => $paidAmount >= (float) $creditor->initial_amount
+                    ? AccountingCreditor::STATUS_SETTLED
+                    : AccountingCreditor::STATUS_ACTIVE,
+            ]);
+        });
+
+        return redirect()
+            ->route('main.accounting.debts', [$company, $site])
+            ->with('success', __('main.debt_payment_saved'));
+    }
+
+    public function destroyAccountingDebt(Company $company, CompanySite $site, AccountingCreditor $creditor): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ((int) $creditor->company_site_id !== (int) $site->id || ! $this->sitePermissionFlags($user, $site)['can_delete']) {
+            return redirect()->route('main.accounting.debts', [$company, $site]);
+        }
+
+        if ($creditor->payments()->exists()) {
+            return redirect()
+                ->route('main.accounting.debts', [$company, $site])
+                ->with('success', __('main.debt_with_payments_cannot_delete'))
+                ->with('toast_type', 'danger');
+        }
+
+        $creditor->delete();
+
+        return redirect()
+            ->route('main.accounting.debts', [$company, $site])
+            ->with('success', __('main.debt_deleted'))
+            ->with('toast_type', 'danger');
+    }
+
+    public function accountingReceivables(Request $request, Company $company, CompanySite $site): View|RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+        $search = Str::lower($this->tableSearch($request));
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user, $moduleMeta] = $access;
+
+        $this->ensureDefaultAccountingCurrencyRecord($site);
+        $this->ensureDefaultAccountingPaymentMethodRecord($site);
+        $this->refreshOverdueSalesInvoices($site);
+
+        $source = trim((string) $request->query('source', ''));
+        $status = trim((string) $request->query('status', ''));
+        $currency = strtoupper(trim((string) $request->query('currency', '')));
+        $dateFrom = trim((string) $request->query('date_from', ''));
+        $dateTo = trim((string) $request->query('date_to', ''));
+
+        $debtorsQuery = AccountingDebtor::query()
+            ->with(['payments.paymentMethod', 'payments.receiver'])
+            ->where('company_site_id', $site->id)
+            ->when($currency !== '', fn ($query) => $query->where('currency', $currency))
+            ->when($status !== '', fn ($query) => $query->where('status', $status))
+            ->when($dateFrom !== '', fn ($query) => $query->whereDate('due_date', '>=', $dateFrom))
+            ->when($dateTo !== '', fn ($query) => $query->whereDate('due_date', '<=', $dateTo));
+
+        $invoicesQuery = AccountingSalesInvoice::query()
+            ->with(['client', 'payments.paymentMethod', 'payments.receiver'])
+            ->where('company_site_id', $site->id)
+            ->where('balance_due', '>', 0)
+            ->when($currency !== '', fn ($query) => $query->where('currency', $currency))
+            ->when($status !== '', fn ($query) => $query->where('status', $status))
+            ->when($dateFrom !== '', fn ($query) => $query->whereDate('due_date', '>=', $dateFrom))
+            ->when($dateTo !== '', fn ($query) => $query->whereDate('due_date', '<=', $dateTo));
+
+        $manualReceivables = $source === 'invoice' ? collect() : $debtorsQuery->get();
+        $invoiceReceivables = $source === 'manual' ? collect() : $invoicesQuery->get();
+
+        $rows = $manualReceivables
+            ->map(fn (AccountingDebtor $debtor) => [
+                'source' => 'manual',
+                'id' => $debtor->id,
+                'reference' => $debtor->reference,
+                'third_party' => $debtor->name,
+                'type' => $this->accountingDebtorTypeLabels()[$debtor->type] ?? $debtor->type,
+                'date' => optional($debtor->created_at)->format('Y-m-d'),
+                'due_date' => optional($debtor->due_date)->format('Y-m-d'),
+                'total' => (float) $debtor->initial_amount,
+                'received' => (float) $debtor->received_amount,
+                'balance' => $debtor->balanceReceivable(),
+                'currency' => $debtor->currency,
+                'status' => $this->accountingDebtorStatusLabels()[$debtor->status] ?? $debtor->status,
+                'raw_status' => $debtor->status,
+                'model' => $debtor,
+            ])
+            ->merge($invoiceReceivables->map(fn (AccountingSalesInvoice $invoice) => [
+                'source' => 'invoice',
+                'id' => $invoice->id,
+                'reference' => $invoice->reference,
+                'third_party' => $invoice->client?->name ?? '-',
+                'type' => __('main.sales_invoice'),
+                'date' => optional($invoice->invoice_date)->format('Y-m-d'),
+                'due_date' => optional($invoice->due_date)->format('Y-m-d'),
+                'total' => (float) $invoice->total_ttc,
+                'received' => (float) $invoice->paid_total,
+                'balance' => (float) $invoice->balance_due,
+                'currency' => $invoice->currency,
+                'status' => $this->salesInvoiceStatusLabels()[$invoice->status] ?? $invoice->status,
+                'raw_status' => $invoice->status,
+                'model' => $invoice,
+            ]));
+
+        if ($search !== '') {
+            $rows = $rows->filter(fn (array $row) => Str::contains(Str::lower(implode(' ', [
+                $row['reference'],
+                $row['third_party'],
+                $row['type'],
+                $row['status'],
+                $row['currency'],
+            ])), $search));
+        }
+
+        $rows = $rows->sortBy([
+            fn (array $a, array $b) => strcmp($a['due_date'] ?: '9999-12-31', $b['due_date'] ?: '9999-12-31'),
+            fn (array $a, array $b) => strcmp($b['reference'], $a['reference']),
+        ])->values();
+
+        $page = \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage();
+        $perPage = 5;
+        $receivables = new \Illuminate\Pagination\LengthAwarePaginator(
+            $rows->forPage($page, $perPage)->values(),
+            $rows->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return view('main.modules.accounting-receivables', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'receivablePermissions' => $this->sitePermissionFlags($user, $site),
+            'receivables' => $receivables,
+            'manualReceivables' => $manualReceivables,
+            'invoiceReceivables' => $invoiceReceivables,
+            'existingDebtors' => AccountingDebtor::query()
+                ->where('company_site_id', $site->id)
+                ->orderBy('name')
+                ->get(['id', 'reference', 'type', 'name', 'phone', 'email', 'address', 'currency'])
+                ->unique(fn (AccountingDebtor $debtor) => implode('|', [
+                    $debtor->type,
+                    Str::lower($debtor->name),
+                    Str::lower((string) $debtor->phone),
+                    Str::lower((string) $debtor->email),
+                    Str::lower((string) $debtor->address),
+                    $debtor->currency,
+                ]))
+                ->values(),
+            'totalBalance' => (float) $rows->sum('balance'),
+            'currencies' => $this->siteCurrencyOptions($site),
+            'paymentMethods' => AccountingPaymentMethod::query()
+                ->where('company_site_id', $site->id)
+                ->where('status', AccountingPaymentMethod::STATUS_ACTIVE)
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->get(['id', 'name', 'currency_code']),
+            'typeLabels' => $this->accountingDebtorTypeLabels(),
+            'statusLabels' => $this->accountingDebtorStatusLabels(),
+            'invoiceStatusLabels' => $this->salesInvoiceStatusLabels(),
+            'filters' => compact('source', 'status', 'currency', 'dateFrom', 'dateTo'),
+        ]);
+    }
+
+    public function storeAccountingReceivable(Request $request, Company $company, CompanySite $site): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if (! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.receivables', [$company, $site]);
+        }
+
+        $validated = $request->validate($this->accountingDebtorRules());
+        $existingDebtorId = (int) ($validated['existing_debtor_id'] ?? 0);
+
+        if ($existingDebtorId > 0) {
+            $debtor = AccountingDebtor::query()
+                ->where('company_site_id', $site->id)
+                ->find($existingDebtorId);
+
+            if (! $debtor) {
+                return redirect()
+                    ->route('main.accounting.receivables', [$company, $site])
+                    ->withErrors(['existing_debtor_id' => __('main.existing_debtor_not_found')])
+                    ->withInput();
+            }
+
+            if ($debtor->currency !== $validated['currency']) {
+                return redirect()
+                    ->route('main.accounting.receivables', [$company, $site])
+                    ->withErrors(['currency' => __('main.existing_debtor_currency_mismatch')])
+                    ->withInput();
+            }
+
+            $site->accountingDebtors()->create([
+                'created_by' => $user->id,
+                'type' => $debtor->type,
+                'name' => $debtor->name,
+                'phone' => $debtor->phone,
+                'email' => $debtor->email,
+                'address' => $debtor->address,
+                'currency' => $debtor->currency,
+                'initial_amount' => round((float) $validated['initial_amount'], 2),
+                'received_amount' => round((float) $validated['received_amount'], 2),
+                'due_date' => $validated['due_date'] ?? null,
+                'description' => $validated['description'] ?? null,
+                'status' => (float) $validated['received_amount'] >= (float) $validated['initial_amount']
+                    ? AccountingDebtor::STATUS_SETTLED
+                    : $validated['status'],
+            ]);
+
+            return redirect()
+                ->route('main.accounting.receivables', [$company, $site])
+                ->with('success', __('main.receivable_added_to_existing_debtor'));
+        }
+
+        $payload = $this->accountingDebtorPayload($validated, $user);
+        unset($payload['existing_debtor_id']);
+
+        $site->accountingDebtors()->create($payload);
+
+        return redirect()
+            ->route('main.accounting.receivables', [$company, $site])
+            ->with('success', __('main.receivable_saved'));
+    }
+
+    public function updateAccountingReceivable(Request $request, Company $company, CompanySite $site, AccountingDebtor $debtor): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ((int) $debtor->company_site_id !== (int) $site->id || ! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.receivables', [$company, $site]);
+        }
+
+        $validated = $request->validate($this->accountingDebtorRules());
+        $debtor->update($this->accountingDebtorPayload($validated, $user, false));
+
+        return redirect()
+            ->route('main.accounting.receivables', [$company, $site])
+            ->with('success', __('main.receivable_updated'));
+    }
+
+    public function storeAccountingReceivablePayment(Request $request, Company $company, CompanySite $site, AccountingDebtor $debtor): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ((int) $debtor->company_site_id !== (int) $site->id || ! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.receivables', [$company, $site]);
+        }
+
+        $validated = $request->validate($this->debtorPaymentRules($site, $debtor));
+
+        DB::transaction(function () use ($debtor, $validated, $user): void {
+            $debtor->payments()->create([
+                'payment_method_id' => $validated['payment_method_id'],
+                'received_by' => $user->id,
+                'payment_date' => $validated['payment_date'],
+                'amount' => round((float) $validated['amount'], 2),
+                'currency' => $debtor->currency,
+                'reference' => $validated['reference'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+            ]);
+
+            $receivedAmount = round((float) $debtor->received_amount + (float) $validated['amount'], 2);
+            $debtor->update([
+                'received_amount' => $receivedAmount,
+                'status' => $receivedAmount >= (float) $debtor->initial_amount
+                    ? AccountingDebtor::STATUS_SETTLED
+                    : AccountingDebtor::STATUS_ACTIVE,
+            ]);
+        });
+
+        return redirect()
+            ->route('main.accounting.receivables', [$company, $site])
+            ->with('success', __('main.receivable_payment_saved'));
+    }
+
+    public function destroyAccountingReceivable(Company $company, CompanySite $site, AccountingDebtor $debtor): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ((int) $debtor->company_site_id !== (int) $site->id || ! $this->sitePermissionFlags($user, $site)['can_delete']) {
+            return redirect()->route('main.accounting.receivables', [$company, $site]);
+        }
+
+        if ($debtor->payments()->exists()) {
+            return redirect()
+                ->route('main.accounting.receivables', [$company, $site])
+                ->with('success', __('main.receivable_with_payments_cannot_delete'))
+                ->with('toast_type', 'danger');
+        }
+
+        $debtor->delete();
+
+        return redirect()
+            ->route('main.accounting.receivables', [$company, $site])
+            ->with('success', __('main.receivable_deleted'))
+            ->with('toast_type', 'danger');
+    }
+
     public function accountingPurchases(Request $request, Company $company, CompanySite $site): View|RedirectResponse
     {
         $access = $this->accountingAccess($company, $site);
@@ -2950,7 +6089,7 @@ class MainController extends Controller
             'currencies' => $this->siteCurrencyOptions($site),
             'statusLabels' => $this->purchaseStatusLabels(),
             'lineTypeLabels' => $this->purchaseLineTypeLabels(),
-            'defaultTaxRate' => $this->companyCountryVatRate($company),
+            'defaultTaxRate' => $this->defaultAccountingTaxRate($site, $company, AccountingTax::APPLIES_PURCHASES),
         ]);
     }
 
@@ -2991,7 +6130,7 @@ class MainController extends Controller
             'currencies' => $this->siteCurrencyOptions($site),
             'statusLabels' => $this->purchaseStatusLabels(),
             'lineTypeLabels' => $this->purchaseLineTypeLabels(),
-            'defaultTaxRate' => $this->companyCountryVatRate($company),
+            'defaultTaxRate' => $this->defaultAccountingTaxRate($site, $company, AccountingTax::APPLIES_PURCHASES),
         ]);
     }
 
@@ -3065,6 +6204,9 @@ class MainController extends Controller
     public function storeAccountingPurchasePayment(Request $request, Company $company, CompanySite $site, AccountingPurchase $purchase): RedirectResponse
     {
         $access = $this->accountingAccess($company, $site);
+        $returnRoute = $request->input('return_to') === 'debts'
+            ? 'main.accounting.debts'
+            : 'main.accounting.purchases';
 
         if ($access instanceof RedirectResponse) {
             return $access;
@@ -3073,12 +6215,12 @@ class MainController extends Controller
         [$user] = $access;
 
         if ((int) $purchase->company_site_id !== (int) $site->id || ! $this->sitePermissionFlags($user, $site)['can_update']) {
-            return redirect()->route('main.accounting.purchases', [$company, $site]);
+            return redirect()->route($returnRoute, [$company, $site]);
         }
 
         if (in_array($purchase->status, [AccountingPurchase::STATUS_DRAFT, AccountingPurchase::STATUS_CANCELLED, AccountingPurchase::STATUS_PAID], true)) {
             return redirect()
-                ->route('main.accounting.purchases', [$company, $site])
+                ->route($returnRoute, [$company, $site])
                 ->with('success', __('main.purchase_payment_blocked'))
                 ->with('toast_type', 'danger');
         }
@@ -3116,7 +6258,7 @@ class MainController extends Controller
         });
 
         return redirect()
-            ->route('main.accounting.purchases', [$company, $site])
+            ->route($returnRoute, [$company, $site])
             ->with('success', __('main.purchase_payment_saved'));
     }
 
@@ -3257,7 +6399,7 @@ class MainController extends Controller
             'currencies' => $this->siteCurrencyOptions($site),
             'invoiceStatusLabels' => $this->salesInvoiceStatusLabels(),
             'lineTypeLabels' => $this->salesInvoiceLineTypeLabels(),
-            'defaultTaxRate' => $this->companyCountryVatRate($company),
+            'defaultTaxRate' => $this->defaultAccountingTaxRate($site, $company, AccountingTax::APPLIES_SALES),
             'filters' => [
                 'currency' => $currency,
                 'date_from' => $dateFrom,
@@ -3587,7 +6729,7 @@ class MainController extends Controller
             'statusLabels' => $this->salesInvoiceStatusLabels(),
             'lineTypeLabels' => $this->salesInvoiceLineTypeLabels(),
             'paymentTermLabels' => $this->proformaPaymentTermLabels(),
-            'defaultTaxRate' => $this->companyCountryVatRate($company),
+            'defaultTaxRate' => $this->defaultAccountingTaxRate($site, $company, AccountingTax::APPLIES_SALES),
         ]);
     }
 
@@ -3634,7 +6776,7 @@ class MainController extends Controller
             'statusLabels' => $this->salesInvoiceStatusLabels(),
             'lineTypeLabels' => $this->salesInvoiceLineTypeLabels(),
             'paymentTermLabels' => $this->proformaPaymentTermLabels(),
-            'defaultTaxRate' => $this->companyCountryVatRate($company),
+            'defaultTaxRate' => $this->defaultAccountingTaxRate($site, $company, AccountingTax::APPLIES_SALES),
         ]);
     }
 
@@ -3752,6 +6894,9 @@ class MainController extends Controller
     public function storeAccountingSalesInvoicePayment(Request $request, Company $company, CompanySite $site, AccountingSalesInvoice $invoice): RedirectResponse
     {
         $access = $this->accountingAccess($company, $site);
+        $returnRoute = $request->input('return_to') === 'receivables'
+            ? 'main.accounting.receivables'
+            : 'main.accounting.sales-invoices';
 
         if ($access instanceof RedirectResponse) {
             return $access;
@@ -3760,16 +6905,16 @@ class MainController extends Controller
         [$user] = $access;
 
         if ($invoice->company_site_id !== $site->id) {
-            return redirect()->route('main.accounting.sales-invoices', [$company, $site]);
+            return redirect()->route($returnRoute, [$company, $site]);
         }
 
         if (! $this->sitePermissionFlags($user, $site)['can_update']) {
-            return redirect()->route('main.accounting.sales-invoices', [$company, $site]);
+            return redirect()->route($returnRoute, [$company, $site]);
         }
 
         if (in_array($invoice->status, [AccountingSalesInvoice::STATUS_CANCELLED, AccountingSalesInvoice::STATUS_PAID], true)) {
             return redirect()
-                ->route('main.accounting.sales-invoices', [$company, $site])
+                ->route($returnRoute, [$company, $site])
                 ->with('success', __('main.sales_invoice_payment_blocked'))
                 ->with('toast_type', 'danger');
         }
@@ -3807,7 +6952,7 @@ class MainController extends Controller
         });
 
         return redirect()
-            ->route('main.accounting.sales-invoices', [$company, $site])
+            ->route($returnRoute, [$company, $site])
             ->with('success', __('main.sales_invoice_payment_saved'));
     }
 
@@ -4628,6 +7773,42 @@ class MainController extends Controller
         ];
     }
 
+    private function canOpenAccountingNotificationModule(User&Authenticatable $user, CompanySite $site, ?string $moduleKey): bool
+    {
+        if (! $moduleKey || ! in_array($moduleKey, AccountingModuleNavigation::keys(), true)) {
+            return false;
+        }
+
+        if ($user->isAdmin() || $user->isSuperadmin()) {
+            return true;
+        }
+
+        $permissions = AccountingMenuPermission::query()
+            ->where('company_site_id', $site->id)
+            ->where('user_id', $user->id)
+            ->get();
+
+        return $permissions->isEmpty()
+            || $permissions->where('menu_key', $moduleKey)->where('is_allowed', true)->isNotEmpty();
+    }
+
+    private function accountingModuleLabel(?string $moduleKey): string
+    {
+        if (! $moduleKey) {
+            return '-';
+        }
+
+        foreach ($this->accountingSettingsMenuGroups() as $group) {
+            foreach ($group['items'] as $item) {
+                if (($item['key'] ?? null) === $moduleKey) {
+                    return $item['label'];
+                }
+            }
+        }
+
+        return Str::headline(str_replace('-', ' ', $moduleKey));
+    }
+
     private function redirectMainArea(User&Authenticatable $user): RedirectResponse
     {
         if ($user->isUser()) {
@@ -4695,6 +7876,78 @@ class MainController extends Controller
             'can_update' => (bool) $assignedSite?->pivot->can_update,
             'can_delete' => (bool) $assignedSite?->pivot->can_delete,
         ];
+    }
+
+    private function accountingSettingsMenuGroups(): array
+    {
+        $labels = [
+            'dashboard' => __('main.dashboard'),
+            'prospects' => __('main.prospects'),
+            'clients' => __('main.customers'),
+            'suppliers' => __('main.suppliers'),
+            'creditors' => __('main.creditors'),
+            'debtors' => __('main.debtors'),
+            'partners' => __('main.partners'),
+            'sales-representatives' => __('main.sales_representatives'),
+            'stock-items' => __('main.items'),
+            'stock-categories' => __('main.categories'),
+            'stock-subcategories' => __('main.subcategories'),
+            'stock-warehouses' => __('main.stock_warehouses'),
+            'stock-movements' => __('main.stock_movements'),
+            'stock-inventories' => __('main.stock_inventories'),
+            'stock-alerts' => __('main.stock_alerts'),
+            'stock-units' => __('main.stock_units'),
+            'stock-batches' => __('main.stock_batches'),
+            'stock-transfers' => __('main.stock_transfers'),
+            'service-price-list' => __('main.price_list'),
+            'service-categories' => __('main.service_categories'),
+            'service-subcategories' => __('main.service_subcategories'),
+            'service-units' => __('main.service_units'),
+            'service-recurring' => __('main.recurring_services'),
+            'currencies' => __('main.currencies'),
+            'payment-methods' => __('main.payment_methods'),
+            'taxes' => __('main.taxes'),
+            'proforma-invoices' => __('main.proforma_invoices'),
+            'customer-orders' => __('main.customer_orders'),
+            'delivery-notes' => __('main.delivery_notes'),
+            'sales-invoices' => __('main.sales_invoices'),
+            'credit-notes' => __('main.credit_notes'),
+            'receipts' => __('main.payments_received'),
+            'cash-register' => __('main.cash_register'),
+            'other-incomes' => __('main.other_income'),
+            'purchases' => __('main.purchases'),
+            'purchase-orders' => __('main.purchase_orders'),
+            'expenses' => __('main.expenses'),
+            'debts' => __('main.debts'),
+            'receivables' => __('main.receivables'),
+            'treasury' => __('main.cashflow'),
+            'bank-reconciliations' => __('main.bank_reconciliation'),
+            'payment-reminders' => __('main.payment_reminders'),
+            'tasks' => __('main.tasks'),
+            'reports' => __('main.reports'),
+        ];
+        $groupLabels = [
+            'overview' => __('main.dashboard'),
+            'contacts' => __('main.contacts'),
+            'stock' => __('main.stock'),
+            'services' => __('main.services'),
+            'setup' => __('main.module_configuration'),
+            'sales' => __('main.sales'),
+            'expenses' => __('main.expenses_group'),
+            'monitoring' => __('main.other'),
+        ];
+
+        return collect(AccountingModuleNavigation::GROUPS)
+            ->mapWithKeys(fn (array $keys, string $group): array => [
+                $group => [
+                    'label' => $groupLabels[$group],
+                    'items' => collect($keys)->map(fn (string $key): array => [
+                        'key' => $key,
+                        'label' => $labels[$key],
+                    ])->all(),
+                ],
+            ])
+            ->all();
     }
 
     private function canManageSubscriptionUser(User&Authenticatable $admin, User $account): bool
@@ -4933,6 +8186,7 @@ class MainController extends Controller
     private function accountingCreditorRules(): array
     {
         return [
+            'existing_creditor_id' => ['nullable', 'integer'],
             'type' => ['required', 'string', Rule::in(AccountingCreditor::types())],
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
@@ -4950,9 +8204,23 @@ class MainController extends Controller
         ];
     }
 
+    private function creditorPaymentRules(CompanySite $site, AccountingCreditor $creditor): array
+    {
+        $balanceDue = round($creditor->balanceDue(), 2);
+
+        return [
+            'payment_method_id' => ['required', 'integer', Rule::exists('accounting_payment_methods', 'id')->where('company_site_id', $site->id)],
+            'payment_date' => ['required', 'date'],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:'.$balanceDue],
+            'reference' => ['nullable', 'string', 'max:255'],
+            'notes' => ['nullable', 'string'],
+        ];
+    }
+
     private function accountingDebtorRules(): array
     {
         return [
+            'existing_debtor_id' => ['nullable', 'integer'],
             'type' => ['required', 'string', Rule::in(AccountingDebtor::types())],
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
@@ -4966,6 +8234,19 @@ class MainController extends Controller
             'status' => ['required', 'string', Rule::in(AccountingDebtor::statuses())],
             'form_mode' => ['nullable', Rule::in(['create', 'edit'])],
             'debtor_id' => ['nullable', 'integer'],
+        ];
+    }
+
+    private function debtorPaymentRules(CompanySite $site, AccountingDebtor $debtor): array
+    {
+        $balanceReceivable = round($debtor->balanceReceivable(), 2);
+
+        return [
+            'payment_method_id' => ['required', 'integer', Rule::exists('accounting_payment_methods', 'id')->where('company_site_id', $site->id)],
+            'payment_date' => ['required', 'date'],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:'.$balanceReceivable],
+            'reference' => ['nullable', 'string', 'max:255'],
+            'notes' => ['nullable', 'string'],
         ];
     }
 
@@ -5152,6 +8433,377 @@ class MainController extends Controller
                 ->where('status', AccountingSalesRepresentative::STATUS_ACTIVE)
                 ->count(),
         ];
+    }
+
+    private function accountingDashboardData(CompanySite $site): array
+    {
+        $currency = $site->currency ?: 'CDF';
+
+        $this->refreshOverdueSalesInvoices($site);
+        $this->refreshOverdueAccountingPurchases($site);
+        $this->syncAccountingTreasuryMovements($site);
+
+        $salesInvoiceBase = AccountingSalesInvoice::query()
+            ->where('company_site_id', $site->id)
+            ->whereNotIn('status', [AccountingSalesInvoice::STATUS_DRAFT, AccountingSalesInvoice::STATUS_CANCELLED]);
+        $purchaseBase = AccountingPurchase::query()
+            ->where('company_site_id', $site->id)
+            ->whereNotIn('status', [AccountingPurchase::STATUS_DRAFT, AccountingPurchase::STATUS_CANCELLED]);
+        $validatedExpenseBase = AccountingExpense::query()
+            ->where('company_site_id', $site->id)
+            ->where('status', AccountingExpense::STATUS_VALIDATED);
+        $revenue = $this->accountingDashboardNetSalesAmount(clone $salesInvoiceBase);
+        $expenses = (float) (clone $purchaseBase)->sum('total_ttc')
+            + (float) (clone $validatedExpenseBase)->sum('amount');
+        $receivables = (float) AccountingSalesInvoice::query()
+            ->where('company_site_id', $site->id)
+            ->where('balance_due', '>', 0)
+            ->whereNotIn('status', [AccountingSalesInvoice::STATUS_CANCELLED])
+            ->sum('balance_due')
+            + AccountingDebtor::query()
+                ->where('company_site_id', $site->id)
+                ->get(['initial_amount', 'received_amount'])
+                ->sum(fn (AccountingDebtor $debtor) => $debtor->balanceReceivable());
+        $debts = (float) AccountingPurchase::query()
+            ->where('company_site_id', $site->id)
+            ->where('balance_due', '>', 0)
+            ->whereNotIn('status', [AccountingPurchase::STATUS_CANCELLED])
+            ->sum('balance_due')
+            + AccountingCreditor::query()
+                ->where('company_site_id', $site->id)
+                ->get(['initial_amount', 'paid_amount'])
+                ->sum(fn (AccountingCreditor $creditor) => $creditor->balanceDue());
+        $validatedTreasuryBase = AccountingTreasuryMovement::query()
+            ->where('company_site_id', $site->id)
+            ->where('status', AccountingTreasuryMovement::STATUS_VALIDATED);
+        $treasuryInflows = (float) (clone $validatedTreasuryBase)
+            ->where('direction', AccountingTreasuryMovement::DIRECTION_INFLOW)
+            ->sum('amount');
+        $treasuryOutflows = (float) (clone $validatedTreasuryBase)
+            ->where('direction', AccountingTreasuryMovement::DIRECTION_OUTFLOW)
+            ->sum('amount');
+        $treasuryBalance = $treasuryInflows - $treasuryOutflows;
+        $openTasksQuery = AccountingTask::query()
+            ->where('company_site_id', $site->id)
+            ->whereNotIn('status', [AccountingTask::STATUS_COMPLETED, AccountingTask::STATUS_CANCELLED]);
+        $openRemindersQuery = AccountingPaymentReminder::query()
+            ->where('company_site_id', $site->id)
+            ->whereNotIn('status', [AccountingPaymentReminder::STATUS_SETTLED, AccountingPaymentReminder::STATUS_SUSPENDED]);
+        $openReconciliationsQuery = AccountingBankReconciliation::query()
+            ->where('company_site_id', $site->id)
+            ->whereIn('status', [AccountingBankReconciliation::STATUS_IN_PROGRESS, AccountingBankReconciliation::STATUS_RECONCILED]);
+
+        $chartData = [
+            'emptyLabel' => __('main.no_accounting_documents'),
+            'emptyClientsLabel' => __('main.no_clients'),
+            'labels' => [
+                'revenue' => __('main.revenue'),
+                'sales' => __('main.sales'),
+                'expenses' => __('main.expenses'),
+                'customers' => __('main.customers'),
+                'suppliers' => __('main.suppliers'),
+                'prospects' => __('main.prospects'),
+                'creditors' => __('main.creditors'),
+                'debtors' => __('main.debtors'),
+                'stock' => __('main.stock'),
+                'services' => __('main.services'),
+                'documents' => __('main.documents'),
+                'cashflow' => __('main.cashflow'),
+                'receivables' => __('main.receivables'),
+                'debts' => __('main.debts'),
+                'treasury_inflows' => __('main.treasury_inflows'),
+                'treasury_outflows' => __('main.treasury_outflows'),
+                'schedule' => __('main.schedule'),
+            ],
+            'periods' => [
+                'week' => $this->accountingDashboardPeriodData($site, 'week'),
+                'month' => $this->accountingDashboardPeriodData($site, 'month'),
+                'year' => $this->accountingDashboardPeriodData($site, 'year'),
+            ],
+            'contacts' => [
+                'labels' => [__('main.prospects'), __('main.customers'), __('main.suppliers'), __('main.partners'), __('main.sales_representatives'), __('main.client_contacts'), __('main.supplier_contacts')],
+                'series' => [
+                    AccountingProspect::query()->where('company_site_id', $site->id)->count(),
+                    AccountingClient::query()->where('company_site_id', $site->id)->count(),
+                    AccountingSupplier::query()->where('company_site_id', $site->id)->count(),
+                    AccountingPartner::query()->where('company_site_id', $site->id)->count(),
+                    AccountingSalesRepresentative::query()->where('company_site_id', $site->id)->count(),
+                    DB::table('accounting_client_contacts')
+                        ->join('accounting_clients', 'accounting_client_contacts.accounting_client_id', '=', 'accounting_clients.id')
+                        ->where('accounting_clients.company_site_id', $site->id)
+                        ->count(),
+                    DB::table('accounting_supplier_contacts')
+                        ->join('accounting_suppliers', 'accounting_supplier_contacts.accounting_supplier_id', '=', 'accounting_suppliers.id')
+                        ->where('accounting_suppliers.company_site_id', $site->id)
+                        ->count(),
+                ],
+            ],
+            'stockServices' => [
+                'labels' => [__('main.items'), __('main.categories'), __('main.services'), __('main.price_list')],
+                'series' => [
+                    AccountingStockItem::query()->where('company_site_id', $site->id)->count(),
+                    AccountingStockCategory::query()->where('company_site_id', $site->id)->count(),
+                    AccountingService::query()->where('company_site_id', $site->id)->count(),
+                    AccountingService::query()->where('company_site_id', $site->id)->where('status', AccountingService::STATUS_ACTIVE)->count(),
+                ],
+            ],
+            'documents' => [
+                'labels' => [__('main.sales_invoices'), __('main.proforma_invoices'), __('main.customer_orders'), __('main.delivery_notes'), __('main.purchase_orders'), __('main.credit_notes')],
+                'series' => [
+                    AccountingSalesInvoice::query()->where('company_site_id', $site->id)->count(),
+                    AccountingProformaInvoice::query()->where('company_site_id', $site->id)->count(),
+                    AccountingCustomerOrder::query()->where('company_site_id', $site->id)->count(),
+                    AccountingDeliveryNote::query()->where('company_site_id', $site->id)->count(),
+                    AccountingPurchaseOrder::query()->where('company_site_id', $site->id)->count(),
+                    AccountingCreditNote::query()->where('company_site_id', $site->id)->count(),
+                ],
+            ],
+        ];
+
+        return [
+            'kpis' => [
+                ['label' => __('main.revenue'), 'value' => $this->dashboardMoney($revenue, $currency), 'icon' => 'bi-graph-up-arrow', 'tone' => 'blue', 'trend' => null],
+                ['label' => __('main.sales_invoices'), 'value' => (clone $salesInvoiceBase)->count(), 'icon' => 'bi-receipt', 'tone' => 'violet', 'trend' => null],
+                ['label' => __('main.customers'), 'value' => AccountingClient::query()->where('company_site_id', $site->id)->count(), 'icon' => 'bi-person-check', 'tone' => 'green', 'trend' => null],
+                ['label' => __('main.receivables'), 'value' => $this->dashboardMoney($receivables, $currency), 'icon' => 'bi-arrow-down-left-circle', 'tone' => 'amber', 'trend' => null],
+                ['label' => __('main.expenses'), 'value' => $this->dashboardMoney($expenses, $currency), 'icon' => 'bi-wallet2', 'tone' => 'rose', 'trend' => null],
+            ],
+            'chartData' => $chartData,
+            'operations' => [
+                ['label' => __('main.treasury_balance'), 'value' => $this->dashboardMoney($treasuryBalance, $currency), 'meta' => __('main.treasury_inflows').' '.$this->dashboardMoney($treasuryInflows, $currency).' / '.__('main.treasury_outflows').' '.$this->dashboardMoney($treasuryOutflows, $currency), 'icon' => 'bi-activity', 'tone' => $treasuryBalance >= 0 ? 'green' : 'rose', 'route' => 'main.accounting.treasury'],
+                ['label' => __('main.open_tasks'), 'value' => (clone $openTasksQuery)->count(), 'meta' => __('main.overdue_tasks').' '.(clone $openTasksQuery)->whereDate('due_date', '<', now()->toDateString())->count().' / '.__('main.urgent_tasks').' '.(clone $openTasksQuery)->where('priority', AccountingTask::PRIORITY_URGENT)->count(), 'icon' => 'bi-check2-square', 'tone' => 'blue', 'route' => 'main.accounting.tasks'],
+                ['label' => __('main.payment_reminders'), 'value' => (clone $openRemindersQuery)->count(), 'meta' => __('main.pending_promises').' '.AccountingPaymentPromise::query()->whereHas('reminder', fn ($query) => $query->where('company_site_id', $site->id))->where('status', AccountingPaymentPromise::STATUS_PENDING)->count(), 'icon' => 'bi-bell', 'tone' => 'amber', 'route' => 'main.accounting.payment-reminders'],
+                ['label' => __('main.bank_reconciliation'), 'value' => (clone $openReconciliationsQuery)->count(), 'meta' => __('main.unmatched_bank_lines').' '.AccountingBankStatementLine::query()->whereHas('reconciliation', fn ($query) => $query->where('company_site_id', $site->id))->where('status', AccountingBankStatementLine::STATUS_UNMATCHED)->count(), 'icon' => 'bi-bank', 'tone' => 'violet', 'route' => 'main.accounting.bank-reconciliations'],
+                ['label' => __('main.taxes'), 'value' => AccountingTax::query()->where('company_site_id', $site->id)->where('status', AccountingTax::STATUS_ACTIVE)->count(), 'meta' => __('main.payment_methods').' '.AccountingPaymentMethod::query()->where('company_site_id', $site->id)->where('status', AccountingPaymentMethod::STATUS_ACTIVE)->count(), 'icon' => 'bi-percent', 'tone' => 'cyan', 'route' => 'main.accounting.taxes'],
+                ['label' => __('main.cash_register'), 'value' => AccountingCashRegisterSession::query()->where('company_site_id', $site->id)->where('status', AccountingCashRegisterSession::STATUS_OPEN)->count(), 'meta' => __('main.purchase_orders').' '.AccountingPurchaseOrder::query()->where('company_site_id', $site->id)->whereNotIn('status', [AccountingPurchaseOrder::STATUS_CANCELLED, AccountingPurchaseOrder::STATUS_CONVERTED])->count(), 'icon' => 'bi-calculator', 'tone' => 'green', 'route' => 'main.accounting.cash-register'],
+            ],
+            'scheduleSummary' => [
+                ['label' => __('main.clients_owe_me'), 'amount' => $this->dashboardMoney($receivables, $currency), 'tone' => 'green', 'icon' => 'bi-arrow-down-left-circle'],
+                ['label' => __('main.i_owe_suppliers'), 'amount' => $this->dashboardMoney($debts, $currency), 'tone' => 'rose', 'icon' => 'bi-arrow-up-right-circle'],
+            ],
+            'scheduleItems' => $this->accountingDashboardScheduleItems($site, $currency),
+        ];
+    }
+
+    private function accountingDashboardPeriodData(CompanySite $site, string $period): array
+    {
+        $buckets = $this->accountingDashboardBuckets($period);
+
+        return [
+            'labels' => $buckets->map(fn (array $bucket) => $bucket['label'])->all(),
+            'revenue' => $buckets->map(fn (array $bucket) => $this->accountingDashboardRevenueForPeriod($site, $bucket['start'], $bucket['end']))->all(),
+            'sales' => $buckets->map(fn (array $bucket) => $this->accountingDashboardSalesForPeriod($site, $bucket['start'], $bucket['end']))->all(),
+            'expenses' => $buckets->map(fn (array $bucket) => $this->accountingDashboardExpensesForPeriod($site, $bucket['start'], $bucket['end']))->all(),
+            'receivables' => $buckets->map(fn (array $bucket) => $this->accountingDashboardReceivablesForPeriod($site, $bucket['start'], $bucket['end']))->all(),
+            'debts' => $buckets->map(fn (array $bucket) => $this->accountingDashboardDebtsForPeriod($site, $bucket['start'], $bucket['end']))->all(),
+            'treasuryInflows' => $buckets->map(fn (array $bucket) => $this->accountingDashboardTreasuryForPeriod($site, $bucket['start'], $bucket['end'], AccountingTreasuryMovement::DIRECTION_INFLOW))->all(),
+            'treasuryOutflows' => $buckets->map(fn (array $bucket) => $this->accountingDashboardTreasuryForPeriod($site, $bucket['start'], $bucket['end'], AccountingTreasuryMovement::DIRECTION_OUTFLOW))->all(),
+        ];
+    }
+
+    private function accountingDashboardBuckets(string $period)
+    {
+        return match ($period) {
+            'week' => collect(range(7, 0))->map(function (int $weeksAgo): array {
+                $start = \Carbon\CarbonImmutable::now()->subWeeks($weeksAgo)->startOfWeek();
+
+                return [
+                    'start' => $start,
+                    'end' => $start->endOfWeek(),
+                    'label' => $start->translatedFormat('d M'),
+                ];
+            }),
+            'year' => collect(range(4, 0))->map(function (int $yearsAgo): array {
+                $start = \Carbon\CarbonImmutable::now()->subYears($yearsAgo)->startOfYear();
+
+                return [
+                    'start' => $start,
+                    'end' => $start->endOfYear(),
+                    'label' => $start->format('Y'),
+                ];
+            }),
+            default => collect(range(5, 0))->map(function (int $monthsAgo): array {
+                $start = \Carbon\CarbonImmutable::now()->subMonths($monthsAgo)->startOfMonth();
+
+                return [
+                    'start' => $start,
+                    'end' => $start->endOfMonth(),
+                    'label' => $start->translatedFormat('M Y'),
+                ];
+            }),
+        };
+    }
+
+    private function accountingDashboardRevenueForPeriod(CompanySite $site, $start, $end): float
+    {
+        return $this->accountingDashboardNetSalesAmount(
+            AccountingSalesInvoice::query()
+                ->where('company_site_id', $site->id)
+                ->whereNotIn('status', [AccountingSalesInvoice::STATUS_DRAFT, AccountingSalesInvoice::STATUS_CANCELLED])
+                ->whereBetween('invoice_date', [$start->toDateString(), $end->toDateString()])
+        );
+    }
+
+    private function accountingDashboardSalesForPeriod(CompanySite $site, $start, $end): float
+    {
+        return round((float) AccountingSalesInvoice::query()
+            ->where('company_site_id', $site->id)
+            ->whereNotIn('status', [AccountingSalesInvoice::STATUS_DRAFT, AccountingSalesInvoice::STATUS_CANCELLED])
+            ->whereBetween('invoice_date', [$start->toDateString(), $end->toDateString()])
+            ->sum('total_ttc'), 2);
+    }
+
+    private function accountingDashboardNetSalesAmount($query): float
+    {
+        return round((float) $query
+            ->get(['total_ttc', 'credit_total'])
+            ->sum(fn (AccountingSalesInvoice $invoice): float => max(0, (float) $invoice->total_ttc - (float) $invoice->credit_total)), 2);
+    }
+
+    private function accountingDashboardExpensesForPeriod(CompanySite $site, $start, $end): float
+    {
+        $purchases = (float) AccountingPurchase::query()
+            ->where('company_site_id', $site->id)
+            ->whereNotIn('status', [AccountingPurchase::STATUS_DRAFT, AccountingPurchase::STATUS_CANCELLED])
+            ->whereBetween('purchase_date', [$start->toDateString(), $end->toDateString()])
+            ->sum('total_ttc');
+        $expenses = (float) AccountingExpense::query()
+            ->where('company_site_id', $site->id)
+            ->where('status', AccountingExpense::STATUS_VALIDATED)
+            ->whereBetween('expense_date', [$start->toDateString(), $end->toDateString()])
+            ->sum('amount');
+
+        return round($purchases + $expenses, 2);
+    }
+
+    private function accountingDashboardReceivablesForPeriod(CompanySite $site, $start, $end): float
+    {
+        $invoices = (float) AccountingSalesInvoice::query()
+            ->where('company_site_id', $site->id)
+            ->where('balance_due', '>', 0)
+            ->whereNotIn('status', [AccountingSalesInvoice::STATUS_CANCELLED])
+            ->whereBetween('due_date', [$start->toDateString(), $end->toDateString()])
+            ->sum('balance_due');
+        $manual = AccountingDebtor::query()
+            ->where('company_site_id', $site->id)
+            ->whereBetween('due_date', [$start->toDateString(), $end->toDateString()])
+            ->get(['initial_amount', 'received_amount'])
+            ->sum(fn (AccountingDebtor $debtor) => $debtor->balanceReceivable());
+
+        return round($invoices + $manual, 2);
+    }
+
+    private function accountingDashboardDebtsForPeriod(CompanySite $site, $start, $end): float
+    {
+        $purchases = (float) AccountingPurchase::query()
+            ->where('company_site_id', $site->id)
+            ->where('balance_due', '>', 0)
+            ->whereNotIn('status', [AccountingPurchase::STATUS_CANCELLED])
+            ->whereBetween('due_date', [$start->toDateString(), $end->toDateString()])
+            ->sum('balance_due');
+        $manual = AccountingCreditor::query()
+            ->where('company_site_id', $site->id)
+            ->whereBetween('due_date', [$start->toDateString(), $end->toDateString()])
+            ->get(['initial_amount', 'paid_amount'])
+            ->sum(fn (AccountingCreditor $creditor) => $creditor->balanceDue());
+
+        return round($purchases + $manual, 2);
+    }
+
+    private function accountingDashboardTreasuryForPeriod(CompanySite $site, $start, $end, string $direction): float
+    {
+        return round((float) AccountingTreasuryMovement::query()
+            ->where('company_site_id', $site->id)
+            ->where('status', AccountingTreasuryMovement::STATUS_VALIDATED)
+            ->where('direction', $direction)
+            ->whereBetween('movement_date', [$start->toDateString(), $end->toDateString()])
+            ->sum('amount'), 2);
+    }
+
+    private function accountingDashboardScheduleItems(CompanySite $site, string $currency): array
+    {
+        $invoiceItems = AccountingSalesInvoice::query()
+            ->with('client')
+            ->where('company_site_id', $site->id)
+            ->where('balance_due', '>', 0)
+            ->whereNotIn('status', [AccountingSalesInvoice::STATUS_CANCELLED])
+            ->get()
+            ->map(fn (AccountingSalesInvoice $invoice) => [
+                'label' => __('main.customer_receivable'),
+                'subject' => $invoice->client?->display_name ?? $invoice->client?->name ?? $invoice->reference,
+                'amount' => $this->dashboardMoney((float) $invoice->balance_due, $invoice->currency ?: $currency),
+                'date' => optional($invoice->due_date ?: $invoice->invoice_date)->translatedFormat('d M') ?: '-',
+                'tone' => 'green',
+                'sort_date' => optional($invoice->due_date ?: $invoice->invoice_date)->format('Y-m-d') ?: '9999-12-31',
+            ]);
+        $manualReceivableItems = AccountingDebtor::query()
+            ->where('company_site_id', $site->id)
+            ->get()
+            ->filter(fn (AccountingDebtor $debtor) => $debtor->balanceReceivable() > 0)
+            ->map(fn (AccountingDebtor $debtor) => [
+                'label' => __('main.customer_receivable'),
+                'subject' => $debtor->name,
+                'amount' => $this->dashboardMoney($debtor->balanceReceivable(), $debtor->currency ?: $currency),
+                'date' => optional($debtor->due_date)->translatedFormat('d M') ?: '-',
+                'tone' => 'blue',
+                'sort_date' => optional($debtor->due_date)->format('Y-m-d') ?: '9999-12-31',
+            ]);
+        $purchaseItems = AccountingPurchase::query()
+            ->with('supplier')
+            ->where('company_site_id', $site->id)
+            ->where('balance_due', '>', 0)
+            ->whereNotIn('status', [AccountingPurchase::STATUS_CANCELLED])
+            ->get()
+            ->map(fn (AccountingPurchase $purchase) => [
+                'label' => __('main.supplier_debt'),
+                'subject' => $purchase->supplier?->display_name ?? $purchase->supplier?->name ?? $purchase->reference,
+                'amount' => $this->dashboardMoney((float) $purchase->balance_due, $purchase->currency ?: $currency),
+                'date' => optional($purchase->due_date ?: $purchase->purchase_date)->translatedFormat('d M') ?: '-',
+                'tone' => 'amber',
+                'sort_date' => optional($purchase->due_date ?: $purchase->purchase_date)->format('Y-m-d') ?: '9999-12-31',
+            ]);
+        $manualDebtItems = AccountingCreditor::query()
+            ->where('company_site_id', $site->id)
+            ->get()
+            ->filter(fn (AccountingCreditor $creditor) => $creditor->balanceDue() > 0)
+            ->map(fn (AccountingCreditor $creditor) => [
+                'label' => __('main.supplier_debt'),
+                'subject' => $creditor->name,
+                'amount' => $this->dashboardMoney($creditor->balanceDue(), $creditor->currency ?: $currency),
+                'date' => optional($creditor->due_date)->translatedFormat('d M') ?: '-',
+                'tone' => 'rose',
+                'sort_date' => optional($creditor->due_date)->format('Y-m-d') ?: '9999-12-31',
+            ]);
+
+        return collect()
+            ->concat($invoiceItems)
+            ->concat($manualReceivableItems)
+            ->concat($purchaseItems)
+            ->concat($manualDebtItems)
+            ->sortBy('sort_date')
+            ->take(4)
+            ->map(fn (array $item) => collect($item)->except('sort_date')->all())
+            ->values()
+            ->all();
+    }
+
+    private function dashboardMoney(float $amount, string $currency): string
+    {
+        $absolute = abs($amount);
+
+        if ($absolute >= 1000000000) {
+            return number_format($amount / 1000000000, 1, ',', ' ').'Md '.$currency;
+        }
+
+        if ($absolute >= 1000000) {
+            return number_format($amount / 1000000, 1, ',', ' ').'M '.$currency;
+        }
+
+        if ($absolute >= 1000) {
+            return number_format($amount / 1000, 1, ',', ' ').'K '.$currency;
+        }
+
+        return number_format($amount, 2, ',', ' ').' '.$currency;
     }
 
     private function accountingClientPayload(array $validated, User&Authenticatable $user, bool $withCreator = true): array
@@ -5638,6 +9290,109 @@ class MainController extends Controller
         }
     }
 
+    private function ensureDefaultAccountingTaxRecords(CompanySite $site, Company $company): void
+    {
+        if (! in_array(CompanySite::MODULE_ACCOUNTING, $site->modules ?? [], true)) {
+            return;
+        }
+
+        $defaultTax = AccountingTax::query()->firstOrCreate(
+            [
+                'company_site_id' => $site->id,
+                'is_system_default' => true,
+            ],
+            [
+                'created_by' => $site->responsible_id,
+                'code' => 'TVA',
+                'name' => __('main.vat'),
+                'kind' => AccountingTax::KIND_VAT,
+                'calculation_type' => AccountingTax::CALCULATION_PERCENTAGE,
+                'value' => $this->companyCountryVatRate($company),
+                'nature' => AccountingTax::NATURE_COLLECTED,
+                'applies_to' => AccountingTax::APPLIES_BOTH,
+                'is_default' => true,
+                'status' => AccountingTax::STATUS_ACTIVE,
+            ]
+        );
+
+        if (! AccountingTax::query()->where('company_site_id', $site->id)->where('is_default', true)->exists()) {
+            $defaultTax->forceFill([
+                'is_default' => true,
+                'status' => AccountingTax::STATUS_ACTIVE,
+            ])->save();
+        }
+
+        AccountingTax::query()->firstOrCreate(
+            [
+                'company_site_id' => $site->id,
+                'kind' => AccountingTax::KIND_EXEMPTION,
+            ],
+            [
+                'created_by' => $site->responsible_id,
+                'code' => 'EXONERE',
+                'name' => __('main.tax_exemption'),
+                'calculation_type' => AccountingTax::CALCULATION_PERCENTAGE,
+                'value' => 0,
+                'nature' => AccountingTax::NATURE_COLLECTED,
+                'applies_to' => AccountingTax::APPLIES_BOTH,
+                'is_default' => false,
+                'status' => AccountingTax::STATUS_ACTIVE,
+            ]
+        );
+    }
+
+    private function defaultAccountingTaxRate(CompanySite $site, Company $company, string $appliesTo): float
+    {
+        $this->ensureDefaultAccountingTaxRecords($site, $company);
+
+        $tax = AccountingTax::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_default', true)
+            ->where('status', AccountingTax::STATUS_ACTIVE)
+            ->where('calculation_type', AccountingTax::CALCULATION_PERCENTAGE)
+            ->whereIn('applies_to', [$appliesTo, AccountingTax::APPLIES_BOTH])
+            ->first();
+
+        return $tax ? (float) $tax->value : $this->companyCountryVatRate($company);
+    }
+
+    private function ensureDefaultAccountingExpenseCategories(CompanySite $site): void
+    {
+        if (! in_array(CompanySite::MODULE_ACCOUNTING, $site->modules ?? [], true)) {
+            return;
+        }
+
+        $defaults = [
+            'loyer' => __('main.expense_category_rent'),
+            'transport' => __('main.expense_category_transport'),
+            'carburant' => __('main.expense_category_fuel'),
+            'communication' => __('main.expense_category_communication'),
+            'internet' => __('main.expense_category_internet'),
+            'electricite' => __('main.expense_category_electricity'),
+            'eau' => __('main.expense_category_water'),
+            'frais-bancaires' => __('main.expense_category_bank_fees'),
+            'frais-administratifs' => __('main.expense_category_admin_fees'),
+            'entretien' => __('main.expense_category_maintenance'),
+            'mission' => __('main.expense_category_mission'),
+            'restauration' => __('main.expense_category_meals'),
+            'avances-salaires' => __('main.expense_category_salary_advances'),
+            'taxes' => __('main.expense_category_taxes'),
+            'autres-charges' => __('main.expense_category_other'),
+        ];
+
+        foreach ($defaults as $slug => $name) {
+            AccountingExpenseCategory::query()->firstOrCreate(
+                ['company_site_id' => $site->id, 'slug' => $slug],
+                [
+                    'name' => $name,
+                    'description' => null,
+                    'is_system_default' => true,
+                    'status' => AccountingExpenseCategory::STATUS_ACTIVE,
+                ]
+            );
+        }
+    }
+
     private function siteAssignableUsers(Company $company, ?CompanySite $site = null)
     {
         return User::query()
@@ -5990,7 +9745,7 @@ class MainController extends Controller
                 'icon' => 'bi-rulers',
                 'active' => 'stock-units',
                 'empty' => __('main.no_stock_units'),
-                'relations' => ['services.unit', 'services.subcategory'],
+                'relations' => ['items.category', 'items.subcategory'],
                 'columns' => [
                     ['key' => 'reference', 'label' => __('main.reference')],
                     ['key' => 'name', 'label' => __('main.name')],
@@ -6838,6 +10593,554 @@ class MainController extends Controller
         ];
     }
 
+    private function accountingTaxRules(CompanySite $site, ?AccountingTax $tax = null): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            'code' => [
+                'nullable',
+                'string',
+                'max:60',
+                Rule::unique('accounting_taxes', 'code')
+                    ->where('company_site_id', $site->id)
+                    ->ignore($tax?->id),
+            ],
+            'kind' => ['required', Rule::in(AccountingTax::kinds())],
+            'calculation_type' => ['required', Rule::in(AccountingTax::calculationTypes())],
+            'value' => [
+                'required',
+                'numeric',
+                'min:0',
+                Rule::when(request('calculation_type') === AccountingTax::CALCULATION_PERCENTAGE, ['max:100']),
+            ],
+            'nature' => ['required', Rule::in(AccountingTax::natures())],
+            'applies_to' => ['required', Rule::in(AccountingTax::applications())],
+            'description' => ['nullable', 'string'],
+            'is_default' => ['nullable', 'boolean'],
+            'status' => ['required', Rule::in([AccountingTax::STATUS_ACTIVE, AccountingTax::STATUS_INACTIVE])],
+        ];
+    }
+
+    private function accountingTaxPayload(array $validated, User&Authenticatable $user, bool $withCreator = true, ?AccountingTax $tax = null): array
+    {
+        $isDefault = (bool) ($validated['is_default'] ?? false);
+        $payload = [
+            'name' => $validated['name'],
+            'code' => filled($validated['code'] ?? null) ? Str::upper(trim($validated['code'])) : ($tax?->code ?? ''),
+            'kind' => $validated['kind'],
+            'calculation_type' => $validated['calculation_type'],
+            'value' => $validated['value'],
+            'nature' => $validated['nature'],
+            'applies_to' => $validated['applies_to'],
+            'description' => $validated['description'] ?? null,
+            'is_default' => $isDefault,
+            'status' => $isDefault ? AccountingTax::STATUS_ACTIVE : $validated['status'],
+        ];
+
+        if ($withCreator) {
+            $payload['created_by'] = $user->id;
+        }
+
+        return $payload;
+    }
+
+    private function ensureAccountingTaxCanBeDefault(array $validated): void
+    {
+        if (! (bool) ($validated['is_default'] ?? false)) {
+            return;
+        }
+
+        if ($validated['calculation_type'] !== AccountingTax::CALCULATION_PERCENTAGE) {
+            throw ValidationException::withMessages([
+                'calculation_type' => __('main.default_tax_must_be_percentage'),
+            ]);
+        }
+
+        if ($validated['applies_to'] !== AccountingTax::APPLIES_BOTH) {
+            throw ValidationException::withMessages([
+                'applies_to' => __('main.default_tax_must_apply_to_both'),
+            ]);
+        }
+    }
+
+    private function accountingTaxKindLabels(): array
+    {
+        return [
+            AccountingTax::KIND_VAT => __('main.tax_kind_vat'),
+            AccountingTax::KIND_WITHHOLDING => __('main.tax_kind_withholding'),
+            AccountingTax::KIND_STAMP_DUTY => __('main.tax_kind_stamp_duty'),
+            AccountingTax::KIND_SPECIAL => __('main.tax_kind_special'),
+            AccountingTax::KIND_EXEMPTION => __('main.tax_kind_exemption'),
+        ];
+    }
+
+    private function accountingTaxCalculationTypeLabels(): array
+    {
+        return [
+            AccountingTax::CALCULATION_PERCENTAGE => __('main.tax_calculation_percentage'),
+            AccountingTax::CALCULATION_FIXED => __('main.tax_calculation_fixed'),
+        ];
+    }
+
+    private function accountingTaxNatureLabels(): array
+    {
+        return [
+            AccountingTax::NATURE_COLLECTED => __('main.tax_nature_collected'),
+            AccountingTax::NATURE_DEDUCTIBLE => __('main.tax_nature_deductible'),
+            AccountingTax::NATURE_WITHHELD => __('main.tax_nature_withheld'),
+        ];
+    }
+
+    private function accountingTaxApplicationLabels(): array
+    {
+        return [
+            AccountingTax::APPLIES_SALES => __('main.tax_applies_sales'),
+            AccountingTax::APPLIES_PURCHASES => __('main.tax_applies_purchases'),
+            AccountingTax::APPLIES_BOTH => __('main.tax_applies_both'),
+        ];
+    }
+
+    private function accountingTaxStatusLabels(): array
+    {
+        return [
+            AccountingTax::STATUS_ACTIVE => __('main.active'),
+            AccountingTax::STATUS_INACTIVE => __('main.inactive'),
+        ];
+    }
+
+    private function accountingTaxIsUsed(CompanySite $site, AccountingTax $tax): bool
+    {
+        if ($tax->calculation_type !== AccountingTax::CALCULATION_PERCENTAGE) {
+            return false;
+        }
+
+        $documents = [
+            AccountingProformaInvoice::class,
+            AccountingCustomerOrder::class,
+            AccountingSalesInvoice::class,
+            AccountingPurchaseOrder::class,
+            AccountingPurchase::class,
+            AccountingCreditNote::class,
+        ];
+
+        return collect($documents)->contains(fn (string $document): bool => $document::query()
+            ->where('company_site_id', $site->id)
+            ->where('tax_rate', (float) $tax->value)
+            ->exists());
+    }
+
+    private function syncAccountingTreasuryMovements(CompanySite $site): void
+    {
+        AccountingSalesInvoicePayment::query()
+            ->with(['salesInvoice.client'])
+            ->whereHas('salesInvoice', fn ($query) => $query->where('company_site_id', $site->id))
+            ->get()
+            ->each(function (AccountingSalesInvoicePayment $payment) use ($site): void {
+                $invoice = $payment->salesInvoice;
+
+                $this->syncAccountingTreasuryMovement($site, AccountingSalesInvoicePayment::class, $payment->id, [
+                    'payment_method_id' => $payment->payment_method_id,
+                    'created_by' => $payment->received_by,
+                    'movement_type' => AccountingTreasuryMovement::TYPE_SALES_PAYMENT,
+                    'source_reference' => $invoice?->reference ?: $payment->reference,
+                    'direction' => AccountingTreasuryMovement::DIRECTION_INFLOW,
+                    'label' => trim(implode(' - ', array_filter([$invoice?->reference, $invoice?->client?->name]))),
+                    'description' => $payment->notes,
+                    'amount' => $payment->amount,
+                    'currency' => $payment->currency,
+                    'movement_date' => $payment->payment_date,
+                    'status' => AccountingTreasuryMovement::STATUS_VALIDATED,
+                ]);
+            });
+
+        AccountingDebtorPayment::query()
+            ->with('debtor')
+            ->whereHas('debtor', fn ($query) => $query->where('company_site_id', $site->id))
+            ->get()
+            ->each(function (AccountingDebtorPayment $payment) use ($site): void {
+                $this->syncAccountingTreasuryMovement($site, AccountingDebtorPayment::class, $payment->id, [
+                    'payment_method_id' => $payment->payment_method_id,
+                    'created_by' => $payment->received_by,
+                    'movement_type' => AccountingTreasuryMovement::TYPE_RECEIVABLE_PAYMENT,
+                    'source_reference' => $payment->debtor?->reference ?: $payment->reference,
+                    'direction' => AccountingTreasuryMovement::DIRECTION_INFLOW,
+                    'label' => trim(implode(' - ', array_filter([$payment->debtor?->reference, $payment->debtor?->name]))),
+                    'description' => $payment->notes,
+                    'amount' => $payment->amount,
+                    'currency' => $payment->currency,
+                    'movement_date' => $payment->payment_date,
+                    'status' => AccountingTreasuryMovement::STATUS_VALIDATED,
+                ]);
+            });
+
+        AccountingOtherIncome::query()
+            ->where('company_site_id', $site->id)
+            ->whereIn('status', [AccountingOtherIncome::STATUS_VALIDATED, AccountingOtherIncome::STATUS_CANCELLED])
+            ->get()
+            ->each(function (AccountingOtherIncome $income) use ($site): void {
+                $this->syncAccountingTreasuryMovement($site, AccountingOtherIncome::class, $income->id, [
+                    'payment_method_id' => $income->payment_method_id,
+                    'created_by' => $income->created_by,
+                    'movement_type' => AccountingTreasuryMovement::TYPE_OTHER_INCOME,
+                    'source_reference' => $income->reference,
+                    'direction' => AccountingTreasuryMovement::DIRECTION_INFLOW,
+                    'label' => trim(implode(' - ', array_filter([$income->reference, $income->label]))),
+                    'description' => $income->description,
+                    'amount' => $income->amount,
+                    'currency' => $income->currency,
+                    'movement_date' => $income->income_date,
+                    'status' => $income->status === AccountingOtherIncome::STATUS_VALIDATED
+                        ? AccountingTreasuryMovement::STATUS_VALIDATED
+                        : AccountingTreasuryMovement::STATUS_CANCELLED,
+                ]);
+            });
+
+        AccountingPurchasePayment::query()
+            ->with(['purchase.supplier'])
+            ->whereHas('purchase', fn ($query) => $query->where('company_site_id', $site->id))
+            ->get()
+            ->each(function (AccountingPurchasePayment $payment) use ($site): void {
+                $purchase = $payment->purchase;
+
+                $this->syncAccountingTreasuryMovement($site, AccountingPurchasePayment::class, $payment->id, [
+                    'payment_method_id' => $payment->payment_method_id,
+                    'created_by' => $payment->paid_by,
+                    'movement_type' => AccountingTreasuryMovement::TYPE_PURCHASE_PAYMENT,
+                    'source_reference' => $purchase?->reference ?: $payment->reference,
+                    'direction' => AccountingTreasuryMovement::DIRECTION_OUTFLOW,
+                    'label' => trim(implode(' - ', array_filter([$purchase?->reference, $purchase?->supplier?->name]))),
+                    'description' => $payment->notes,
+                    'amount' => $payment->amount,
+                    'currency' => $payment->currency,
+                    'movement_date' => $payment->payment_date,
+                    'status' => AccountingTreasuryMovement::STATUS_VALIDATED,
+                ]);
+            });
+
+        AccountingCreditorPayment::query()
+            ->with('creditor')
+            ->whereHas('creditor', fn ($query) => $query->where('company_site_id', $site->id))
+            ->get()
+            ->each(function (AccountingCreditorPayment $payment) use ($site): void {
+                $this->syncAccountingTreasuryMovement($site, AccountingCreditorPayment::class, $payment->id, [
+                    'payment_method_id' => $payment->payment_method_id,
+                    'created_by' => $payment->paid_by,
+                    'movement_type' => AccountingTreasuryMovement::TYPE_DEBT_PAYMENT,
+                    'source_reference' => $payment->creditor?->reference ?: $payment->reference,
+                    'direction' => AccountingTreasuryMovement::DIRECTION_OUTFLOW,
+                    'label' => trim(implode(' - ', array_filter([$payment->creditor?->reference, $payment->creditor?->name]))),
+                    'description' => $payment->notes,
+                    'amount' => $payment->amount,
+                    'currency' => $payment->currency,
+                    'movement_date' => $payment->payment_date,
+                    'status' => AccountingTreasuryMovement::STATUS_VALIDATED,
+                ]);
+            });
+
+        AccountingExpense::query()
+            ->where('company_site_id', $site->id)
+            ->whereIn('status', [AccountingExpense::STATUS_VALIDATED, AccountingExpense::STATUS_CANCELLED])
+            ->get()
+            ->each(function (AccountingExpense $expense) use ($site): void {
+                $this->syncAccountingTreasuryMovement($site, AccountingExpense::class, $expense->id, [
+                    'payment_method_id' => $expense->payment_method_id,
+                    'created_by' => $expense->created_by,
+                    'movement_type' => AccountingTreasuryMovement::TYPE_EXPENSE,
+                    'source_reference' => $expense->reference,
+                    'direction' => AccountingTreasuryMovement::DIRECTION_OUTFLOW,
+                    'label' => trim(implode(' - ', array_filter([$expense->reference, $expense->label]))),
+                    'description' => $expense->description,
+                    'amount' => $expense->amount,
+                    'currency' => $expense->currency,
+                    'movement_date' => $expense->expense_date,
+                    'status' => $expense->status === AccountingExpense::STATUS_VALIDATED
+                        ? AccountingTreasuryMovement::STATUS_VALIDATED
+                        : AccountingTreasuryMovement::STATUS_CANCELLED,
+                ]);
+            });
+    }
+
+    private function syncAccountingTreasuryMovement(CompanySite $site, string $sourceType, int $sourceId, array $payload): void
+    {
+        $query = AccountingTreasuryMovement::query()
+            ->where('company_site_id', $site->id)
+            ->where('source_type', $sourceType)
+            ->where('source_id', $sourceId);
+
+        if ($payload['status'] === AccountingTreasuryMovement::STATUS_CANCELLED && ! $query->exists()) {
+            return;
+        }
+
+        AccountingTreasuryMovement::query()->updateOrCreate([
+            'company_site_id' => $site->id,
+            'source_type' => $sourceType,
+            'source_id' => $sourceId,
+        ], $payload);
+    }
+
+    private function bankReconciliationRedirect(Company $company, CompanySite $site, AccountingBankReconciliation $reconciliation): RedirectResponse
+    {
+        return redirect()->route('main.accounting.bank-reconciliations', [
+            $company,
+            $site,
+            'reconciliation' => $reconciliation->id,
+        ]);
+    }
+
+    private function ensureEditableBankReconciliation(CompanySite $site, AccountingBankReconciliation $reconciliation, ?AccountingBankStatementLine $line = null): void
+    {
+        if ($reconciliation->company_site_id !== $site->id || ($line && $line->bank_reconciliation_id !== $reconciliation->id)) {
+            abort(404);
+        }
+
+        if ($reconciliation->status === AccountingBankReconciliation::STATUS_CLOSED) {
+            throw ValidationException::withMessages([
+                'reconciliation' => __('main.bank_reconciliation_locked'),
+            ]);
+        }
+    }
+
+    private function refreshAccountingBankReconciliationTotals(AccountingBankReconciliation $reconciliation): void
+    {
+        $erpClosingBalance = AccountingTreasuryMovement::query()
+            ->where('company_site_id', $reconciliation->company_site_id)
+            ->where('payment_method_id', $reconciliation->payment_method_id)
+            ->where('currency', $reconciliation->currency)
+            ->where('status', AccountingTreasuryMovement::STATUS_VALIDATED)
+            ->whereDate('movement_date', '<=', $reconciliation->period_end)
+            ->selectRaw("COALESCE(SUM(CASE WHEN direction = ? THEN amount ELSE -amount END), 0) as balance", [AccountingTreasuryMovement::DIRECTION_INFLOW])
+            ->value('balance');
+        $difference = round((float) $reconciliation->statement_closing_balance - (float) $erpClosingBalance, 2);
+        $status = $reconciliation->status;
+
+        if ($status !== AccountingBankReconciliation::STATUS_CLOSED) {
+            $hasLines = $reconciliation->lines()->exists();
+            $hasPendingLines = $reconciliation->lines()->where('status', AccountingBankStatementLine::STATUS_UNMATCHED)->exists();
+            $status = $hasLines && ! $hasPendingLines && abs($difference) <= 0.009
+                ? AccountingBankReconciliation::STATUS_RECONCILED
+                : AccountingBankReconciliation::STATUS_IN_PROGRESS;
+        }
+
+        $reconciliation->update([
+            'erp_closing_balance' => round((float) $erpClosingBalance, 2),
+            'difference' => $difference,
+            'status' => $status,
+        ]);
+    }
+
+    private function accountingBankReconciliationStatusLabels(): array
+    {
+        return [
+            AccountingBankReconciliation::STATUS_IN_PROGRESS => __('main.bank_status_in_progress'),
+            AccountingBankReconciliation::STATUS_RECONCILED => __('main.bank_status_reconciled'),
+            AccountingBankReconciliation::STATUS_CLOSED => __('main.bank_status_closed'),
+        ];
+    }
+
+    private function accountingBankStatementLineStatusLabels(): array
+    {
+        return [
+            AccountingBankStatementLine::STATUS_UNMATCHED => __('main.bank_line_status_unmatched'),
+            AccountingBankStatementLine::STATUS_MATCHED => __('main.bank_line_status_matched'),
+            AccountingBankStatementLine::STATUS_IGNORED => __('main.bank_line_status_ignored'),
+        ];
+    }
+
+    private function readAccountingBankStatementCsv(UploadedFile $file, AccountingBankReconciliation $reconciliation): array
+    {
+        $handle = fopen($file->getRealPath(), 'rb');
+
+        if ($handle === false) {
+            return [];
+        }
+
+        $firstLine = fgets($handle) ?: '';
+        $delimiter = substr_count($firstLine, ';') >= substr_count($firstLine, ',') ? ';' : ',';
+        rewind($handle);
+        $headers = fgetcsv($handle, null, $delimiter) ?: [];
+        $headers = array_map(fn ($header): string => $this->normaliseBankCsvHeader((string) $header), $headers);
+        $dateIndex = $this->bankCsvColumnIndex($headers, ['date', 'date operation', 'date transaction']);
+        $descriptionIndex = $this->bankCsvColumnIndex($headers, ['libelle', 'description', 'motif']);
+        $referenceIndex = $this->bankCsvColumnIndex($headers, ['reference', 'ref', 'numero']);
+        $debitIndex = $this->bankCsvColumnIndex($headers, ['debit', 'sortie']);
+        $creditIndex = $this->bankCsvColumnIndex($headers, ['credit', 'entree']);
+        $amountIndex = $this->bankCsvColumnIndex($headers, ['montant', 'amount']);
+        $directionIndex = $this->bankCsvColumnIndex($headers, ['direction', 'sens', 'type']);
+        $rows = [];
+
+        if ($dateIndex === null || $descriptionIndex === null || (($debitIndex === null || $creditIndex === null) && $amountIndex === null)) {
+            fclose($handle);
+
+            throw ValidationException::withMessages([
+                'statement_file' => __('main.bank_statement_import_columns'),
+            ]);
+        }
+
+        while (($values = fgetcsv($handle, null, $delimiter)) !== false) {
+            $date = $this->bankCsvDate($values[$dateIndex] ?? '');
+            $description = trim((string) ($values[$descriptionIndex] ?? ''));
+            $debit = $debitIndex === null ? 0.0 : $this->bankCsvAmount($values[$debitIndex] ?? '');
+            $credit = $creditIndex === null ? 0.0 : $this->bankCsvAmount($values[$creditIndex] ?? '');
+            $amount = $amountIndex === null ? max($debit, $credit) : $this->bankCsvAmount($values[$amountIndex] ?? '');
+            $direction = $credit > 0
+                ? AccountingBankStatementLine::DIRECTION_INFLOW
+                : AccountingBankStatementLine::DIRECTION_OUTFLOW;
+
+            if ($amountIndex !== null && $directionIndex !== null) {
+                $rawDirection = $this->normaliseBankCsvHeader((string) ($values[$directionIndex] ?? ''));
+                $direction = in_array($rawDirection, ['credit', 'entree', 'inflow'], true)
+                    ? AccountingBankStatementLine::DIRECTION_INFLOW
+                    : AccountingBankStatementLine::DIRECTION_OUTFLOW;
+            }
+
+            if (! $date || $description === '' || $amount <= 0 || $date->lt($reconciliation->period_start) || $date->gt($reconciliation->period_end)) {
+                continue;
+            }
+
+            $rows[] = [
+                'transaction_date' => $date->format('Y-m-d'),
+                'bank_reference' => $referenceIndex === null ? null : trim((string) ($values[$referenceIndex] ?? '')),
+                'description' => $description,
+                'direction' => $direction,
+                'amount' => $amount,
+            ];
+        }
+
+        fclose($handle);
+
+        return $rows;
+    }
+
+    private function normaliseBankCsvHeader(string $value): string
+    {
+        return trim(preg_replace('/\s+/', ' ', str_replace(['_', '-'], ' ', Str::ascii(Str::lower($value)))) ?: '');
+    }
+
+    private function bankCsvColumnIndex(array $headers, array $possibilities): ?int
+    {
+        foreach ($possibilities as $possibility) {
+            $index = array_search($possibility, $headers, true);
+
+            if ($index !== false) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private function bankCsvAmount(string $value): float
+    {
+        $normalised = str_replace(["\xc2\xa0", ' '], '', trim($value));
+
+        if (str_contains($normalised, ',') && str_contains($normalised, '.')) {
+            $normalised = str_replace('.', '', $normalised);
+        }
+
+        $normalised = str_replace(',', '.', $normalised);
+
+        return is_numeric($normalised) ? abs((float) $normalised) : 0.0;
+    }
+
+    private function bankCsvDate(string $value): ?Carbon
+    {
+        foreach (['d/m/Y', 'Y-m-d', 'd-m-Y'] as $format) {
+            try {
+                return Carbon::createFromFormat($format, trim($value))->startOfDay();
+            } catch (\Throwable) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    private function accountingTreasuryForecast(CompanySite $site, string $currency): array
+    {
+        $receivables = (float) AccountingSalesInvoice::query()
+            ->where('company_site_id', $site->id)
+            ->where('currency', $currency)
+            ->where('balance_due', '>', 0)
+            ->whereNotIn('status', [AccountingSalesInvoice::STATUS_DRAFT, AccountingSalesInvoice::STATUS_CANCELLED, AccountingSalesInvoice::STATUS_CREDITED])
+            ->sum('balance_due')
+            + (float) AccountingDebtor::query()
+                ->where('company_site_id', $site->id)
+                ->where('currency', $currency)
+                ->where('status', '!=', AccountingDebtor::STATUS_INACTIVE)
+                ->selectRaw('COALESCE(SUM(initial_amount - received_amount), 0) as remaining')
+                ->value('remaining');
+
+        $debts = (float) AccountingPurchase::query()
+            ->where('company_site_id', $site->id)
+            ->where('currency', $currency)
+            ->where('balance_due', '>', 0)
+            ->whereNotIn('status', [AccountingPurchase::STATUS_DRAFT, AccountingPurchase::STATUS_CANCELLED])
+            ->sum('balance_due')
+            + (float) AccountingCreditor::query()
+                ->where('company_site_id', $site->id)
+                ->where('currency', $currency)
+                ->where('status', '!=', AccountingCreditor::STATUS_INACTIVE)
+                ->selectRaw('COALESCE(SUM(initial_amount - paid_amount), 0) as remaining')
+                ->value('remaining');
+
+        return [
+            'receivables' => round($receivables, 2),
+            'debts' => round($debts, 2),
+        ];
+    }
+
+    private function accountingTreasuryPeriodData(CompanySite $site, string $currency, string $period): array
+    {
+        $buckets = $this->accountingDashboardBuckets($period);
+
+        return [
+            'labels' => $buckets->map(fn (array $bucket) => $bucket['label'])->all(),
+            'inflows' => $buckets->map(fn (array $bucket) => round((float) AccountingTreasuryMovement::query()
+                ->where('company_site_id', $site->id)
+                ->where('currency', $currency)
+                ->where('status', AccountingTreasuryMovement::STATUS_VALIDATED)
+                ->where('direction', AccountingTreasuryMovement::DIRECTION_INFLOW)
+                ->whereBetween('movement_date', [$bucket['start']->toDateString(), $bucket['end']->toDateString()])
+                ->sum('amount'), 2))->all(),
+            'outflows' => $buckets->map(fn (array $bucket) => round((float) AccountingTreasuryMovement::query()
+                ->where('company_site_id', $site->id)
+                ->where('currency', $currency)
+                ->where('status', AccountingTreasuryMovement::STATUS_VALIDATED)
+                ->where('direction', AccountingTreasuryMovement::DIRECTION_OUTFLOW)
+                ->whereBetween('movement_date', [$bucket['start']->toDateString(), $bucket['end']->toDateString()])
+                ->sum('amount'), 2))->all(),
+        ];
+    }
+
+    private function accountingTreasuryMovementTypeLabels(): array
+    {
+        return [
+            AccountingTreasuryMovement::TYPE_SALES_PAYMENT => __('main.treasury_type_sales_payment'),
+            AccountingTreasuryMovement::TYPE_OTHER_INCOME => __('main.treasury_type_other_income'),
+            AccountingTreasuryMovement::TYPE_RECEIVABLE_PAYMENT => __('main.treasury_type_receivable_payment'),
+            AccountingTreasuryMovement::TYPE_PURCHASE_PAYMENT => __('main.treasury_type_purchase_payment'),
+            AccountingTreasuryMovement::TYPE_EXPENSE => __('main.treasury_type_expense'),
+            AccountingTreasuryMovement::TYPE_DEBT_PAYMENT => __('main.treasury_type_debt_payment'),
+            AccountingTreasuryMovement::TYPE_BANK_ADJUSTMENT => __('main.treasury_type_bank_adjustment'),
+        ];
+    }
+
+    private function accountingTreasuryDirectionLabels(): array
+    {
+        return [
+            AccountingTreasuryMovement::DIRECTION_INFLOW => __('main.treasury_direction_inflow'),
+            AccountingTreasuryMovement::DIRECTION_OUTFLOW => __('main.treasury_direction_outflow'),
+        ];
+    }
+
+    private function accountingTreasuryStatusLabels(): array
+    {
+        return [
+            AccountingTreasuryMovement::STATUS_VALIDATED => __('main.treasury_status_validated'),
+            AccountingTreasuryMovement::STATUS_CANCELLED => __('main.treasury_status_cancelled'),
+        ];
+    }
+
     private function otherIncomeRules(CompanySite $site): array
     {
         return [
@@ -6934,6 +11237,100 @@ class MainController extends Controller
             AccountingOtherIncome::STATUS_DRAFT => __('main.other_income_status_draft'),
             AccountingOtherIncome::STATUS_VALIDATED => __('main.other_income_status_validated'),
             AccountingOtherIncome::STATUS_CANCELLED => __('main.other_income_status_cancelled'),
+        ];
+    }
+
+    private function expenseRules(CompanySite $site): array
+    {
+        return [
+            'expense_date' => ['required', 'date'],
+            'expense_category_id' => [
+                'required',
+                'integer',
+                Rule::exists('accounting_expense_categories', 'id')
+                    ->where('company_site_id', $site->id)
+                    ->where('status', AccountingExpenseCategory::STATUS_ACTIVE),
+            ],
+            'label' => ['required', 'string', 'max:255'],
+            'beneficiary' => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'currency' => [
+                'required',
+                'string',
+                Rule::exists('accounting_currencies', 'code')
+                    ->where('company_site_id', $site->id)
+                    ->where('status', AccountingCurrency::STATUS_ACTIVE),
+            ],
+            'payment_method_id' => [
+                'required',
+                'integer',
+                Rule::exists('accounting_payment_methods', 'id')
+                    ->where('company_site_id', $site->id)
+                    ->where('status', AccountingPaymentMethod::STATUS_ACTIVE),
+            ],
+            'payment_reference' => ['nullable', 'string', 'max:255'],
+            'status' => ['required', Rule::in([AccountingExpense::STATUS_DRAFT, AccountingExpense::STATUS_VALIDATED])],
+        ];
+    }
+
+    private function expensePayload(array $validated, User&Authenticatable $user, bool $withCreator = true): array
+    {
+        $payload = [
+            'expense_date' => $validated['expense_date'],
+            'expense_category_id' => $validated['expense_category_id'],
+            'label' => $validated['label'],
+            'beneficiary' => $validated['beneficiary'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'amount' => round((float) $validated['amount'], 2),
+            'currency' => $validated['currency'],
+            'payment_method_id' => $validated['payment_method_id'],
+            'payment_reference' => $validated['payment_reference'] ?? null,
+            'status' => $validated['status'],
+        ];
+
+        if ($withCreator) {
+            $payload['created_by'] = $user->id;
+        }
+
+        return $payload;
+    }
+
+    private function changeAccountingExpenseStatus(Company $company, CompanySite $site, AccountingExpense $expense, string $status, string $message): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ((int) $expense->company_site_id !== (int) $site->id || ! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.expenses', [$company, $site]);
+        }
+
+        if ($status === AccountingExpense::STATUS_VALIDATED && ! $expense->isDraft()) {
+            return redirect()->route('main.accounting.expenses', [$company, $site]);
+        }
+
+        if ($status === AccountingExpense::STATUS_CANCELLED && ! $expense->isValidated()) {
+            return redirect()->route('main.accounting.expenses', [$company, $site]);
+        }
+
+        $expense->update(['status' => $status]);
+
+        return redirect()
+            ->route('main.accounting.expenses', [$company, $site])
+            ->with('success', $message);
+    }
+
+    private function expenseStatusLabels(): array
+    {
+        return [
+            AccountingExpense::STATUS_DRAFT => __('main.expense_status_draft'),
+            AccountingExpense::STATUS_VALIDATED => __('main.expense_status_validated'),
+            AccountingExpense::STATUS_CANCELLED => __('main.expense_status_cancelled'),
         ];
     }
 
@@ -7988,6 +12385,429 @@ class MainController extends Controller
             ->with('success', $message);
     }
 
+    private function accountingTaskQueryForUser(CompanySite $site, User&Authenticatable $user)
+    {
+        return AccountingTask::query()
+            ->where('company_site_id', $site->id)
+            ->when($user->isUser(), fn ($query) => $query->where(function ($accessQuery) use ($user): void {
+                $accessQuery->where('assigned_to', $user->id)
+                    ->orWhere('created_by', $user->id);
+            }));
+    }
+
+    private function ensureAccountingTaskAccessible(CompanySite $site, AccountingTask $task, User&Authenticatable $user): void
+    {
+        if ((int) $task->company_site_id !== (int) $site->id) {
+            abort(404);
+        }
+
+        if ($user->isUser() && (int) $task->assigned_to !== (int) $user->id && (int) $task->created_by !== (int) $user->id) {
+            abort(404);
+        }
+    }
+
+    private function accountingTaskRules(Company $company, CompanySite $site): array
+    {
+        return [
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:3000'],
+            'type' => ['required', Rule::in(AccountingTask::types())],
+            'priority' => ['required', Rule::in(AccountingTask::priorities())],
+            'status' => ['required', Rule::in(AccountingTask::statuses())],
+            'due_date' => ['nullable', 'date'],
+            'assigned_to' => ['nullable', Rule::exists('users', 'id')->where(fn ($query) => $query->where('subscription_id', $company->subscription_id)->whereIn('role', [User::ROLE_ADMIN, User::ROLE_USER]))],
+            'client_id' => ['nullable', Rule::exists('accounting_clients', 'id')->where(fn ($query) => $query->where('company_site_id', $site->id))],
+            'supplier_id' => ['nullable', Rule::exists('accounting_suppliers', 'id')->where(fn ($query) => $query->where('company_site_id', $site->id))],
+            'source_key' => ['nullable', 'string', 'max:80'],
+            'completion_notes' => ['nullable', 'string', 'max:2000'],
+        ];
+    }
+
+    private function accountingTaskPayload(array $validated, CompanySite $site, User&Authenticatable $user, ?AccountingTask $task = null): array
+    {
+        $document = $task?->is_automatic
+            ? [
+                'source_type' => $task->source_type,
+                'source_id' => $task->source_id,
+                'source_reference' => $task->source_reference,
+                'source_label' => $task->source_label,
+            ]
+            : $this->resolveAccountingTaskDocument($site, $validated['source_key'] ?? null);
+        $status = $validated['status'];
+        $payload = [
+            'assigned_to' => $user->isUser() ? $user->id : ($validated['assigned_to'] ?? null),
+            'created_by' => $task?->created_by ?: $user->id,
+            'client_id' => $validated['client_id'] ?? null,
+            'supplier_id' => $validated['supplier_id'] ?? null,
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
+            'type' => $validated['type'],
+            'priority' => $validated['priority'],
+            'status' => $status,
+            'due_date' => $validated['due_date'] ?? null,
+            'completion_notes' => $validated['completion_notes'] ?? null,
+        ] + $document;
+
+        if ($status === AccountingTask::STATUS_COMPLETED) {
+            $payload['completed_by'] = $user->id;
+            $payload['completed_at'] = $task?->completed_at ?: now();
+        } else {
+            $payload['completed_by'] = null;
+            $payload['completed_at'] = null;
+        }
+
+        return $payload;
+    }
+
+    private function resolveAccountingTaskDocument(CompanySite $site, ?string $sourceKey): array
+    {
+        $empty = ['source_type' => null, 'source_id' => null, 'source_reference' => null, 'source_label' => null];
+
+        if (! filled($sourceKey) || ! str_contains($sourceKey, ':')) {
+            return $empty;
+        }
+
+        [$type, $id] = explode(':', $sourceKey, 2);
+
+        if (! ctype_digit($id)) {
+            return $empty;
+        }
+
+        if ($type === AccountingTask::SOURCE_SALES_INVOICE) {
+            $invoice = AccountingSalesInvoice::query()->where('company_site_id', $site->id)->findOrFail((int) $id);
+
+            return [
+                'source_type' => $type,
+                'source_id' => $invoice->id,
+                'source_reference' => $invoice->reference,
+                'source_label' => __('main.sales_invoice'),
+            ];
+        }
+
+        if ($type === AccountingTask::SOURCE_PAYMENT_REMINDER) {
+            $reminder = AccountingPaymentReminder::query()->where('company_site_id', $site->id)->findOrFail((int) $id);
+
+            return [
+                'source_type' => $type,
+                'source_id' => $reminder->id,
+                'source_reference' => $reminder->reference,
+                'source_label' => __('main.payment_reminder_letter'),
+            ];
+        }
+
+        return $empty;
+    }
+
+    private function accountingTaskDocumentOptions(CompanySite $site): array
+    {
+        return [
+            __('main.sales_invoices') => AccountingSalesInvoice::query()
+                ->where('company_site_id', $site->id)
+                ->latest('id')
+                ->limit(30)
+                ->get()
+                ->mapWithKeys(fn (AccountingSalesInvoice $invoice) => [
+                    AccountingTask::SOURCE_SALES_INVOICE.':'.$invoice->id => $invoice->reference,
+                ])
+                ->all(),
+            __('main.payment_reminders') => AccountingPaymentReminder::query()
+                ->where('company_site_id', $site->id)
+                ->latest('id')
+                ->limit(30)
+                ->get()
+                ->mapWithKeys(fn (AccountingPaymentReminder $reminder) => [
+                    AccountingTask::SOURCE_PAYMENT_REMINDER.':'.$reminder->id => $reminder->reference,
+                ])
+                ->all(),
+        ];
+    }
+
+    private function accountingTaskDocumentUrl(AccountingTask $task, Company $company, CompanySite $site): ?string
+    {
+        return match ($task->source_type) {
+            AccountingTask::SOURCE_SALES_INVOICE => $task->source_id
+                ? route('main.accounting.sales-invoices.print', [$company, $site, $task->source_id])
+                : null,
+            AccountingTask::SOURCE_PAYMENT_REMINDER => $task->source_id
+                ? route('main.accounting.payment-reminders.letter', [$company, $site, $task->source_id])
+                : null,
+            AccountingTask::SOURCE_PAYMENT_PROMISE => route('main.accounting.payment-reminders', [$company, $site]),
+            default => null,
+        };
+    }
+
+    private function syncAccountingTasks(CompanySite $site, User&Authenticatable $user): void
+    {
+        AccountingSalesInvoice::query()
+            ->with('client')
+            ->where('company_site_id', $site->id)
+            ->where('status', AccountingSalesInvoice::STATUS_OVERDUE)
+            ->where('balance_due', '>', 0)
+            ->get()
+            ->each(function (AccountingSalesInvoice $invoice) use ($site, $user): void {
+                $task = AccountingTask::query()->firstOrCreate(
+                    ['company_site_id' => $site->id, 'automation_key' => 'overdue_invoice:'.$invoice->id],
+                    [
+                        'created_by' => $user->id,
+                        'client_id' => $invoice->client_id,
+                        'title' => __('main.task_overdue_invoice_title', ['reference' => $invoice->reference]),
+                        'description' => __('main.task_overdue_invoice_description', [
+                            'amount' => number_format((float) $invoice->balance_due, 2, ',', ' '),
+                            'currency' => $invoice->currency,
+                        ]),
+                        'type' => AccountingTask::TYPE_REMINDER,
+                        'priority' => AccountingTask::PRIORITY_HIGH,
+                        'status' => AccountingTask::STATUS_TODO,
+                        'due_date' => $invoice->due_date,
+                        'source_type' => AccountingTask::SOURCE_SALES_INVOICE,
+                        'source_id' => $invoice->id,
+                        'source_reference' => $invoice->reference,
+                        'source_label' => __('main.sales_invoice'),
+                        'is_automatic' => true,
+                    ]
+                );
+                $this->recordAutomaticAccountingTaskCreation($task, $user);
+            });
+
+        AccountingPaymentPromise::query()
+            ->with('reminder')
+            ->whereHas('reminder', fn ($query) => $query->where('company_site_id', $site->id))
+            ->where('status', AccountingPaymentPromise::STATUS_BROKEN)
+            ->get()
+            ->each(function (AccountingPaymentPromise $promise) use ($site, $user): void {
+                $reminder = $promise->reminder;
+                $task = AccountingTask::query()->firstOrCreate(
+                    ['company_site_id' => $site->id, 'automation_key' => 'broken_promise:'.$promise->id],
+                    [
+                        'created_by' => $user->id,
+                        'client_id' => $reminder?->client_id,
+                        'title' => __('main.task_broken_promise_title', ['reference' => $reminder?->reference]),
+                        'description' => __('main.task_broken_promise_description'),
+                        'type' => AccountingTask::TYPE_PAYMENT,
+                        'priority' => AccountingTask::PRIORITY_URGENT,
+                        'status' => AccountingTask::STATUS_TODO,
+                        'due_date' => $promise->promised_date,
+                        'source_type' => AccountingTask::SOURCE_PAYMENT_PROMISE,
+                        'source_id' => $promise->id,
+                        'source_reference' => $reminder?->reference,
+                        'source_label' => __('main.payment_promises'),
+                        'is_automatic' => true,
+                    ]
+                );
+                $this->recordAutomaticAccountingTaskCreation($task, $user);
+            });
+
+        AccountingTask::query()
+            ->where('company_site_id', $site->id)
+            ->where('is_automatic', true)
+            ->where('source_type', AccountingTask::SOURCE_SALES_INVOICE)
+            ->whereNotIn('status', [AccountingTask::STATUS_COMPLETED, AccountingTask::STATUS_CANCELLED])
+            ->get()
+            ->each(function (AccountingTask $task) use ($user): void {
+                $invoice = AccountingSalesInvoice::find($task->source_id);
+
+                if ($invoice && (float) $invoice->balance_due > 0) {
+                    return;
+                }
+
+                $task->update([
+                    'status' => AccountingTask::STATUS_COMPLETED,
+                    'completed_by' => $user->id,
+                    'completed_at' => now(),
+                    'completion_notes' => __('main.task_automatically_settled'),
+                ]);
+                $task->activities()->create([
+                    'created_by' => $user->id,
+                    'action_type' => AccountingTaskActivity::TYPE_COMPLETED,
+                    'to_status' => AccountingTask::STATUS_COMPLETED,
+                    'notes' => __('main.task_automatically_settled'),
+                ]);
+            });
+    }
+
+    private function recordAutomaticAccountingTaskCreation(AccountingTask $task, User&Authenticatable $user): void
+    {
+        if (! $task->wasRecentlyCreated) {
+            return;
+        }
+
+        $task->activities()->create([
+            'created_by' => $user->id,
+            'action_type' => AccountingTaskActivity::TYPE_AUTOMATIC_CREATED,
+            'to_status' => $task->status,
+        ]);
+    }
+
+    private function accountingTaskTypeLabels(): array
+    {
+        return [
+            AccountingTask::TYPE_CALL => __('main.task_type_call'),
+            AccountingTask::TYPE_REMINDER => __('main.task_type_reminder'),
+            AccountingTask::TYPE_PAYMENT => __('main.task_type_payment'),
+            AccountingTask::TYPE_DELIVERY => __('main.task_type_delivery'),
+            AccountingTask::TYPE_CONTROL => __('main.task_type_control'),
+            AccountingTask::TYPE_ADMINISTRATIVE => __('main.task_type_administrative'),
+            AccountingTask::TYPE_OTHER => __('main.other'),
+        ];
+    }
+
+    private function accountingTaskPriorityLabels(): array
+    {
+        return [
+            AccountingTask::PRIORITY_LOW => __('main.priority_low'),
+            AccountingTask::PRIORITY_NORMAL => __('main.priority_normal'),
+            AccountingTask::PRIORITY_HIGH => __('main.priority_high'),
+            AccountingTask::PRIORITY_URGENT => __('main.priority_urgent'),
+        ];
+    }
+
+    private function accountingTaskStatusLabels(): array
+    {
+        return [
+            AccountingTask::STATUS_TODO => __('main.task_status_todo'),
+            AccountingTask::STATUS_IN_PROGRESS => __('main.task_status_in_progress'),
+            AccountingTask::STATUS_COMPLETED => __('main.task_status_completed'),
+            AccountingTask::STATUS_CANCELLED => __('main.task_status_cancelled'),
+        ];
+    }
+
+    private function accountingTaskActivityLabels(): array
+    {
+        return [
+            AccountingTaskActivity::TYPE_CREATED => __('main.task_activity_created'),
+            AccountingTaskActivity::TYPE_UPDATED => __('main.task_activity_updated'),
+            AccountingTaskActivity::TYPE_COMPLETED => __('main.task_activity_completed'),
+            AccountingTaskActivity::TYPE_CANCELLED => __('main.task_activity_cancelled'),
+            AccountingTaskActivity::TYPE_AUTOMATIC_CREATED => __('main.task_activity_automatic_created'),
+        ];
+    }
+
+    private function resolveAccountingPaymentReminderSource(CompanySite $site, string $type, int $id): array
+    {
+        if ($type === 'invoice') {
+            $invoice = AccountingSalesInvoice::query()
+                ->where('company_site_id', $site->id)
+                ->where('balance_due', '>', 0)
+                ->whereNotIn('status', [AccountingSalesInvoice::STATUS_DRAFT, AccountingSalesInvoice::STATUS_CANCELLED, AccountingSalesInvoice::STATUS_CREDITED])
+                ->findOrFail($id);
+
+            return ['type' => 'invoice', 'model' => $invoice, 'client_id' => $invoice->client_id];
+        }
+
+        $debtor = AccountingDebtor::query()
+            ->where('company_site_id', $site->id)
+            ->where('status', '!=', AccountingDebtor::STATUS_INACTIVE)
+            ->findOrFail($id);
+
+        if ($debtor->balanceReceivable() <= 0) {
+            abort(404);
+        }
+
+        return ['type' => 'receivable', 'model' => $debtor, 'client_id' => null];
+    }
+
+    private function ensureAccountingPaymentReminderBelongsToSite(CompanySite $site, AccountingPaymentReminder $reminder): void
+    {
+        if ((int) $reminder->company_site_id !== (int) $site->id) {
+            abort(404);
+        }
+    }
+
+    private function accountingPaymentReminderBalance(AccountingPaymentReminder $reminder): float
+    {
+        $reminder->loadMissing(['salesInvoice', 'debtor']);
+
+        return $reminder->salesInvoice
+            ? max(0, (float) $reminder->salesInvoice->balance_due)
+            : max(0, (float) $reminder->debtor?->balanceReceivable());
+    }
+
+    private function accountingPaymentReminderCurrency(AccountingPaymentReminder $reminder): string
+    {
+        $reminder->loadMissing(['salesInvoice', 'debtor']);
+
+        return (string) ($reminder->salesInvoice?->currency ?: $reminder->debtor?->currency ?: 'CDF');
+    }
+
+    private function syncAccountingPaymentReminderStatuses(CompanySite $site, User&Authenticatable $user): void
+    {
+        AccountingPaymentReminder::query()
+            ->with(['salesInvoice', 'debtor', 'promises'])
+            ->where('company_site_id', $site->id)
+            ->get()
+            ->each(function (AccountingPaymentReminder $reminder) use ($user): void {
+                if ($this->accountingPaymentReminderBalance($reminder) <= 0 && $reminder->status !== AccountingPaymentReminder::STATUS_SETTLED) {
+                    $reminder->update(['status' => AccountingPaymentReminder::STATUS_SETTLED]);
+                    $reminder->actions()->create([
+                        'created_by' => $user->id,
+                        'action_type' => AccountingPaymentReminderAction::TYPE_SETTLED,
+                        'action_at' => now(),
+                    ]);
+
+                    return;
+                }
+
+                $reminder->promises()
+                    ->where('status', AccountingPaymentPromise::STATUS_PENDING)
+                    ->whereDate('promised_date', '<', now()->toDateString())
+                    ->update(['status' => AccountingPaymentPromise::STATUS_BROKEN]);
+            });
+    }
+
+    private function accountingPaymentReminderLevelLabels(): array
+    {
+        return [
+            AccountingPaymentReminder::LEVEL_FRIENDLY => __('main.reminder_level_friendly'),
+            AccountingPaymentReminder::LEVEL_FIRST => __('main.reminder_level_first'),
+            AccountingPaymentReminder::LEVEL_SECOND => __('main.reminder_level_second'),
+            AccountingPaymentReminder::LEVEL_FORMAL_NOTICE => __('main.reminder_level_formal_notice'),
+        ];
+    }
+
+    private function accountingPaymentReminderChannelLabels(): array
+    {
+        return [
+            AccountingPaymentReminder::CHANNEL_EMAIL => __('main.reminder_channel_email'),
+            AccountingPaymentReminder::CHANNEL_PHONE => __('main.reminder_channel_phone'),
+            AccountingPaymentReminder::CHANNEL_LETTER => __('main.reminder_channel_letter'),
+            AccountingPaymentReminder::CHANNEL_OTHER => __('main.other'),
+        ];
+    }
+
+    private function accountingPaymentReminderStatusLabels(): array
+    {
+        return [
+            'due' => __('main.reminder_status_due'),
+            'overdue' => __('main.reminder_status_overdue'),
+            AccountingPaymentReminder::STATUS_SENT => __('main.reminder_status_sent'),
+            AccountingPaymentReminder::STATUS_PROMISE => __('main.reminder_status_promise'),
+            AccountingPaymentReminder::STATUS_SETTLED => __('main.settled'),
+            AccountingPaymentReminder::STATUS_DISPUTED => __('main.reminder_status_disputed'),
+            AccountingPaymentReminder::STATUS_SUSPENDED => __('main.reminder_status_suspended'),
+        ];
+    }
+
+    private function accountingPaymentReminderActionLabels(): array
+    {
+        return [
+            AccountingPaymentReminderAction::TYPE_REMINDER_SENT => __('main.reminder_action_sent'),
+            AccountingPaymentReminderAction::TYPE_PROMISE => __('main.reminder_action_promise'),
+            AccountingPaymentReminderAction::TYPE_DISPUTED => __('main.reminder_action_disputed'),
+            AccountingPaymentReminderAction::TYPE_SUSPENDED => __('main.reminder_action_suspended'),
+            AccountingPaymentReminderAction::TYPE_SETTLED => __('main.reminder_action_settled'),
+        ];
+    }
+
+    private function accountingPaymentPromiseStatusLabels(): array
+    {
+        return [
+            AccountingPaymentPromise::STATUS_PENDING => __('main.promise_status_pending'),
+            AccountingPaymentPromise::STATUS_HONORED => __('main.promise_status_honored'),
+            AccountingPaymentPromise::STATUS_BROKEN => __('main.promise_status_broken'),
+            AccountingPaymentPromise::STATUS_CANCELLED => __('main.promise_status_cancelled'),
+        ];
+    }
+
     private function refreshSalesInvoicePaymentStatus(AccountingSalesInvoice $invoice): void
     {
         $invoice->loadMissing('payments');
@@ -8131,6 +12951,136 @@ class MainController extends Controller
             AccountingPurchaseLine::TYPE_SERVICE => __('main.proforma_line_service'),
             AccountingPurchaseLine::TYPE_FREE => __('main.proforma_line_free'),
         ];
+    }
+
+    private function purchaseOrderStatusLabels(): array
+    {
+        return [
+            AccountingPurchaseOrder::STATUS_DRAFT => __('main.purchase_order_status_draft'),
+            AccountingPurchaseOrder::STATUS_SENT => __('main.purchase_order_status_sent'),
+            AccountingPurchaseOrder::STATUS_CONFIRMED => __('main.purchase_order_status_confirmed'),
+            AccountingPurchaseOrder::STATUS_PARTIALLY_RECEIVED => __('main.purchase_order_status_partially_received'),
+            AccountingPurchaseOrder::STATUS_RECEIVED => __('main.purchase_order_status_received'),
+            AccountingPurchaseOrder::STATUS_CONVERTED => __('main.purchase_order_status_converted'),
+            AccountingPurchaseOrder::STATUS_CANCELLED => __('main.purchase_order_status_cancelled'),
+        ];
+    }
+
+    private function purchaseOrderLineTypeLabels(): array
+    {
+        return [
+            AccountingPurchaseOrderLine::TYPE_ITEM => __('main.proforma_line_item'),
+            AccountingPurchaseOrderLine::TYPE_SERVICE => __('main.proforma_line_service'),
+            AccountingPurchaseOrderLine::TYPE_FREE => __('main.proforma_line_free'),
+        ];
+    }
+
+    private function purchaseOrderRules(CompanySite $site, bool $updating = false): array
+    {
+        $rules = $this->purchaseRules($site, $updating);
+
+        $rules['supplier_reference'] = ['nullable', 'string', 'max:255'];
+        $rules['order_date'] = $rules['purchase_date'];
+        $rules['expected_delivery_date'] = ['nullable', 'date', 'after_or_equal:order_date'];
+        $rules['status'] = [$updating ? 'required' : 'nullable', Rule::in(AccountingPurchaseOrder::statuses())];
+
+        unset($rules['supplier_invoice_reference'], $rules['purchase_date'], $rules['due_date']);
+
+        return $rules;
+    }
+
+    private function purchaseOrderPayload(array $validated, User&Authenticatable $user, array $totals, bool $withCreator = true): array
+    {
+        $payload = [
+            'supplier_id' => $validated['supplier_id'],
+            'supplier_reference' => $validated['supplier_reference'] ?? null,
+            'title' => $validated['title'] ?? null,
+            'order_date' => $validated['order_date'],
+            'expected_delivery_date' => $validated['expected_delivery_date'] ?? null,
+            'currency' => $validated['currency'],
+            'status' => $validated['status'] ?? AccountingPurchaseOrder::STATUS_DRAFT,
+            'subtotal' => $totals['subtotal'],
+            'discount_total' => $totals['discount_total'],
+            'total_ht' => $totals['total_ht'],
+            'tax_rate' => $validated['tax_rate'],
+            'tax_amount' => $totals['tax_amount'],
+            'total_ttc' => $totals['total_ttc'],
+            'notes' => $validated['notes'] ?? null,
+            'terms' => $validated['terms'] ?? null,
+        ];
+
+        if ($withCreator) {
+            $payload['created_by'] = $user->id;
+        }
+
+        return $payload;
+    }
+
+    private function calculatePurchaseOrderTotals(array $lines, float $taxRate): array
+    {
+        return $this->calculatePurchaseTotals($lines, $taxRate);
+    }
+
+    private function syncPurchaseOrderLines(AccountingPurchaseOrder $purchaseOrder, CompanySite $site, User&Authenticatable $user, array $lines, string $currency): void
+    {
+        $purchaseOrder->lines()->delete();
+
+        foreach ($lines as $line) {
+            $quantity = (float) ($line['quantity'] ?? 0);
+            $unitPrice = (float) ($line['unit_price'] ?? 0);
+            $discountType = $this->purchaseOrderLineDiscountType($line);
+            $discountValue = (float) ($line['discount_amount'] ?? 0);
+            $rawTotal = $quantity * $unitPrice;
+            $discount = $this->purchaseOrderLineDiscountAmount($line, $rawTotal);
+            $lineType = $line['line_type'];
+            $itemId = ($lineType === AccountingPurchaseOrderLine::TYPE_ITEM) ? ($line['item_id'] ?? null) : null;
+
+            if ($lineType === AccountingPurchaseOrderLine::TYPE_FREE && (bool) ($line['create_stock_item'] ?? false)) {
+                $item = $this->createStockItemFromFreeLine($site, $user, [
+                    'description' => $line['description'],
+                    'details' => $line['details'] ?? null,
+                    'cost_price' => $line['unit_price'],
+                    'unit_price' => $line['unit_price'],
+                ], $currency);
+                $lineType = AccountingPurchaseOrderLine::TYPE_ITEM;
+                $itemId = $item->id;
+            }
+
+            $purchaseOrder->lines()->create([
+                'line_type' => $lineType,
+                'item_id' => $itemId,
+                'service_id' => ($lineType === AccountingPurchaseOrderLine::TYPE_SERVICE) ? ($line['service_id'] ?? null) : null,
+                'description' => $line['description'],
+                'details' => $line['details'] ?? null,
+                'quantity' => $quantity,
+                'received_quantity' => (float) ($line['received_quantity'] ?? 0),
+                'unit_price' => $unitPrice,
+                'discount_type' => $discountType,
+                'discount_amount' => $discountValue,
+                'line_total' => max(0, $rawTotal - $discount),
+            ]);
+        }
+    }
+
+    private function purchaseOrderLineDiscountAmount(array $line, float $rawTotal): float
+    {
+        $discountType = $this->purchaseOrderLineDiscountType($line);
+        $discountValue = max(0, (float) ($line['discount_amount'] ?? 0));
+
+        if ($discountType === AccountingPurchaseOrderLine::DISCOUNT_PERCENT) {
+            return round(min($discountValue, 100) * $rawTotal / 100, 2);
+        }
+
+        return round(min($discountValue, $rawTotal), 2);
+    }
+
+    private function purchaseOrderLineDiscountType(array $line): string
+    {
+        $discountType = $line['discount_type'] ?? AccountingPurchaseOrderLine::DISCOUNT_FIXED;
+
+        return in_array($discountType, AccountingPurchaseOrderLine::discountTypes(), true)
+            ? $discountType
+            : AccountingPurchaseOrderLine::DISCOUNT_FIXED;
     }
 
     private function purchaseRules(CompanySite $site, bool $updating = false): array

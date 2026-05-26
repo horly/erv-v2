@@ -1,5 +1,8 @@
 @php
     $activeAccountingPage ??= 'dashboard';
+    $visibleAccountingMenuKeys = request()->attributes->get('accounting_visible_menu_keys', \App\Support\AccountingModuleNavigation::keys());
+    $canManageAccountingSettings = request()->attributes->get('can_manage_accounting_settings', $user->isAdmin() || $user->isSuperadmin());
+    $canOpenAccountingMenu = fn (string $key) => $canManageAccountingSettings || in_array($key, $visibleAccountingMenuKeys, true);
     $moduleRoute = route('main.companies.sites.modules.show', [$company, $site, \App\Models\CompanySite::MODULE_ACCOUNTING]);
     $prospectsRoute = route('main.accounting.prospects', [$company, $site]);
     $clientsRoute = route('main.accounting.clients', [$company, $site]);
@@ -15,6 +18,11 @@
     $receiptsRoute = route('main.accounting.receipts', [$company, $site]);
     $otherIncomesRoute = route('main.accounting.other-incomes', [$company, $site]);
     $cashRegisterRoute = route('main.accounting.cash-register', [$company, $site]);
+    $purchasesRoute = route('main.accounting.purchases', [$company, $site]);
+    $purchaseOrdersRoute = route('main.accounting.purchase-orders', [$company, $site]);
+    $expensesRoute = route('main.accounting.expenses', [$company, $site]);
+    $debtsRoute = route('main.accounting.debts', [$company, $site]);
+    $receivablesRoute = route('main.accounting.receivables', [$company, $site]);
     $stockRoute = fn (string $resource) => route('main.accounting.stock.index', [$company, $site, $resource]);
     $serviceRoute = fn (string $resource) => route('main.accounting.services.index', [$company, $site, $resource]);
     $navigationGroups = [
@@ -71,27 +79,80 @@
     ];
     $salesIsOpen = collect($salesItems)->contains(fn ($item) => $item['active'] ?? false);
     $expenseItems = [
-        ['label' => __('main.purchases'), 'icon' => 'bi-bag-check'],
-        ['label' => __('main.purchase_orders'), 'icon' => 'bi-clipboard-check'],
-        ['label' => __('main.expenses'), 'icon' => 'bi-wallet2'],
+        ['label' => __('main.purchases'), 'icon' => 'bi-bag-check', 'href' => $purchasesRoute, 'active' => $activeAccountingPage === 'purchases'],
+        ['label' => __('main.purchase_orders'), 'icon' => 'bi-clipboard-check', 'href' => $purchaseOrdersRoute, 'active' => $activeAccountingPage === 'purchase-orders'],
+        ['label' => __('main.expenses'), 'icon' => 'bi-wallet2', 'href' => $expensesRoute, 'active' => $activeAccountingPage === 'expenses'],
     ];
+    $expensesIsOpen = collect($expenseItems)->contains(fn ($item) => $item['active'] ?? false);
     $otherItems = [
-        ['label' => __('main.debts'), 'icon' => 'bi-arrow-up-right'],
-        ['label' => __('main.receivables'), 'icon' => 'bi-arrow-down-left'],
-        ['label' => __('main.taxes'), 'icon' => 'bi-percent'],
-        ['label' => __('main.cashflow'), 'icon' => 'bi-activity'],
-        ['label' => __('main.bank_reconciliation'), 'icon' => 'bi-bank'],
-        ['label' => __('main.payment_reminders'), 'icon' => 'bi-bell'],
+        ['label' => __('main.debts'), 'icon' => 'bi-arrow-up-right', 'href' => $debtsRoute, 'active' => $activeAccountingPage === 'debts'],
+        ['label' => __('main.receivables'), 'icon' => 'bi-arrow-down-left', 'href' => $receivablesRoute, 'active' => $activeAccountingPage === 'receivables'],
+        ['label' => __('main.taxes'), 'icon' => 'bi-percent', 'href' => route('main.accounting.taxes', [$company, $site]), 'active' => $activeAccountingPage === 'taxes'],
+        ['label' => __('main.cashflow'), 'icon' => 'bi-activity', 'href' => route('main.accounting.treasury', [$company, $site]), 'active' => $activeAccountingPage === 'treasury'],
+        ['label' => __('main.bank_reconciliation'), 'icon' => 'bi-bank', 'href' => route('main.accounting.bank-reconciliations', [$company, $site]), 'active' => $activeAccountingPage === 'bank-reconciliations'],
+        ['label' => __('main.payment_reminders'), 'icon' => 'bi-bell', 'href' => route('main.accounting.payment-reminders', [$company, $site]), 'active' => $activeAccountingPage === 'payment-reminders'],
     ];
+    $menuRouteKeys = [
+        $prospectsRoute => 'prospects',
+        $clientsRoute => 'clients',
+        $suppliersRoute => 'suppliers',
+        $creditorsRoute => 'creditors',
+        $debtorsRoute => 'debtors',
+        $partnersRoute => 'partners',
+        $salesRepresentativesRoute => 'sales-representatives',
+        $stockRoute('items') => 'stock-items',
+        $stockRoute('categories') => 'stock-categories',
+        $stockRoute('subcategories') => 'stock-subcategories',
+        $stockRoute('warehouses') => 'stock-warehouses',
+        $stockRoute('movements') => 'stock-movements',
+        $stockRoute('inventories') => 'stock-inventories',
+        $stockRoute('alerts') => 'stock-alerts',
+        $stockRoute('units') => 'stock-units',
+        $stockRoute('batches') => 'stock-batches',
+        $stockRoute('transfers') => 'stock-transfers',
+        $serviceRoute('price-list') => 'service-price-list',
+        $serviceRoute('categories') => 'service-categories',
+        $serviceRoute('subcategories') => 'service-subcategories',
+        $serviceRoute('units') => 'service-units',
+        $serviceRoute('recurring') => 'service-recurring',
+        route('main.accounting.proforma-invoices', [$company, $site]) => 'proforma-invoices',
+        $customerOrdersRoute => 'customer-orders',
+        $deliveryNotesRoute => 'delivery-notes',
+        $salesInvoicesRoute => 'sales-invoices',
+        $creditNotesRoute => 'credit-notes',
+        $receiptsRoute => 'receipts',
+        $cashRegisterRoute => 'cash-register',
+        $otherIncomesRoute => 'other-incomes',
+        $purchasesRoute => 'purchases',
+        $purchaseOrdersRoute => 'purchase-orders',
+        $expensesRoute => 'expenses',
+        $debtsRoute => 'debts',
+        $receivablesRoute => 'receivables',
+        route('main.accounting.taxes', [$company, $site]) => 'taxes',
+        route('main.accounting.treasury', [$company, $site]) => 'treasury',
+        route('main.accounting.bank-reconciliations', [$company, $site]) => 'bank-reconciliations',
+        route('main.accounting.payment-reminders', [$company, $site]) => 'payment-reminders',
+    ];
+    $itemIsVisible = fn (array $item) => $canOpenAccountingMenu($menuRouteKeys[$item['href']] ?? '');
+    $navigationGroups = collect($navigationGroups)
+        ->map(fn (array $group) => array_merge($group, ['items' => array_values(array_filter($group['items'], $itemIsVisible))]))
+        ->filter(fn (array $group) => $group['items'] !== [])
+        ->values()
+        ->all();
+    $salesItems = array_values(array_filter($salesItems, $itemIsVisible));
+    $expenseItems = array_values(array_filter($expenseItems, $itemIsVisible));
+    $otherItems = array_values(array_filter($otherItems, $itemIsVisible));
+    $salesIsOpen = collect($salesItems)->contains(fn ($item) => $item['active'] ?? false);
+    $expensesIsOpen = collect($expenseItems)->contains(fn ($item) => $item['active'] ?? false);
 @endphp
 
 <aside class="dashboard-sidebar accounting-sidebar">
-    <a class="sidebar-brand" href="{{ $moduleRoute }}" aria-label="EXAD ERP">
+    <a class="sidebar-brand" href="{{ $moduleRoute }}" aria-label="{{ app_brand_name() }}">
         <span class="sidebar-logo">
-            <img src="{{ asset('img/logo/exad-1200x1200.jpg') }}" alt="EXAD Solution & Services">
+            <img src="{{ app_brand_logo_url() }}" alt="{{ app_brand_name() }}">
         </span>
         <span>
-            <strong>EXAD ERP</strong>
+            <strong>{{ app_brand_short_name() }}</strong>
             <small>{{ __('main.accounting_dashboard') }}</small>
         </span>
     </a>
@@ -109,10 +170,12 @@
     </button>
 
     <nav class="sidebar-nav accounting-nav" aria-label="{{ __('main.accounting_navigation') }}">
-        <a class="nav-link {{ $activeAccountingPage === 'dashboard' ? 'active' : '' }}" href="{{ $moduleRoute }}">
-            <i class="bi bi-speedometer2" aria-hidden="true"></i>
-            {{ __('main.dashboard') }}
-        </a>
+        @if ($canOpenAccountingMenu('dashboard'))
+            <a class="nav-link {{ $activeAccountingPage === 'dashboard' ? 'active' : '' }}" href="{{ $moduleRoute }}">
+                <i class="bi bi-speedometer2" aria-hidden="true"></i>
+                {{ __('main.dashboard') }}
+            </a>
+        @endif
 
         @foreach ($navigationGroups as $group)
             <div class="sidebar-group {{ collect($group['items'])->contains(fn ($item) => $item['active']) ? 'open' : '' }}">
@@ -132,14 +195,18 @@
             </div>
         @endforeach
 
-        <a class="nav-link {{ $activeAccountingPage === 'currencies' ? 'active' : '' }}" href="{{ route('main.accounting.currencies', [$company, $site]) }}">
-            <i class="bi bi-currency-exchange" aria-hidden="true"></i>
-            {{ __('main.currencies') }}
-        </a>
-        <a class="nav-link {{ $activeAccountingPage === 'payment-methods' ? 'active' : '' }}" href="{{ route('main.accounting.payment-methods', [$company, $site]) }}">
-            <i class="bi bi-credit-card-2-front" aria-hidden="true"></i>
-            {{ __('main.payment_methods') }}
-        </a>
+        @if ($canOpenAccountingMenu('currencies'))
+            <a class="nav-link {{ $activeAccountingPage === 'currencies' ? 'active' : '' }}" href="{{ route('main.accounting.currencies', [$company, $site]) }}">
+                <i class="bi bi-currency-exchange" aria-hidden="true"></i>
+                {{ __('main.currencies') }}
+            </a>
+        @endif
+        @if ($canOpenAccountingMenu('payment-methods'))
+            <a class="nav-link {{ $activeAccountingPage === 'payment-methods' ? 'active' : '' }}" href="{{ route('main.accounting.payment-methods', [$company, $site]) }}">
+                <i class="bi bi-credit-card-2-front" aria-hidden="true"></i>
+                {{ __('main.payment_methods') }}
+            </a>
+        @endif
 
         <span class="sidebar-section-title">{{ __('main.billing') }}</span>
 
@@ -159,15 +226,15 @@
             </div>
         </div>
 
-        <div class="sidebar-group">
-            <button class="sidebar-group-toggle" type="button" title="{{ __('main.expenses_group') }}" aria-expanded="false" data-accounting-submenu>
+        <div class="sidebar-group {{ $expensesIsOpen ? 'open' : '' }}">
+            <button class="sidebar-group-toggle" type="button" title="{{ __('main.expenses_group') }}" aria-expanded="{{ $expensesIsOpen ? 'true' : 'false' }}" data-accounting-submenu>
                 <i class="bi bi-cash-stack" aria-hidden="true"></i>
                 <span>{{ __('main.expenses_group') }}</span>
                 <i class="bi bi-chevron-down sidebar-group-chevron" aria-hidden="true"></i>
             </button>
             <div class="sidebar-subnav">
                 @foreach ($expenseItems as $item)
-                    <a href="#" title="{{ $item['label'] }}">
+                    <a href="{{ $item['href'] ?? '#' }}" title="{{ $item['label'] }}" class="{{ ($item['active'] ?? false) ? 'active' : '' }}">
                         <i class="bi {{ $item['icon'] }}" aria-hidden="true"></i>
                         <span>{{ $item['label'] }}</span>
                     </a>
@@ -178,26 +245,32 @@
         <span class="sidebar-section-title">{{ __('main.other') }}</span>
 
         @foreach ($otherItems as $item)
-            <a class="nav-link" href="#">
+            <a class="nav-link {{ ($item['active'] ?? false) ? 'active' : '' }}" href="{{ $item['href'] ?? '#' }}">
                 <i class="bi {{ $item['icon'] }}" aria-hidden="true"></i>
                 {{ $item['label'] }}
             </a>
         @endforeach
 
-        <a class="nav-link" href="#">
-            <i class="bi bi-check2-square" aria-hidden="true"></i>
-            {{ __('main.tasks') }}
-        </a>
+        @if ($canOpenAccountingMenu('tasks'))
+            <a class="nav-link {{ $activeAccountingPage === 'tasks' ? 'active' : '' }}" href="{{ route('main.accounting.tasks', [$company, $site]) }}">
+                <i class="bi bi-check2-square" aria-hidden="true"></i>
+                {{ __('main.tasks') }}
+            </a>
+        @endif
 
-        <a class="nav-link" href="#">
-            <i class="bi bi-bar-chart-line" aria-hidden="true"></i>
-            {{ __('main.reports') }}
-        </a>
+        @if ($canOpenAccountingMenu('reports'))
+            <a class="nav-link {{ $activeAccountingPage === 'reports' ? 'active' : '' }}" href="{{ route('main.accounting.reports', [$company, $site]) }}">
+                <i class="bi bi-bar-chart-line" aria-hidden="true"></i>
+                {{ __('main.reports') }}
+            </a>
+        @endif
 
-        <a class="nav-link" href="#">
-            <i class="bi bi-sliders" aria-hidden="true"></i>
-            {{ __('main.module_settings') }}
-        </a>
+        @if ($canManageAccountingSettings)
+            <a class="nav-link {{ $activeAccountingPage === 'settings' ? 'active' : '' }}" href="{{ route('main.accounting.settings', [$company, $site]) }}">
+                <i class="bi bi-sliders" aria-hidden="true"></i>
+                {{ __('main.module_settings') }}
+            </a>
+        @endif
     </nav>
 
     <div class="sidebar-footer">

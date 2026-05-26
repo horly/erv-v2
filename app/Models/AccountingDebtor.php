@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AccountingDebtor extends Model
 {
@@ -68,6 +69,16 @@ class AccountingDebtor extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(AccountingDebtorPayment::class, 'debtor_id');
+    }
+
+    public function paymentReminders(): HasMany
+    {
+        return $this->hasMany(AccountingPaymentReminder::class, 'debtor_id');
     }
 
     public function balanceReceivable(): float

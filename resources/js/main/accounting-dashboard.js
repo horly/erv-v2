@@ -104,8 +104,8 @@
         return {
             labels: periodData.labels || [],
             series: [
-                { name: data.labels?.receivables || 'Receivables', data: periodData.receivables || [] },
-                { name: data.labels?.debts || 'Debts', data: periodData.debts || [] },
+                { name: data.labels?.treasury_inflows || data.labels?.receivables || 'Inflows', data: periodData.treasuryInflows || periodData.receivables || [] },
+                { name: data.labels?.treasury_outflows || data.labels?.debts || 'Outflows', data: periodData.treasuryOutflows || periodData.debts || [] },
             ],
         };
     };

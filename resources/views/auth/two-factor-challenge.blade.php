@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('profile.two_factor_challenge_title') }} | {{ config('app.name', 'EXAD ERP') }}</title>
+    <link rel="icon" href="{{ app_brand_favicon_url() }}">
     <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet">
     <style>{!! file_get_contents(resource_path('css/auth/login.css')) !!}</style>
@@ -16,8 +17,8 @@
     <main class="auth-shell" data-theme="light">
         <section class="brand-side" aria-label="{{ __('auth.brand_aria') }}">
             <div class="brand-inner">
-                <div class="logo-card" aria-label="EXAD Solution & Services">
-                    <img src="{{ asset('img/logo/exad-1200x1200.jpg') }}" alt="EXAD Solution & Services" class="app-logo">
+                <div class="logo-card" aria-label="{{ app_brand_name() }}">
+                    <img src="{{ app_brand_logo_url() }}" alt="{{ app_brand_name() }}" class="app-logo">
                 </div>
 
                 <div>
@@ -26,7 +27,7 @@
                             {{ __('auth.brand_title_line_1') }}
                             <span>{{ __('auth.brand_title_line_2') }}</span>
                         </h4>
-                        <p class="brand-lead">{{ __('auth.brand_lead') }}</p>
+                        <p class="brand-lead">{{ app_branding('description', __('auth.brand_lead')) }}</p>
                     </div>
 
                     <div class="feature-list" aria-label="{{ __('auth.benefits_aria') }}">
@@ -73,8 +74,8 @@
             </div>
 
             <div class="login-wrap">
-                <div class="login-logo-card" aria-label="EXAD Solution & Services">
-                    <img src="{{ asset('img/logo/exad-1200x1200.jpg') }}" alt="EXAD Solution & Services" class="app-logo">
+                <div class="login-logo-card" aria-label="{{ app_brand_name() }}">
+                    <img src="{{ app_brand_logo_url() }}" alt="{{ app_brand_name() }}" class="app-logo">
                 </div>
                 <span class="access-badge">{{ __('profile.two_factor_badge_enabled') }}</span>
                 <h2 class="login-title">{{ __('profile.two_factor_challenge_title') }}</h2>
@@ -122,7 +123,7 @@
             </div>
 
             <footer class="page-footer">
-                <span>{{ __('auth.copyright') }}</span>
+                <span>{{ app_branding('copyright') ?: __('auth.copyright', ['app' => app_brand_name()]) }}</span>
                 <a href="#">{{ __('auth.privacy') }}</a>
             </footer>
         </section>

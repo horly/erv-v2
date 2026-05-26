@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('profile.title') }} | {{ config('app.name', 'EXAD ERP') }}</title>
+    <link rel="icon" href="{{ app_brand_favicon_url() }}">
     <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" rel="stylesheet">
@@ -39,12 +40,12 @@
     <div class="{{ $user->isSuperadmin() ? 'dashboard-shell main-shell' : 'main-shell' }}" data-theme="light">
         @if ($user->isSuperadmin())
             <aside class="dashboard-sidebar">
-                <a class="sidebar-brand" href="{{ route('admin.dashboard') }}" aria-label="EXAD ERP">
+                <a class="sidebar-brand" href="{{ route('admin.dashboard') }}" aria-label="{{ app_brand_name() }}">
                     <span class="sidebar-logo">
-                        <img src="{{ asset('img/logo/exad-1200x1200.jpg') }}" alt="EXAD Solution & Services">
+                        <img src="{{ app_brand_logo_url() }}" alt="{{ app_brand_name() }}">
                     </span>
                     <span>
-                        <strong>EXAD ERP</strong>
+                        <strong>{{ app_brand_short_name() }}</strong>
                         <small>{{ __('admin.console') }}</small>
                     </span>
                 </a>
@@ -82,7 +83,7 @@
 
                 <div class="sidebar-footer">
                     <i class="bi bi-shield-lock-fill" aria-hidden="true"></i>
-                    <span>{{ __('admin.version') }}</span>
+                    <span>{{ app_brand_short_name() }} · v.2.0</span>
                 </div>
             </aside>
         @endif
@@ -95,12 +96,12 @@
                     <p>{{ __('admin.breadcrumb_admin') }} / {{ __('profile.title') }}</p>
                 </div>
             @else
-                <a class="brand-block" href="{{ $homeRoute }}" aria-label="EXAD ERP">
+                <a class="brand-block" href="{{ $homeRoute }}" aria-label="{{ app_brand_name() }}">
                     <span class="brand-logo">
-                        <img src="{{ asset('img/logo/exad-1200x1200.jpg') }}" alt="EXAD Solution & Services">
+                        <img src="{{ app_brand_logo_url() }}" alt="{{ app_brand_name() }}">
                     </span>
                     <span>
-                        <strong>EXAD ERP</strong>
+                        <strong>{{ app_brand_short_name() }}</strong>
                         <small>{{ __('main.management_space') }}</small>
                     </span>
                 </a>

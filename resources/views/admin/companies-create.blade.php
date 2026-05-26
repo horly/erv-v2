@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ ($company ?? null) ? __('admin.edit_company') : __('admin.new_company') }} | {{ config('app.name', 'EXAD ERP') }}</title>
+    <link rel="icon" href="{{ app_brand_favicon_url() }}">
     <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet">
     <style>{!! file_get_contents(resource_path('css/admin/dashboard.css')) !!}</style>
@@ -40,9 +41,9 @@
 
     <div class="dashboard-shell main-shell" data-theme="light">
         <aside class="dashboard-sidebar">
-            <a class="sidebar-brand" href="{{ route('admin.dashboard') }}" aria-label="EXAD ERP">
-                <span class="sidebar-logo"><img src="{{ asset('img/logo/exad-1200x1200.jpg') }}" alt="EXAD Solution & Services"></span>
-                <span><strong>EXAD ERP</strong><small>{{ __('admin.console') }}</small></span>
+            <a class="sidebar-brand" href="{{ route('admin.dashboard') }}" aria-label="{{ app_brand_name() }}">
+                <span class="sidebar-logo"><img src="{{ app_brand_logo_url() }}" alt="{{ app_brand_name() }}"></span>
+                <span><strong>{{ app_brand_short_name() }}</strong><small>{{ __('admin.console') }}</small></span>
             </a>
             <button
                 class="sidebar-toggle"
@@ -60,8 +61,9 @@
                 <a class="nav-link" href="{{ route('admin.subscriptions') }}"><i class="bi bi-stack" aria-hidden="true"></i>{{ __('admin.subscriptions') }}</a>
                 <a class="nav-link" href="{{ route('admin.users') }}"><i class="bi bi-people" aria-hidden="true"></i>{{ __('admin.users') }}</a>
                 <a class="nav-link active" href="{{ route('admin.companies') }}"><i class="bi bi-buildings" aria-hidden="true"></i>{{ __('admin.companies') }}</a>
+                <a class="nav-link" href="{{ route('admin.application-settings') }}"><i class="bi bi-sliders" aria-hidden="true"></i>{{ __('admin.application_settings') }}</a>
             </nav>
-            <div class="sidebar-footer"><i class="bi bi-shield-lock-fill" aria-hidden="true"></i><span>{{ __('admin.version') }}</span></div>
+            <div class="sidebar-footer"><i class="bi bi-shield-lock-fill" aria-hidden="true"></i><span>{{ app_brand_short_name() }} · v.2.0</span></div>
         </aside>
 
         <main class="dashboard-main">

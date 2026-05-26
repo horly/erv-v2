@@ -5,6 +5,8 @@
     const modeInput = document.getElementById('creditorFormMode');
     const idInput = document.getElementById('creditorId');
     const submitButton = document.getElementById('creditorSubmit');
+    const existingCreditorWrapper = modal?.querySelector('[data-existing-creditor-wrapper]');
+    const existingCreditorSelect = modal?.querySelector('[data-existing-creditor-select]');
 
     const fields = {
         type: document.getElementById('creditorType'),
@@ -56,6 +58,11 @@
         submitButton.textContent = isEdit ? form.dataset.submitEdit : form.dataset.submitCreate;
         modeInput.value = isEdit ? 'edit' : 'create';
         idInput.value = isEdit ? trigger.dataset.creditorId : '';
+        existingCreditorWrapper?.classList.toggle('d-none', isEdit);
+
+        if (existingCreditorSelect) {
+            existingCreditorSelect.value = '';
+        }
 
         if (methodInput) {
             methodInput.disabled = !isEdit;
@@ -75,6 +82,21 @@
         setFieldValue(fields.priority, isEdit ? trigger.dataset.creditorPriority : defaults.priority);
         setFieldValue(fields.status, isEdit ? trigger.dataset.creditorStatus : defaults.status);
     };
+
+    existingCreditorSelect?.addEventListener('change', () => {
+        const option = existingCreditorSelect.selectedOptions[0];
+
+        if (!option?.value) {
+            return;
+        }
+
+        setFieldValue(fields.type, option.dataset.creditorType || defaults.type);
+        setFieldValue(fields.name, option.dataset.creditorName || '');
+        setFieldValue(fields.phone, option.dataset.creditorPhone || '');
+        setFieldValue(fields.email, option.dataset.creditorEmail || '');
+        setFieldValue(fields.address, option.dataset.creditorAddress || '');
+        setFieldValue(fields.currency, option.dataset.creditorCurrency || defaults.currency);
+    });
 
     document.addEventListener('click', (event) => {
         const trigger = event.target.closest('[data-creditor-mode]');

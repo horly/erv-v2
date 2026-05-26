@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Company;
 use App\Models\CompanySite;
+use App\Models\ApplicationSetting;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Support\AppBranding;
 use App\Support\CurrencyCatalog;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
@@ -206,6 +208,138 @@ class AdminController extends Controller
                 });
             });
         };
+    }
+
+    public function applicationSettings(): View
+    {
+        return view('admin.application-settings', [
+            'user' => Auth::user(),
+            'branding' => AppBranding::all(),
+        ]);
+    }
+
+    public function updateApplicationSettings(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'app_name' => ['required', 'string', 'max:120'],
+            'short_name' => ['nullable', 'string', 'max:80'],
+            'tagline' => ['nullable', 'string', 'max:160'],
+            'description' => ['nullable', 'string', 'max:500'],
+            'support_email' => ['nullable', 'email', 'max:160'],
+            'support_phone' => ['nullable', 'string', 'max:60'],
+            'website' => ['nullable', 'url', 'max:180'],
+            'copyright' => ['nullable', 'string', 'max:180'],
+            'primary_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'primary_hover_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'accent_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'sidebar_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'sidebar_secondary_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp,svg', 'max:2048'],
+            'favicon' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp,svg,ico', 'max:1024'],
+            'cropped_logo' => ['nullable', 'string'],
+            'cropped_favicon' => ['nullable', 'string'],
+        ]);
+
+        $current = AppBranding::all();
+        $croppedLogo = $this->decodeCroppedBrandingImage($validated['cropped_logo'] ?? null, 'logo', 2 * 1024 * 1024);
+        $croppedFavicon = $this->decodeCroppedBrandingImage($validated['cropped_favicon'] ?? null, 'favicon', 1024 * 1024);
+        $settings = [
+            'app_name' => $validated['app_name'],
+            'short_name' => $validated['short_name'] ?: $validated['app_name'],
+            'tagline' => $validated['tagline'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'support_email' => $validated['support_email'] ?? null,
+            'support_phone' => $validated['support_phone'] ?? null,
+            'website' => $validated['website'] ?? null,
+            'copyright' => $validated['copyright'] ?? null,
+            'primary_color' => strtoupper($validated['primary_color']),
+            'primary_hover_color' => strtoupper($validated['primary_hover_color']),
+            'accent_color' => strtoupper($validated['accent_color']),
+            'sidebar_color' => strtoupper($validated['sidebar_color']),
+            'sidebar_secondary_color' => strtoupper($validated['sidebar_secondary_color']),
+            'logo_path' => $current['logo_path'] ?? AppBranding::defaults()['logo_path'],
+            'favicon_path' => $current['favicon_path'] ?? null,
+        ];
+
+        if ($croppedLogo !== null) {
+            $settings['logo_path'] = $this->storeCroppedBrandingImage($croppedLogo, 'logo');
+            $this->deleteStoredBrandingFile($current['logo_path'] ?? null);
+        } elseif ($request->hasFile('logo')) {
+            $settings['logo_path'] = $request->file('logo')->store('application-branding', 'public');
+            $this->deleteStoredBrandingFile($current['logo_path'] ?? null);
+        }
+
+        if ($croppedFavicon !== null) {
+            $settings['favicon_path'] = $this->storeCroppedBrandingImage($croppedFavicon, 'favicon');
+            $this->deleteStoredBrandingFile($current['favicon_path'] ?? null);
+        } elseif ($request->hasFile('favicon')) {
+            $settings['favicon_path'] = $request->file('favicon')->store('application-branding', 'public');
+            $this->deleteStoredBrandingFile($current['favicon_path'] ?? null);
+        }
+
+        foreach ($settings as $key => $value) {
+            ApplicationSetting::query()->updateOrCreate(
+                ['key' => $key],
+                ['value' => $value]
+            );
+        }
+
+        AppBranding::clearCache();
+
+        return redirect()
+            ->route('admin.application-settings')
+            ->with('success', __('admin.application_settings_saved'))
+            ->with('toast_type', 'success');
+    }
+
+    private function decodeCroppedBrandingImage(?string $dataUrl, string $field, int $maxBytes): ?array
+    {
+        if (blank($dataUrl)) {
+            return null;
+        }
+
+        if (! preg_match('/^data:image\/(jpeg|jpg|png|webp);base64,/', $dataUrl, $matches)) {
+            throw ValidationException::withMessages([$field => __('admin.cropped_image_invalid')]);
+        }
+
+        $binary = base64_decode(substr($dataUrl, strpos($dataUrl, ',') + 1), true);
+        $imageInfo = $binary === false ? false : @getimagesizefromstring($binary);
+
+        if (
+            $binary === false
+            || strlen($binary) > $maxBytes
+            || $imageInfo === false
+            || ! in_array($imageInfo['mime'] ?? '', ['image/jpeg', 'image/png', 'image/webp'], true)
+        ) {
+            throw ValidationException::withMessages([$field => __('admin.cropped_image_invalid')]);
+        }
+
+        return [
+            'binary' => $binary,
+            'extension' => match ($imageInfo['mime']) {
+                'image/png' => 'png',
+                'image/webp' => 'webp',
+                default => 'jpg',
+            },
+        ];
+    }
+
+    private function storeCroppedBrandingImage(array $image, string $prefix): string
+    {
+        $path = 'application-branding/'.$prefix.'-'.uniqid().'.'.$image['extension'];
+
+        Storage::disk('public')->put($path, $image['binary']);
+
+        return $path;
+    }
+
+    private function deleteStoredBrandingFile(?string $path): void
+    {
+        if (blank($path) || Str::startsWith($path, ['http://', 'https://', 'img/'])) {
+            return;
+        }
+
+        Storage::disk('public')->delete($path);
     }
 
     public function users(Request $request): View

@@ -101,6 +101,11 @@ class User extends Authenticatable
         return $this->hasMany(UserLoginHistory::class);
     }
 
+    public function accountingMenuPermissions(): HasMany
+    {
+        return $this->hasMany(AccountingMenuPermission::class);
+    }
+
     public function getProfilePhotoUrlAttribute(): ?string
     {
         if (blank($this->profile_photo_path)) {

@@ -93,6 +93,11 @@ class AccountingClient extends Model
         return $this->hasMany(AccountingCreditNote::class, 'client_id');
     }
 
+    public function paymentReminders(): HasMany
+    {
+        return $this->hasMany(AccountingPaymentReminder::class, 'client_id');
+    }
+
     public function isCompany(): bool
     {
         return $this->type === self::TYPE_COMPANY;

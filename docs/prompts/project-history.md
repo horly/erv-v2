@@ -9393,3 +9393,2113 @@ Verification :
 - `php -l lang\fr\main.php` passe.
 - `php -l lang\en\main.php` passe.
 - `php artisan test --filter=test_accounting_other_incomes_page_manages_miscellaneous_receipts` passe : 1 test, 21 assertions.
+
+### 2026-05-13 - Reprise et finalisation du module achats
+
+Prompt utilisateur :
+
+```text
+dernierement nous etions entrain de travailler sur la partie achat tu n'avais pas finis ta tache si tu peux continuer et corriger les erreurs
+```
+
+Correction appliquee :
+
+- Reprise du module `Achats` et correction des pieces manquantes apres l'implementation initiale.
+- Activation du lien `Achats` dans le sous-menu `Depenses` de la sidebar comptabilite, avec ouverture automatique du groupe quand la page est active.
+- Ajout des traductions FR/EN pour la page achats, les statuts, les paiements fournisseurs, les filtres et les messages de validation.
+- Ajout des couleurs de statuts pour les achats : brouillon, valide, partiellement paye, paye, en retard et annule.
+- Protection des modes de paiement : un mode ayant deja des paiements fournisseurs ne peut plus etre supprime.
+- Mise a jour de `database/exports/erp_database.sql` avec les tables `accounting_purchases`, `accounting_purchase_lines` et `accounting_purchase_payments`.
+- Verification que la migration achats est bien appliquee en base.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `database/exports/erp_database.sql`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `resources/css/main.css`
+- `resources/views/main/modules/accounting-payment-methods.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l app\Models\AccountingPurchase.php` passe.
+- `php -l app\Models\AccountingPurchaseLine.php` passe.
+- `php -l app\Models\AccountingPurchasePayment.php` passe.
+- `php -l database\migrations\2026_05_12_000003_create_accounting_purchases_tables.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan route:list --name=purchases` affiche les 7 routes du module.
+- `php artisan migrate` passe et applique `2026_05_12_000003_create_accounting_purchases_tables`.
+- `php artisan migrate:status` confirme la migration achats en statut `Ran`.
+- `php artisan view:cache` passe, puis `php artisan view:clear` passe.
+- `php artisan test --filter=AccountingPurchase` indique qu'aucun test cible n'existe encore.
+
+### 2026-05-13 - Correction du clic sur le sous-menu achats
+
+Prompt utilisateur :
+
+```text
+je n'arrive pas a cliquer sur le sous menus achats sur la side barre
+```
+
+Correction appliquee :
+
+- Correction du comportement JavaScript de la sidebar comptabilite lorsque celle-ci est reduite.
+- Maintenant, lorsqu'on clique sur un groupe de sous-menu en sidebar reduite, la sidebar se deploie automatiquement et ouvre le groupe clique.
+- Le lien `Achats` reste un vrai lien vers la page achats et devient cliquable apres ouverture du groupe `Depenses`.
+
+Fichiers modifies :
+
+- `resources/js/main.js`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=purchases` confirme les 7 routes achats.
+- `php artisan view:clear` passe.
+
+### 2026-05-13 - Correction du lien achats depuis le tableau de bord comptabilite
+
+Prompt utilisateur :
+
+```text
+c'est quoi ton probleme je te parle de la page achets, je n'arrive pas a acceder
+```
+
+Correction appliquee :
+
+- Identification de la vraie source du blocage : la page tableau de bord comptabilite possedait une sidebar dupliquee, separee du partial reutilise ailleurs.
+- Dans cette sidebar du tableau de bord, le sous-menu `Achats` pointait encore vers `#`.
+- Remplacement du lien `#` par la vraie route `main.accounting.purchases`.
+- Verification du rendu HTML : le lien `Achats` genere maintenant bien l'URL `/main/companies/{company}/sites/{site}/modules/accounting/purchases`.
+
+Fichiers modifies :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- Test de rendu du dashboard via le kernel Laravel : le lien `Achats` ressort avec la bonne URL.
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=main.accounting.purchases` confirme les 7 routes achats.
+- `php artisan view:clear` passe.
+
+### 2026-05-13 - Activation des decaissements par mode de paiement
+
+Prompt utilisateur :
+
+```text
+comme nous avons travailler sur achat tu dois maintenant mettre a jour les decaissements cotes mode de paiement
+```
+
+Modification appliquee :
+
+- Le bouton `decaissements` de chaque mode de paiement est maintenant actif.
+- Ajout d'un modal par mode de paiement pour afficher les paiements fournisseurs issus du module `Achats`.
+- Le modal affiche le total decaisse, la liste des achats payes, les fournisseurs, les dates, les montants, les references et l'utilisateur payeur.
+- La recherche, le tri et la pagination du tableau de decaissements reprennent le meme comportement que les tableaux de modales existants.
+- Les modes de paiement chargent maintenant les relations `purchasePayments`, `purchase`, `supplier` et `payer`.
+- Ajout du total SQL `disbursements_total` pour eviter de recalculer les montants inutilement.
+- Ajout des traductions FR/EN liees aux decaissements.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-payment-methods.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=payment-methods` confirme les 4 routes des modes de paiement.
+- `php artisan view:clear` passe.
+
+### 2026-05-13 - Module bons de commande fournisseurs
+
+Prompt utilisateur :
+
+```text
+applique ton idee
+```
+
+Implementation appliquee :
+
+- Creation des tables `accounting_purchase_orders` et `accounting_purchase_order_lines`.
+- Ajout des modeles `AccountingPurchaseOrder` et `AccountingPurchaseOrderLine`.
+- Ajout des relations site, fournisseur et achat lie.
+- Ajout des routes CRUD, impression PDF et conversion en achat.
+- Ajout de la page liste des bons de commande avec filtres, recherche, tri, pagination et actions.
+- Ajout de la page creation/modification sur une page dediee avec lignes article/service/ligne libre.
+- Ajout du PDF professionnel du bon de commande avec totaux, fournisseur, lignes, notes, conditions et pied de page.
+- Ajout de la conversion `bon de commande confirme/recu` vers un achat fournisseur.
+- Ajout du lien `Bons de commande` dans la sidebar comptabilite et dans la sidebar du tableau de bord comptabilite.
+- Ajout des traductions FR/EN et des statuts visuels.
+- Mise a jour de `database/exports/erp_database.sql`.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `app/Models/AccountingPurchase.php`
+- `app/Models/AccountingPurchaseOrder.php`
+- `app/Models/AccountingPurchaseOrderLine.php`
+- `app/Models/AccountingSupplier.php`
+- `app/Models/CompanySite.php`
+- `database/migrations/2026_05_13_000001_create_accounting_purchase_orders_tables.php`
+- `database/exports/erp_database.sql`
+- `routes/web.php`
+- `resources/css/main.css`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/views/main/modules/accounting-purchase-order-create.blade.php`
+- `resources/views/main/modules/accounting-purchase-order-print.blade.php`
+- `resources/views/main/modules/accounting-purchase-orders.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l app\Models\AccountingPurchaseOrder.php` passe.
+- `php -l app\Models\AccountingPurchaseOrderLine.php` passe.
+- `php -l app\Models\CompanySite.php` passe.
+- `php -l app\Models\AccountingSupplier.php` passe.
+- `php -l app\Models\AccountingPurchase.php` passe.
+- `php -l database\migrations\2026_05_13_000001_create_accounting_purchase_orders_tables.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan route:list --name=purchase-orders` confirme les 8 routes.
+- `php artisan view:cache` passe.
+- `php artisan migrate` applique `2026_05_13_000001_create_accounting_purchase_orders_tables`.
+- `php artisan migrate:status` confirme la migration en statut `Ran`.
+- Test de rendu HTTP de la liste et de la page creation : statut 200.
+- Test de rendu Blade du PDF du bon de commande avec une transaction rollback : `print-view-ok`.
+- `php artisan view:clear` passe.
+
+### 2026-05-13 - Correction entete PDF bon de commande fournisseur
+
+Prompt utilisateur :
+
+```text
+arrange l'affichage pdf du bon de commande garde les modeles d'entete qu'il y a sur la proforma, facture etc...
+```
+
+Correction appliquee :
+
+- Remplacement de l'ancien entete PDF du bon de commande base sur des `float`, qui provoquait un chevauchement entre le logo et les informations de l'entreprise.
+- Reprise du modele d'entete utilise par les PDF proforma/facture : structure en tableau compatible DomPDF, logo separe, nom de l'entreprise, site et titre du document aligne a droite.
+- Harmonisation de la police, des espacements et de la barre bleue/grise sous l'entete.
+- Le titre `Bon de commande`, la reference et le statut restent affiches a droite comme dans les autres documents PDF.
+
+Fichier modifie :
+
+- `resources/views/main/modules/accounting-purchase-order-print.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php artisan view:cache` passe.
+- `php artisan view:clear` passe.
+- `php -l routes\web.php` passe.
+- Test de rendu Blade du PDF du bon de commande : `print-view-ok`.
+- Test de generation DomPDF du bon de commande : `pdf-output-ok`.
+
+### 2026-05-14 - Harmonisation PDF bon de commande avec facture
+
+Prompt utilisateur :
+
+```text
+enleve l'adresse email "sales@exadgroup.org" garde le meme model comme sur l'entete de la facture merci ainsi la ligne de l'entete elle est trop grande, reproduit la meme chose comme tu l'avais fais dans la facture. Meme le pied de page ca doit etre pareil comme dans la facture et n'oublie pas le QR code
+```
+
+Corrections appliquees :
+
+- Suppression de l'email affiche dans l'entete du PDF bon de commande.
+- Isolation CSS de la ligne bleue/grise de l'entete pour eviter le padding herite des tableaux.
+- Reprise du pied de page du modele facture : informations entreprise, compte principal, ligne bleue/grise et mention generee par EXAD ERP.
+- Ajout du QR code du bon de commande sous les termes et conditions.
+- Generation du QR code depuis le lien d'impression du bon de commande.
+- Signature alignee sur le modele des documents de facturation avec nom et grade si disponible.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-purchase-order-print.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php artisan view:cache` passe.
+- Generation DomPDF du bon de commande : `pdf-output-ok`.
+- `php artisan view:clear` passe.
+
+### 2026-05-14 - Page depenses et decaissements
+
+Prompt utilisateur :
+
+```text
+applique ton idée
+```
+
+Implementation appliquee :
+
+- Creation du module `Depenses` dans la rubrique depenses du module comptabilite.
+- Ajout des tables `accounting_expense_categories` et `accounting_expenses`.
+- Ajout des categories systeme par defaut : loyer, transport, carburant, communication, internet, electricite, eau, frais bancaires, frais administratifs, entretien, mission, restauration, avances sur salaires, taxes et autres charges.
+- Ajout des modeles `AccountingExpenseCategory` et `AccountingExpense` avec relations site, categorie, mode de paiement et createur.
+- Ajout de la page liste des depenses avec le format standard : recherche, tri, pagination, filtres, total valide, actions voir/modifier/valider/annuler/supprimer.
+- Ajout du formulaire modal de creation/modification avec erreurs sous les champs, placeholders et champs obligatoires.
+- Branchement de la rubrique `Depenses` dans la sidebar et sur le tableau de bord comptable.
+- Integration des depenses validees dans les decaissements des modes de paiement.
+- Blocage de suppression d'un mode de paiement s'il possede deja des depenses validees.
+- Ajout des traductions FR/EN necessaires.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `app/Models/AccountingExpense.php`
+- `app/Models/AccountingExpenseCategory.php`
+- `app/Models/AccountingPaymentMethod.php`
+- `app/Models/CompanySite.php`
+- `database/migrations/2026_05_14_000001_create_accounting_expenses_tables.php`
+- `resources/views/main/modules/accounting-expenses.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/views/main/modules/accounting-payment-methods.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `routes/web.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Models\AccountingExpense.php` passe.
+- `php -l app\Models\AccountingExpenseCategory.php` passe.
+- `php -l database\migrations\2026_05_14_000001_create_accounting_expenses_tables.php` passe.
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan route:list --name=main.accounting.expenses` confirme les 6 routes.
+- `php artisan migrate` applique `2026_05_14_000001_create_accounting_expenses_tables`.
+- `php artisan view:cache` passe.
+
+### 2026-05-14 - Page dettes et paiements des dettes
+
+Prompt utilisateur :
+
+```text
+applique ton idee
+```
+
+Implementation appliquee :
+
+- Ajout de la page `Dettes` dans la rubrique autres du module comptabilite.
+- Aggregation des dettes manuelles provenant des creanciers et des achats fournisseurs ayant encore un solde a payer.
+- Ajout des filtres par origine, statut, devise et echeance.
+- Ajout du tableau standard avec recherche, tri, pagination, montants alignes a droite, badges de statut et actions.
+- Ajout de la creation/modification des dettes manuelles depuis la page Dettes.
+- Ajout du paiement des dettes manuelles avec mode de paiement, date, montant, reference et notes.
+- Ajout de la table `accounting_creditor_payments` pour historiser les paiements des dettes manuelles.
+- Ajout des historiques de paiements sur les dettes et achats impayes.
+- Integration des paiements de dettes manuelles dans les decaissements des modes de paiement.
+- Blocage de suppression des modes de paiement qui possedent deja des paiements de dettes.
+- Correction de la migration avec des noms d'index courts compatibles MySQL.
+- Ajout des traductions FR/EN necessaires.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `app/Models/AccountingCreditor.php`
+- `app/Models/AccountingCreditorPayment.php`
+- `app/Models/AccountingPaymentMethod.php`
+- `database/migrations/2026_05_14_000002_create_accounting_creditor_payments_table.php`
+- `resources/views/main/modules/accounting-debts.blade.php`
+- `resources/views/main/modules/accounting-payment-methods.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `routes/web.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l app\Models\AccountingCreditorPayment.php` passe.
+- `php -l database\migrations\2026_05_14_000002_create_accounting_creditor_payments_table.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan route:list --name=main.accounting.debts` confirme les routes Dettes.
+- `php artisan migrate` applique `2026_05_14_000002_create_accounting_creditor_payments_table`.
+- `php artisan view:cache` passe.
+- `git diff --check` passe avec uniquement des avertissements CRLF existants.
+
+### 2026-05-14 - Tableau de bord comptabilite avec donnees reelles
+
+Prompt utilisateur :
+
+```text
+mets maintenant a jour le tableau de bord avec des informations reelles
+```
+
+Corrections appliquees :
+
+- Le tableau de bord du module comptabilite utilise maintenant des donnees issues de la base.
+- Les KPI affichent les revenus, factures de vente, clients, creances et depenses reels du site.
+- Les graphiques semaine / mois / annee utilisent les ventes, revenus, depenses, creances et dettes agregees.
+- Les repartitions contacts, stock/services et flux de documents sont basees sur les tables existantes.
+- L'echeancier du dashboard affiche les creances clients et les dettes fournisseurs en attente.
+- Les montants utilisent automatiquement la devise du site.
+- Les anciennes valeurs de demonstration du dashboard ont ete remplacees par des valeurs de secours neutres.
+- Le lien `Creances` de la sidebar comptabilite pointe maintenant vers la page correspondante.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-dashboard.blade.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=main.accounting.receivables` confirme les routes.
+- `php artisan route:list --name=main.companies.sites.modules.show` confirme la route du dashboard.
+- `git diff --check` passe avec uniquement des avertissements CRLF existants.
+
+### 2026-05-14 - Ajustement modal dettes et reprise creancier existant
+
+Prompt utilisateur :
+
+```text
+elargi legerement le modal de modification et creation des dettes et pour les creancier donner la possibilite de selectionner un creancier existant deja
+```
+
+Corrections appliquees :
+
+- Elargissement leger du modal de creation/modification des dettes.
+- Ajout d'un select optionnel `Creancier existant` dans le modal de creation de dette.
+- Remplissage automatique des champs type, nom, telephone, email, adresse et devise lorsqu'un creancier existant est selectionne.
+- Masquage du select de creancier existant en mode modification pour garder le formulaire clair.
+- Ajout des traductions FR/EN.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-debts.blade.php`
+- `resources/js/main/accounting-creditors.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-debts.blade.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe avec uniquement des avertissements CRLF existants.
+
+### 2026-05-14 - Personnalisation globale de l'application par le superadmin
+
+Prompt utilisateur :
+
+```text
+Je spuhaite ajouter une option qui va permettre au superadmin de pouvoir modifier totalement ou personnaliser l'application par exemple changer le nom de l'application et le logo et autres informations que tu peux me suggerer. Car l'application sera destiné à plusieurs clients et chaque client voudras choisir le nom qu'il souhaitera mettre sur l'application qui sera hébergé chez lui
+```
+
+Corrections appliquees :
+
+- Ajout d'une table `application_settings` pour stocker les parametres de personnalisation de l'instance.
+- Ajout du modele `ApplicationSetting`.
+- Ajout d'un service `AppBranding` avec cache pour centraliser le nom, nom court, logo, favicon, slogan, description, support et copyright.
+- Ajout de helpers Blade/PHP : `app_brand_name()`, `app_brand_short_name()`, `app_brand_logo_url()`, `app_brand_favicon_url()` et `app_branding()`.
+- Le nom Laravel `config('app.name')` est maintenant alimente depuis la personnalisation.
+- Ajout d'une page superadmin `Personnalisation` accessible depuis la sidebar.
+- Le superadmin peut modifier le nom de l'application, le nom court, le slogan, la description, le site web, les informations de support, le copyright, le logo et le favicon.
+- Le logo, le favicon et le nom personnalises sont utilises dans les vues principales, les sidebars, les pages d'authentification et les titres.
+- Ajout du favicon dynamique dans les vues Blade.
+- Mise a jour des traductions FR/EN.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/AdminController.php`
+- `app/Models/ApplicationSetting.php`
+- `app/Providers/AppServiceProvider.php`
+- `app/Support/AppBranding.php`
+- `app/Support/helpers.php`
+- `composer.json`
+- `database/migrations/2026_05_14_000004_create_application_settings_table.php`
+- `resources/views/admin/application-settings.blade.php`
+- `resources/views/admin/*.blade.php`
+- `resources/views/auth/*.blade.php`
+- `resources/views/main/**/*.blade.php`
+- `resources/views/profile/edit.blade.php`
+- `lang/fr/admin.php`
+- `lang/en/admin.php`
+- `lang/fr/auth.php`
+- `lang/en/auth.php`
+- `routes/web.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `composer dump-autoload` passe.
+- `php artisan migrate` passe.
+- `php artisan cache:forget application_branding` passe.
+- `php -l app\Support\AppBranding.php` passe.
+- `php -l app\Support\helpers.php` passe.
+- `php -l app\Models\ApplicationSetting.php` passe.
+- `php -l app\Http\Controllers\AdminController.php` passe.
+- `php -l app\Providers\AppServiceProvider.php` passe.
+- `php -l database\migrations\2026_05_14_000004_create_application_settings_table.php` passe.
+- `php -l resources\views\admin\application-settings.blade.php` passe.
+- `php -l lang\fr\admin.php` passe.
+- `php -l lang\en\admin.php` passe.
+- `php -l lang\fr\auth.php` passe.
+- `php -l lang\en\auth.php` passe.
+- `php artisan route:list --name=admin.application-settings` confirme les routes.
+- `php artisan view:cache` passe.
+- `git diff --check` passe avec uniquement des avertissements CRLF existants.
+
+### 2026-05-14 - Page creances avec la meme logique que dettes
+
+Prompt utilisateur :
+
+```text
+nous allons travailler maintenant travailler sur la page creances et j'aimerai qu'on garde la meme logique comme dettes
+```
+
+Travail realise :
+
+- Creation de la page `Creances` dans le module comptabilite, accessible depuis la sidebar.
+- Affichage des creances manuelles et des factures clients non soldees dans un meme tableau.
+- Ajout des filtres origine, statut, devise et echeance, avec total global des creances a encaisser.
+- Ajout d'une modale de creation/modification de creance manuelle.
+- Possibilite de rattacher une nouvelle creance a un debiteur existant sans dupliquer sa fiche.
+- Ajout de l'historique des encaissements et de la saisie d'un encaissement sur une creance.
+- Ajout de la table `accounting_debtor_payments` pour stocker les encaissements des creances manuelles.
+- La page `Debiteurs` regroupe maintenant les fiches debiteurs pour eviter les doublons visuels.
+- Les encaissements de creances manuelles sont pris en compte dans les mouvements des modes de paiement.
+- Ajout des traductions FR/EN necessaires.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `app/Models/AccountingDebtor.php`
+- `app/Models/AccountingDebtorPayment.php`
+- `app/Models/AccountingPaymentMethod.php`
+- `database/migrations/2026_05_14_000003_create_accounting_debtor_payments_table.php`
+- `resources/views/main/modules/accounting-receivables.blade.php`
+- `resources/views/main/modules/accounting-payment-methods.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/js/main/accounting-debtors.js`
+- `routes/web.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Models\AccountingDebtorPayment.php` passe.
+- `php -l database\migrations\2026_05_14_000003_create_accounting_debtor_payments_table.php` passe.
+- `php -l app\Models\AccountingDebtor.php` passe.
+- `php -l app\Models\AccountingPaymentMethod.php` passe.
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-receivables.blade.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php -l routes\web.php` passe.
+
+### 2026-05-14 - Autoriser plusieurs dettes pour un meme creancier
+
+Prompt utilisateur :
+
+```text
+un creancier peut existant peut avoir plusieurs dettes
+```
+
+Corrections appliquees :
+
+- Correction de la logique precedente : selectionner un creancier existant cree maintenant une nouvelle dette separee.
+- La fiche du creancier n'est pas dupliquee visuellement : la page `Creanciers` regroupe les lignes par creancier et affiche un solde cumule.
+- La page `Dettes` continue d'afficher chaque dette manuelle individuellement avec sa propre reference, son echeance, son solde et ses paiements.
+- Le select des creanciers existants dans la creation de dette est dedoublonne.
+- Mise a jour du message de succes FR/EN pour refleter le rattachement d'une dette au creancier existant.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe avec uniquement des avertissements CRLF existants.
+
+### 2026-05-14 - Eviter les doublons de creanciers existants
+
+Prompt utilisateur :
+
+```text
+un creancier deja existant ne dois pas etre duplique sur la liste des creanciers
+```
+
+Corrections appliquees :
+
+- Le select `Creancier existant` est maintenant soumis avec le formulaire de creation de dette.
+- Si un creancier existant est selectionne, la nouvelle dette est cumulee sur ce creancier au lieu de creer une nouvelle ligne.
+- Les montants initial et paye sont additionnes, l'echeance la plus proche est conservee et les descriptions sont concatenees.
+- Controle de securite : le creancier selectionne doit appartenir au site courant.
+- Controle de coherence : la devise de la nouvelle dette doit correspondre a la devise du creancier existant.
+- Ajout des messages d'erreur et de succes FR/EN.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-debts.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app\Http\Controllers\MainController.php` passe.
+- `php -l resources\views\main\modules\accounting-debts.blade.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe avec uniquement des avertissements CRLF existants.
+
+### 2026-05-25 - Correction de la page de personnalisation superadmin
+
+Prompt utilisateur :
+
+```text
+dernierement tu n'avais finis ta derniere requette parce qu'on avait plus de token peux-tu continuer et fixer les erreurs
+```
+
+Corrections appliquees :
+
+- Correction de l'erreur 500 sur `/admin/application-settings` : la vue ne charge plus le fichier inexistant `resources/js/admin.js`.
+- La page charge maintenant Bootstrap et `resources/js/main.js`, comme les autres pages admin, afin de conserver les comportements de navigation, de langue et de theme.
+- Normalisation UTF-8 de la nouvelle vue de personnalisation et reparation des separateurs de sidebar incorrectement enregistres dans les vues admin et profil concernees.
+- Ajout du lien `Personnalisation` dans la sidebar du formulaire de creation/modification d'entreprise pour conserver la navigation superadmin uniforme.
+
+Fichiers modifies :
+
+- `resources/views/admin/application-settings.blade.php`
+- `resources/views/admin/companies-create.blade.php`
+- `resources/views/admin/companies.blade.php`
+- `resources/views/admin/dashboard.blade.php`
+- `resources/views/admin/subscriptions.blade.php`
+- `resources/views/admin/users.blade.php`
+- `resources/views/profile/edit.blade.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- Rendu d'execution de `resources/views/admin/application-settings.blade.php` via Laravel : `render-ok`.
+- Verification stricte UTF-8 sur `resources/views` et `lang` : aucun fichier invalide.
+- Recherche de reference restante a `resources/js/admin.js` : aucune.
+- `php -l` passe sur les classes PHP de la personnalisation.
+- `php artisan route:list --name=admin.application-settings` confirme les routes GET et PUT.
+- `php artisan view:cache` passe.
+- `git diff --check` passe avec uniquement des avertissements CRLF existants.
+
+### 2026-05-25 - Cropper pour le logo et le favicon de l'application
+
+Prompt utilisateur :
+
+```text
+pouvons-nous utiliser cropper ici
+```
+
+Corrections appliquees :
+
+- Ajout de Cropper.js sur la page superadmin `Personnalisation`, en reprenant le comportement visuel deja utilise pour la photo de profil.
+- Lors de la selection d'un logo ou d'un favicon raster (`PNG`, `JPG` ou `WEBP`), ouverture d'un modal de recadrage carre avec zoom et rotation.
+- L'apercu recadre est visible immediatement, mais l'enregistrement reste lie au bouton principal du formulaire afin de sauvegarder tous les parametres ensemble.
+- Ajout d'un script isole `resources/js/admin/application-settings.js` dedie au recadrage du logo et du favicon.
+- Le controleur valide le contenu recadre cote serveur, limite sa taille et stocke uniquement une image valide.
+- Les fichiers vectoriels `SVG` et les icones `ICO` restent acceptes par televersement direct lorsqu'un recadrage bitmap ne s'applique pas.
+- Ajout des libelles FR/EN pour le modal et les messages de validation.
+
+Fichiers modifies :
+
+- `app/Http/Controllers/AdminController.php`
+- `resources/views/admin/application-settings.blade.php`
+- `resources/js/admin/application-settings.js`
+- `resources/css/admin/dashboard.css`
+- `lang/fr/admin.php`
+- `lang/en/admin.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l` passe sur le controleur, les traductions et la vue.
+- Verification de syntaxe JavaScript sur `resources/js/admin/application-settings.js` passe.
+- Rendu d'execution de la vue `admin.application-settings` via Laravel : `render-ok`.
+- `php artisan view:cache` passe.
+- Verification stricte UTF-8 sur les fichiers d'interface et applicatifs controles : `utf8-ok`.
+
+### 2026-05-25 - Gestion des taxes du module comptabilite
+
+Prompt utilisateur :
+
+```text
+dans le module comptabilite et facturation, nous allons maintenant travailler sur taxes; ne fais rien donne moi ton idee
+applique ton idee
+```
+
+Corrections appliquees :
+
+- Ajout de la page `Taxes` dans la navigation du module comptabilite avec le meme standard d'interface que les devises et les modes de paiement : recherche dynamique, tri, pagination et formulaire modal.
+- Creation de la table `accounting_taxes` et du modele associe, avec gestion du type de taxe, du mode de calcul, du taux ou montant, du traitement fiscal, de l'application ventes/achats, du statut et de la taxe par defaut.
+- Generation initiale, par site comptable, de la TVA basee sur le pays de l'entreprise et d'une option d'exoneration.
+- Utilisation de la taxe en pourcentage marquee par defaut comme taux TVA propose lors de la creation de nouveaux documents de vente et d'achat.
+- Conservation du taux historise dans les documents deja enregistres : modifier une taxe ne recalcule pas retroactivement les anciennes factures, proformas ou commandes.
+- Protection de la taxe par defaut et des taxes dont le taux est deja utilise dans des documents contre la suppression.
+- Limitation propre de la taxe par defaut a un taux en pourcentage applicable aux ventes et achats, puisque les formulaires actuels calculent la TVA globale sous cette forme.
+- Ajout d'un test fonctionnel pour la page Taxes, sa configuration initiale et ses regles de taxe par defaut.
+- Mise a jour de l'export `database/exports/erp_database.sql`.
+- Correction d'un plantage revele par les tests sur l'echeancier du tableau de bord comptabilite lors de la fusion de tableaux de donnees.
+- Actualisation des tests du tableau de bord et des modes de paiement pour tenir compte du format montant compact et des decaissements maintenant operationnels.
+
+Fichiers ajoutes :
+
+- `app/Models/AccountingTax.php`
+- `database/migrations/2026_05_25_000001_create_accounting_taxes_table.php`
+- `resources/views/main/modules/accounting-taxes.blade.php`
+- `resources/js/main/accounting-taxes.js`
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `app/Models/CompanySite.php`
+- `routes/web.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `database/exports/erp_database.sql`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- Migration `2026_05_25_000001_create_accounting_taxes_table` appliquee avec succes.
+- La base locale contient les configurations initiales `TVA` et `Exoneration`, dont une taxe par defaut.
+- `php -l` passe sur le controleur, le modele, la migration, les routes, les traductions et la nouvelle vue.
+- `node --check resources/js/main/accounting-taxes.js` passe.
+- `php artisan route:list --name=main.accounting.taxes` confirme les routes GET, POST, PUT et DELETE protegees par `auth`.
+- `php artisan view:cache` passe.
+- `php artisan test` passe : 85 tests, 1064 assertions.
+- `git diff --check` passe avec uniquement des avertissements CRLF deja presents.
+
+### 2026-05-25 - Tresorerie du module comptabilite
+
+Prompt utilisateur :
+
+```text
+Nous allons maintenant travailler sur Tresorie. Donne moi ton idee et ne fais rien encore
+applique ton idee
+```
+
+Corrections appliquees :
+
+- Ajout d'une page `Tresorerie` accessible depuis la sidebar et les raccourcis du tableau de bord comptable.
+- Creation d'un registre central `accounting_treasury_movements` pour consolider les flux reels par site, devise et mode de paiement.
+- Consolidation des encaissements de factures, encaissements de creances et autres entrees validees comme entrees de tresorerie.
+- Consolidation des paiements d'achats, reglements de dettes et depenses validees comme sorties de tresorerie.
+- Exclusion des entrees ou depenses annulees du solde reel tout en conservant la tracabilite lorsqu'une ecriture avait deja existe.
+- Ajout d'un tableau de bord de tresorerie avec solde disponible, entrees, sorties, creances, dettes et solde previsionnel, filtre par devise.
+- Ajout de graphiques ApexCharts reels pour l'evolution des flux par semaine, mois ou annee, les soldes par mode de paiement et la projection.
+- Ajout d'un tableau dynamique des mouvements avec filtres, recherche AJAX, tri et pagination, dans le standard des tableaux existants.
+- Les creances et dettes encore ouvertes alimentent la prevision sans modifier le solde disponible.
+- Ajout des traductions francaises et anglaises et d'un test fonctionnel de consolidation des mouvements.
+- Mise a jour de l'export `database/exports/erp_database.sql`.
+
+Fichiers ajoutes :
+
+- `app/Models/AccountingTreasuryMovement.php`
+- `database/migrations/2026_05_25_000002_create_accounting_treasury_movements_table.php`
+- `resources/views/main/modules/accounting-treasury.blade.php`
+- `resources/js/main/accounting-treasury.js`
+
+Fichiers modifies :
+
+- `app/Http/Controllers/MainController.php`
+- `app/Models/CompanySite.php`
+- `routes/web.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `database/exports/erp_database.sql`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- Migration `2026_05_25_000002_create_accounting_treasury_movements_table` appliquee avec succes.
+- `php -l` passe sur le modele, la migration, le controleur, les traductions et le test modifies.
+- `node --check resources/js/main/accounting-treasury.js` passe.
+- `php artisan route:list --name=main.accounting.treasury` confirme la route protegee de la nouvelle page.
+- `php artisan view:cache` passe.
+- Le test cible `test_accounting_treasury_consolidates_validated_cash_movements` passe : 1 test, 7 assertions.
+
+### 2026-05-25 - Lien Taxes depuis le tableau de bord comptable
+
+Prompt utilisateur :
+
+```text
+quand je suis dans dashboard je menu taxes n'as pas de lien
+```
+
+Correction appliquee :
+
+- Correction de l'entree `Taxes` de la sidebar propre au dashboard comptable afin qu'elle redirige vers la page de gestion des taxes, comme la sidebar partagee des autres pages.
+- Ajout d'une assertion fonctionnelle verifiant que le dashboard restitue bien le lien vers la route `main.accounting.taxes`.
+
+### 2026-05-25 - Reorganisation des widgets de tresorerie
+
+Prompt utilisateur :
+
+```text
+l'affichage des widgets dans Tresorerie est desordonne, essaie de bien organiser et de bien moderniser l'affichage
+```
+
+Corrections appliquees :
+
+- Remplacement de la rangee uniforme de six widgets par une synthese hierarchisee et lisible.
+- Mise en avant du solde disponible dans une carte principale avec le flux net reel.
+- Regroupement coherent des entrees, sorties, creances et dettes en quatre cartes compactes.
+- Mise en avant separee du solde previsionnel avec le detail des creances et dettes qui influencent la projection.
+- Ajustement responsive pour conserver des montants lisibles sans debordement sur tablette et mobile.
+- Ajout des libelles francais et anglais necessaires et extension du test de rendu de la page Tresorerie.
+
+Verification :
+
+- `php artisan test --filter=test_accounting_treasury_consolidates_validated_cash_movements` passe : 1 test, 10 assertions.
+- `php artisan view:cache` passe.
+- `php -l` passe sur les traductions et le test modifies.
+- `git diff --check` passe avec uniquement les avertissements CRLF deja presents.
+
+### 2026-05-25 - Espacement vertical des widgets de tresorerie
+
+Prompt utilisateur :
+
+```text
+les widgets sont trop colle de haut en bas il faut laisser un peu d'espace
+```
+
+Correction appliquee :
+
+- Augmentation de l'espacement vertical entre les widgets de flux de la synthese Tresorerie.
+- Ajout d'un rythme vertical plus confortable entre la synthese, les graphiques et les blocs suivants.
+- Conservation d'un espacement adapte en affichage mobile afin d'eviter des cartes tassees les unes contre les autres.
+
+### 2026-05-25 - Correction visible de l'aeration verticale de tresorerie
+
+Prompt utilisateur :
+
+```text
+c'est toujours colle, regarde sur les images j'ai souligne en jaune les widgets ne respirent pas
+```
+
+Correction appliquee :
+
+- Correction de la regle d'espacement initiale qui n'etait pas appliquee a cause du mode d'affichage bloc de la zone de contenu.
+- Ajout de marges verticales explicites entre les onglets de periode, les cartes de synthese, les panneaux graphiques et le bandeau d'information.
+- Renforcement de l'espacement interne de la grille de graphiques afin que les panneaux empiles restent clairement separes.
+
+### 2026-05-25 - Separation des graphiques de tresorerie
+
+Prompt utilisateur :
+
+```text
+Entre Evolution des flux et Soldes par mode de paiement et Previsions de tresorerie toujours coince
+```
+
+Correction appliquee :
+
+- Identification de la cause : le conteneur des graphiques avait des colonnes et un espacement declares, sans activer le composant de grille partage.
+- Application de la classe `dashboard-grid` deja utilisee par le tableau de bord comptable afin que les trois panneaux utilisent reellement leur espacement vertical.
+
+### 2026-05-25 - Rapprochement bancaire du module comptabilite
+
+Prompt utilisateur :
+
+```text
+nous allons maintenant travailler sur rapprochement bancaire. Donne ton idee ne fais rien
+applique ton idee
+```
+
+Implementation appliquee :
+
+- Ajout d'une page `Rapprochement bancaire` accessible depuis la sidebar et le tableau de bord du module comptabilite.
+- Creation des sessions de rapprochement par compte bancaire et periode avec soldes initial/final du releve, solde ERP et calcul automatique de l'ecart.
+- Ajout des lignes de releve manuellement ou par import CSV, avec classement entree/sortie, reference et description.
+- Rapprochement d'une ligne bancaire avec un mouvement de tresorerie valide, justification sans ecriture ou creation controlee d'un ajustement bancaire.
+- Cloture reservee a un administrateur uniquement lorsque toutes les lignes sont traitees et que l'ecart est nul.
+- Generation d'un rapport PDF de rapprochement au format coherent avec les documents comptables existants.
+- Protection de la suppression d'un mode de paiement bancaire lorsqu'il est deja lie a un rapprochement.
+- Annulation propre d'un ajustement genere depuis un rapprochement : l'ecriture de tresorerie associee est retiree avec la correspondance.
+- Ajout complet des libelles francais et anglais, des statuts et des styles de la nouvelle interface.
+
+Fichiers principaux :
+
+- `app/Models/AccountingBankReconciliation.php`
+- `app/Models/AccountingBankStatementLine.php`
+- `app/Models/AccountingBankReconciliationMatch.php`
+- `database/migrations/2026_05_25_000003_create_accounting_bank_reconciliation_tables.php`
+- `resources/views/main/modules/accounting-bank-reconciliations.blade.php`
+- `resources/views/main/modules/accounting-bank-reconciliation-report.blade.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `database/exports/erp_database.sql`
+
+Verification :
+
+- Migration `2026_05_25_000003_create_accounting_bank_reconciliation_tables` appliquee avec succes sur la base locale MySQL.
+- `php -l` passe sur le controleur, les modeles, la migration, les traductions et le test modifies.
+- `php artisan route:list --name=main.accounting.bank-reconciliations` confirme les dix routes du flux.
+- `php artisan view:cache` passe.
+- Le test cible `test_accounting_bank_reconciliation_matches_and_closes_a_bank_statement` passe : 1 test, 14 assertions.
+- La suite complete `php artisan test` passe : 87 tests, 1090 assertions.
+- Export SQL `database/exports/erp_database.sql` regenere apres migration.
+
+### 2026-05-25 - Correction des libelles du graphique de tresorerie et du modal bancaire
+
+Prompt utilisateur :
+
+```text
+pourquoi il y a Nan sur les soldes par mode de paiement dans tresorie...
+Deuxiemement rapprochement bancaire l'icone est trop serre dans Nouveau rapprochement laisse un peu d'espace
+```
+
+Correction appliquee :
+
+- Identification de la cause du texte `NaN` : le graphique horizontal `Soldes par mode de paiement` reutilisait le formateur numerique de l'axe vertical pour afficher les noms des comptes.
+- Definition d'un axe vertical propre au graphique horizontal afin d'afficher correctement les libelles des modes de paiement, sans conversion numerique.
+- Ajout d'un espacement stable entre l'icone banque et le titre `Nouveau rapprochement` dans le modal de creation.
+
+Fichiers modifies :
+
+- `resources/js/main/accounting-treasury.js`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `node --check resources/js/main/accounting-treasury.js` passe.
+- `php artisan view:cache` passe.
+- Les tests cibles Tresorerie et Rapprochement bancaire passent : 2 tests, 24 assertions.
+
+### 2026-05-25 - Relances de paiement et promesses de règlement
+
+Prompt utilisateur :
+
+```text
+applique ton idée
+```
+
+Contexte appliqué :
+
+- Mise en oeuvre de la proposition validée pour la page `Relances de paiement` du module Comptabilité (Facturation).
+- Suivi des factures de vente et créances manuelles ayant encore un solde à encaisser.
+
+Fonctionnalités livrées :
+
+- Ajout du menu `Relances de paiement` dans la navigation comptable et sur le tableau de bord du module.
+- Tableau de suivi avec solde, échéance, nombre de jours de retard, niveau et statut de relance.
+- Widgets de pilotage : total à relancer ventilé par devise, documents échus, retards de plus de 30 jours et promesses en attente.
+- Recherche globale et pagination asynchrones selon le standard DataTable existant, avec tri des colonnes.
+- Création et mise à jour d'une relance avec niveau, canal, objet, message, prochaine date de relance et notes.
+- Historique des actions de relance et gestion des promesses de paiement avec contrôle du montant restant dû.
+- Signalement d'un litige avec motif obligatoire et traçabilité de l'action.
+- Suspension manuelle d'une relance et mise à jour automatique du statut lorsque le solde est réglé ou qu'une promesse expire.
+- Conservation des dossiers soldés en consultation, sans action de relance supplémentaire sur un solde nul.
+- Génération d'une lettre PDF de relance au style des documents comptables existants.
+
+Base de données :
+
+- Table `accounting_payment_reminders` pour le dossier de suivi d'une facture ou créance.
+- Table `accounting_payment_reminder_actions` pour la traçabilité des actions.
+- Table `accounting_payment_promises` pour les engagements de règlement.
+- Relations ajoutées sur les sites, clients, factures et créances.
+
+Fichiers principaux :
+
+- `app/Models/AccountingPaymentReminder.php`
+- `app/Models/AccountingPaymentReminderAction.php`
+- `app/Models/AccountingPaymentPromise.php`
+- `database/migrations/2026_05_25_000004_create_accounting_payment_reminders_tables.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-payment-reminders.blade.php`
+- `resources/views/main/modules/accounting-payment-reminder-letter.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `database/exports/erp_database.sql`
+
+Vérification :
+
+- Migration `2026_05_25_000004_create_accounting_payment_reminders_tables` appliquée sur la base locale MySQL.
+- `php -l` passe sur le contrôleur, les modèles, la migration et le test concernés.
+- `php artisan route:list --name=main.accounting.payment-reminders` confirme les six routes du flux.
+- `php artisan view:cache` passe.
+- Le test de fonctionnalité des relances, promesses et lettre PDF passe.
+- La suite complète `php artisan test` passe : 88 tests, 1111 assertions.
+- Export SQL `database/exports/erp_database.sql` régénéré après migration.
+
+### 2026-05-25 - Correction du chargement des relances avec plusieurs sources
+
+Prompt utilisateur :
+
+```text
+j'ai cette erreur [Call to a member function getKey() on array]
+```
+
+Correction :
+
+- Correction de l'ouverture de la page `Relances de paiement` lorsqu'elle contient simultanément des factures impayées et des créances manuelles.
+- La fusion est désormais effectuée sur des collections de lignes standard, après transformation des modèles en tableaux, afin d'éviter l'appel Eloquent à `getKey()` sur un tableau.
+- Ajout d'un scénario de régression avec une facture échue et une créance ouverte affichées ensemble.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/MainController.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php -l tests/Feature/ExampleTest.php` passe.
+- `php artisan view:cache` passe.
+- Le test ciblé des relances passe : 1 test, 22 assertions.
+- La suite complète `php artisan test` passe : 88 tests, 1112 assertions.
+- Aucune migration ou régénération de `database/exports/erp_database.sql` nécessaire pour ce correctif applicatif.
+
+### 2026-05-26 - Gestion opérationnelle des tâches comptables
+
+Prompt utilisateur :
+
+```text
+nous allons maintenant travailler sur taches. Donne ton idée et ne fais encore rien
+applique ton idée
+tu n'avais pas terminé ta dernière requette à cause de token peux-tu continuer
+```
+
+Implémentation :
+
+- Activation de la rubrique `Tâches` dans la navigation du module Comptabilité (Facturation).
+- Nouvelle page de suivi avec indicateurs, filtres, recherche, tri, pagination et actions conformes aux tableaux existants.
+- Création et modification de tâches avec responsable, priorité, échéance, client ou fournisseur associé et document lié.
+- Clôture rapide des tâches, historique consultable en modal et suppression réservée aux tâches manuelles.
+- Génération automatique d'une tâche de relance pour toute facture échue restant à encaisser.
+- Génération automatique d'une tâche urgente lorsqu'une promesse de paiement n'est pas tenue.
+- Clôture automatique de la tâche liée à une facture lorsque son solde n'est plus à recouvrer.
+
+Base de données :
+
+- Table `accounting_tasks` pour les actions à suivre et leurs liaisons métier.
+- Table `accounting_task_activities` pour la traçabilité de création, modification et clôture.
+- Relation `accountingTasks` ajoutée au site.
+
+Fichiers principaux :
+
+- `app/Models/AccountingTask.php`
+- `app/Models/AccountingTaskActivity.php`
+- `database/migrations/2026_05_25_000005_create_accounting_tasks_tables.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-tasks.blade.php`
+- `resources/views/main/modules/partials/accounting-task-form.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `database/exports/erp_database.sql`
+
+Vérification :
+
+- Migration `2026_05_25_000005_create_accounting_tasks_tables` appliquée sur la base locale MySQL.
+- `php artisan route:list --name=main.accounting.tasks` confirme les cinq routes du flux.
+- `php artisan view:cache` passe.
+- Le test ciblé de gestion des tâches passe.
+- La suite complète `php artisan test` passe : 89 tests, 1122 assertions.
+- Export SQL `database/exports/erp_database.sql` régénéré après migration.
+
+### 2026-05-26 - Suppression du doublon Rapprochement bancaire dans le dashboard
+
+Prompt utilisateur :
+
+```text
+lorsque je suis dans dashboard, rapprochement bancaire s'affiche 2 fois sur le menu
+```
+
+Correction :
+
+- Suppression de l'ancienne entrée sans lien `Rapprochement bancaire` dans la sidebar intégrée au tableau de bord comptable.
+- Conservation de l'entrée opérationnelle menant à la page de rapprochement bancaire.
+- Vérification que la sidebar partagée utilisée par les autres pages ne contenait pas ce doublon.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-05-26 - Centre de rapports du module Comptabilite (Facturation)
+
+Prompt utilisateur :
+
+```text
+maintenant nous allons travailler sur Rapport, donne moi ton idée et ne fais encore rien
+applique ton idée mon ami
+```
+
+Implémentation :
+
+- Activation de la rubrique `Rapport` dans la navigation comptable et sur le tableau de bord du module.
+- Nouvelle page de pilotage avec cinq vues : ventes, encaissements, achats et dépenses, trésorerie et stock.
+- Filtres par période, dates et critères métier disponibles selon la vue (client, fournisseur, mode de paiement et statut).
+- Indicateurs calculés depuis les données du site, tableau paginé avec recherche dynamique globale et tri, et graphique ApexCharts isolé dans son propre fichier JavaScript.
+- Export CSV de la vue filtrée et impression PDF professionnelle, avec le style documentaire déjà utilisé dans la comptabilité.
+- Synchronisation des mouvements de trésorerie et mise à jour des échéances avant affichage ou export.
+- Ajout des traductions française et anglaise ainsi que du style responsive spécifique aux rapports.
+
+Fichiers principaux :
+
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting-reports.blade.php`
+- `resources/views/main/modules/accounting-report-print.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-reports.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+
+Vérification :
+
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php -l tests/Feature/ExampleTest.php` passe.
+- `php artisan route:list --name=main.accounting.reports` confirme les trois routes (écran, PDF et CSV).
+- `php artisan view:cache` passe.
+- Le test ciblé des rapports passe, incluant l’affichage réel, le CSV et le PDF.
+- La suite complète `php artisan test` passe : 90 tests, 1138 assertions.
+- Aucune migration ni mise à jour de `database/exports/erp_database.sql` nécessaire : le rapport exploite les tables existantes.
+
+### 2026-05-26 - Espacement vertical des cartes du rapport
+
+Prompt utilisateur :
+
+```text
+les cards sont trop serrés de bas en haut laisser un peu d'espace
+```
+
+Correction :
+
+- Correction de la règle d'affichage du conteneur Rapport afin que l'espacement vertical soit bien appliqué malgré les styles génériques du module comptabilité.
+- Ajout d'une respiration régulière entre les onglets, les filtres, la période analysée, les indicateurs, les graphiques et le tableau.
+- Conservation du contenu, des calculs et du comportement responsive existants.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+### 2026-05-26 - Nom personnalise dans les pieds de page PDF et style export
+
+Prompt utilisateur :
+
+```text
+Dans tous les pdf : Documents généré par .... le nom de l'application qui a été configuré par le superadmin.
+Deuxièmement le boutton exporté ne doit pas etre souligné si possible
+```
+
+Implémentation :
+
+- Uniformisation des pieds de page PDF avec la mention traduisible `Document généré par :app`.
+- Injection dynamique de `app_brand_name()` afin que le nom défini par le superadmin apparaisse automatiquement dans tous les PDF du module comptabilité.
+- Application aux factures proforma, factures de vente, bons de livraison, bons de commande, notes de crédit, rapports de clôture de caisse, rapprochements bancaires, relances de paiement et rapports.
+- Suppression du soulignement du bouton `Exporter en CSV` dans la page Rapport tout en conservant son style de bouton.
+
+Fichiers principaux modifiés :
+
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `resources/views/main/modules/accounting-*-print.blade.php`
+- `resources/views/main/modules/accounting-cash-register-session-report.blade.php`
+- `resources/views/main/modules/accounting-bank-reconciliation-report.blade.php`
+- `resources/views/main/modules/accounting-payment-reminder-letter.blade.php`
+- `resources/css/main.css`
+
+Vérification :
+
+- Les neuf vues utilisées par DomPDF transmettent désormais `app_brand_name()` à la mention de génération du document.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan view:cache` passe.
+- La suite complète `php artisan test` passe : 90 tests, 1138 assertions.
+
+### 2026-05-26 - Paramètres du module Comptabilité (Facturation)
+
+Prompt utilisateur :
+
+```text
+Nous allons maintenant travailler sur parametres du module, ce menu ne doit etre visible et accessible que par les utilisateurs qui ont un role admin et superadmin.
+Ce menu permet a l'admin de configurer les acces au menu pour les utilisateurs, configurer la colorisation pour l'impression en PDF des documents et proposer d'autres fonctionnalites.
+```
+
+Implémentation :
+
+- Ajout d'une page `Paramètres du module` accessible uniquement aux rôles Admin et Superadmin.
+- Création d'une matrice d'accès par utilisateur simple et par site : les menus désactivés sont masqués dans la sidebar et bloqués côté serveur en accès direct.
+- Conservation de l'accès complet automatique pour les administrateurs et superadministrateurs.
+- Ajout des réglages PDF par site : couleur principale, couleur d'accent, fond alterné des tableaux, affichage du QR code et mention de génération dans le pied de page.
+- Application de la palette et des options aux documents PDF existants : proformas, factures, bons de livraison, bons de commande, notes de crédit, rapport de caisse, rapprochement bancaire, relances et rapport comptable.
+- Centralisation de la navigation comptable dans la partial de sidebar, y compris pour le dashboard.
+- Ajout des tables `accounting_module_settings` et `accounting_menu_permissions`, migration exécutée et export SQL synchronisé.
+
+Standard enregistré :
+
+- Tout menu de configuration d'un module doit être visible et accessible uniquement aux administrateurs autorisés.
+- Masquer une fonctionnalité dans l'interface doit toujours être accompagné d'un contrôle serveur empêchant l'accès par URL.
+- Les documents imprimables d'un site doivent reprendre une identité PDF centralisée plutôt que des couleurs codées séparément.
+
+Fichiers principaux :
+
+- `app/Http/Controllers/MainController.php`
+- `app/Http/Middleware/EnsureAccountingMenuAccess.php`
+- `app/Models/AccountingModuleSetting.php`
+- `app/Models/AccountingMenuPermission.php`
+- `app/Support/AccountingModuleNavigation.php`
+- `database/migrations/2026_05_26_000001_create_accounting_module_settings_tables.php`
+- `resources/views/main/modules/accounting-settings.blade.php`
+- `resources/views/main/modules/partials/accounting-sidebar.blade.php`
+- `resources/views/main/modules/accounting-*-print.blade.php`
+- `routes/web.php`
+- `database/exports/erp_database.sql`
+
+Vérification :
+
+- Migration des paramètres appliquée sur la base locale et export SQL régénéré.
+- Test fonctionnel ajouté pour vérifier l'accès Admin, la matrice des menus et le refus d'une URL interdite pour un utilisateur simple.
+- `php artisan route:list --name=main.accounting.settings` confirme les routes d'affichage et de mise à jour.
+- `php artisan view:cache` passe.
+- La suite complète `php artisan test` passe : 91 tests, 1150 assertions.
+
+### 2026-05-26 - Pagination des accès utilisateurs dans les paramètres comptables
+
+Prompt utilisateur :
+
+```text
+commence par arranger l'icone des utilisateurs dans la page parametre.
+Deuxièmement au lieu d'afficher tous les utilisaturs sur une meme page par rapport aux accès des utilisateurs je préfère que tu pagine
+```
+
+Correction appliquée :
+
+- Ajustement de l'avatar utilisateur dans la section `Gestion des accès aux menus` de la page `Paramètres du module` pour afficher un cercle bleu avec l'initiale, comme dans les listes utilisateurs.
+- Pagination des utilisateurs simples à raison d'un utilisateur par page dans la matrice d'accès afin de ne plus afficher tous les utilisateurs sur une seule page.
+- Ajout d'un bandeau de pagination/compteur visible au-dessus de la carte utilisateur, même lorsqu'une seule page existe.
+- Présentation de l'en-tête utilisateur sous forme de ligne avec avatar rond et identité, sans numérotation, avec l'initiale centrée dans le cercle.
+- Isolation de l'initiale dans un élément dédié positionné au centre du cercle afin d'éviter les conflits avec les styles génériques des `span` de l'en-tête.
+- Redémarrage du serveur Laravel local `127.0.0.1:8000` après nettoyage des caches afin de forcer la prise en compte visuelle.
+- Ajout d'un champ caché par utilisateur affiché pour que l'enregistrement ne modifie que les accès de la page courante.
+- Conservation des droits des utilisateurs présents sur les autres pages lors de la sauvegarde.
+- Compatibilité maintenue avec les payloads de test qui envoient directement `menu_access`.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-settings.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=main.accounting.settings` confirme les routes.
+- Le test ciblé `test_accounting_module_settings_are_admin_only_and_limit_user_menu_access` passe : 1 test, 12 assertions.
+
+### 2026-05-26 - Redirection intelligente apres retrait d'acces comptable
+
+Prompt utilisateur :
+
+```text
+j'ai essayer de faire ça et l'utilisateur x a eu une erreur 403 | Forbidden. qu'es ce que tu me propose comme solution
+applique cela
+```
+
+Correction appliquée :
+
+- Remplacement du 403 brutal lorsqu'un utilisateur simple tente d'ouvrir un menu comptable qui lui a ete retire.
+- Le middleware cherche maintenant le premier menu comptable encore autorise pour ce site et redirige l'utilisateur vers cette page.
+- Si aucun menu comptable n'est encore autorise, l'utilisateur est redirige vers `/main` avec un message explicatif.
+- Les routes `settings` restent interdites aux utilisateurs simples.
+- Les requetes non GET vers un menu non autorise restent bloquees en 403 afin de proteger les actions sensibles.
+- Ajout d'un helper de navigation pour convertir une cle de menu comptable en URL.
+
+Fichiers modifiés :
+
+- `app/Http/Middleware/EnsureAccountingMenuAccess.php`
+- `app/Support/AccountingModuleNavigation.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Middleware/EnsureAccountingMenuAccess.php` passe.
+- `php -l app/Support/AccountingModuleNavigation.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan view:cache` passe.
+- Le test ciblé `test_accounting_module_settings_are_admin_only_and_limit_user_menu_access` passe : 1 test, 17 assertions.
+
+### 2026-05-26 - Sous-menus accessibles dans la sidebar comptable reduite
+
+Prompt utilisateur :
+
+```text
+lorsqu'on reduit la side barre les menus qui ont des sous menus sont décallé pourquoi ? et il est impossible de afficher les sous menus
+```
+
+Correction appliquée :
+
+- Identification de la cause : en mode sidebar reduite, les sous-menus etaient forces en `display: none` et l'overflow de la sidebar empechait tout affichage lateral.
+- Modification du comportement JavaScript : en sidebar comptable reduite, un clic sur un groupe ouvre un sous-menu flottant au lieu de redeplier toute la sidebar.
+- Fermeture automatique des autres groupes ouverts et fermeture au clic en dehors.
+- Ajout d'un affichage flottant des sous-menus a droite de l'icone, avec largeur stable, ombre, fond sombre et defilement interne si besoin.
+- Conservation du comportement normal lorsque la sidebar est ouverte.
+
+Fichiers modifiés :
+
+- `resources/js/main.js`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- Le test ciblé des paramètres comptables passe toujours : 1 test, 17 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+
+### 2026-05-26 - Enrichissement du tableau de bord Comptabilite et Facturation
+
+Prompt utilisateur :
+
+```text
+Sur base de tous ce que nous avons réalisé sur les modules comptabilités et facturation mets à jour les tableaux bords avec les vraies informations, gardre les informations déjà existantes et améliore
+```
+
+Implementation :
+
+- Conservation des indicateurs et graphiques existants du tableau de bord comptable.
+- Synchronisation des mouvements de tresorerie avant calcul du dashboard.
+- Ajout d'un bloc `Pilotage operationnel` avec cartes cliquables vers les pages concernees :
+  - solde de tresorerie, entrees et sorties ;
+  - taches ouvertes, en retard et urgentes ;
+  - relances de paiement et promesses en attente ;
+  - rapprochements bancaires ouverts et lignes non rapprochees ;
+  - taxes actives et modes de paiement actifs ;
+  - caisse ouverte et bons de commande fournisseurs en cours.
+- Enrichissement du graphique de tresorerie pour utiliser les vraies entrees et sorties de tresorerie lorsque disponibles.
+- Enrichissement du graphique des documents avec commandes clients, bons de livraison, bons de commande fournisseurs et notes de credit.
+- Ajout des libelles FR/EN necessaires.
+- Ajout d'assertions de regression sur les nouveaux elements du tableau de bord.
+
+Fichiers principaux :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main/accounting-dashboard.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `node --check resources/js/main/accounting-dashboard.js` passe.
+- `php artisan view:cache` passe.
+- Le test cible du tableau de bord comptable passe : 1 test, 67 assertions.
+- Le test cible des parametres comptables passe : 1 test, 17 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+
+### 2026-05-26 - Verification et correction du chiffre d'affaires du dashboard
+
+Prompt utilisateur :
+
+```text
+vérifie si le chiffre d'affire est vraiment réel
+```
+
+Constat :
+
+- Le KPI `Chiffre d'affaires` du tableau de bord comptable n'etait pas strictement reel au sens ventes nettes.
+- Il additionnait les factures de vente avec les `autres entrees`.
+- Il utilisait le total brut des factures sans deduire les avoirs/notes de credit deja comptabilises dans `credit_total`.
+
+Correction appliquee :
+
+- Le chiffre d'affaires du dashboard est maintenant calcule uniquement sur les factures de vente non brouillon et non annulees.
+- Le montant utilise est net des avoirs : `total_ttc - credit_total`.
+- Les `autres entrees` restent des mouvements de tresorerie, mais ne gonflent plus le chiffre d'affaires.
+- Le graphique d'evolution du chiffre d'affaires utilise le meme calcul net sur chaque periode.
+- Ajout d'un test avec une facture de 10M, un avoir de 2M et une autre entree de 4M : le dashboard doit afficher 8M, pas 14M.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/MainController.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php artisan view:cache` passe.
+- Le test cible du tableau de bord comptable passe : 1 test, 69 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+
+### 2026-05-26 - Centre de notifications du module Comptabilite
+
+Prompt utilisateur :
+
+```text
+je souhaite ajouter un icone notification avant le mode sombre, qui affiche toutes les ce que les utilisateurs sur ces modules font par exemple :
+- users3 a ajouté une facture il y a 2h
+- user4 a validé une dépenses etc...
+```
+
+Implementation :
+
+- Ajout d'une icone cloche avant le bouton mode sombre dans le topbar comptable partagé et sur le tableau de bord comptable.
+- Creation d'un composant dropdown affichant les dernieres activites du site courant.
+- Ajout d'un service `AccountingActivityFeed` qui lit les actions reelles depuis les tables comptables :
+  - factures de vente ;
+  - achats et bons de commande ;
+  - notes de credit ;
+  - depenses et autres entrees ;
+  - relances de paiement ;
+  - taches ;
+  - rapprochements bancaires ;
+  - mouvements de tresorerie ;
+  - validations et clotures quand le statut le permet.
+- Injection automatique des notifications via un view composer sur les vues du module.
+- Ajout d'un cache local par requete pour eviter de recalculer le fil d'activite plusieurs fois a cause des partials Blade.
+- Ajout des libelles FR/EN et du style du dropdown.
+
+Fichiers principaux :
+
+- `app/Support/AccountingActivityFeed.php`
+- `app/Providers/AppServiceProvider.php`
+- `resources/views/main/modules/partials/accounting-notifications.blade.php`
+- `resources/views/main/modules/partials/accounting-topbar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main.js`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- `php -l app/Support/AccountingActivityFeed.php` passe.
+- `php -l app/Providers/AppServiceProvider.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- Le test cible du tableau de bord comptable passe : 1 test, 73 assertions.
+- Le test cible des parametres comptables passe : 1 test, 17 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+
+### 2026-05-26 - Notifications persistantes avec page liste et detail
+
+Prompt utilisateur :
+
+```text
+applique ça
+```
+
+Contexte :
+
+- Demande appliquee apres validation de l'idee : afficher seulement les 10 dernieres notifications dans la cloche, ajouter une page dediee pour tout voir, ajouter une page detail, et distinguer les notifications consultees/non consultees.
+
+Implementation :
+
+- Ajout des tables `accounting_notifications` et `accounting_notification_reads`.
+- Ajout des modeles `AccountingNotification` et `AccountingNotificationRead`.
+- Transformation du fil d'activite en notifications persistantes synchronisees depuis les enregistrements comptables existants.
+- Le dropdown affiche maintenant seulement les 10 dernieres notifications du site courant.
+- Le badge de la cloche affiche le nombre de notifications non consultees parmi les notifications recentes.
+- Les notifications non consultees ont un style distinct dans le dropdown et la page liste.
+- Ajout d'un bouton `Voir toutes les notifications` dans le dropdown.
+- Ajout d'une page liste avec filtres `Toutes` et `Non consultees`, pagination et liens vers le detail.
+- Ajout d'une page detail qui marque la notification comme consultee pour l'utilisateur connecte.
+- Ajout d'un lien vers le module concerne lorsque la cle de module peut etre resolue.
+- Ajout des routes :
+  - `main.accounting.notifications`
+  - `main.accounting.notifications.show`
+- Mise a jour de l'export SQL `database/exports/erp_database.sql` apres migration.
+
+Fichiers principaux :
+
+- `database/migrations/2026_05_26_000002_create_accounting_notifications_tables.php`
+- `app/Models/AccountingNotification.php`
+- `app/Models/AccountingNotificationRead.php`
+- `app/Support/AccountingActivityFeed.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/partials/accounting-notifications.blade.php`
+- `resources/views/main/modules/accounting-notifications.blade.php`
+- `resources/views/main/modules/accounting-notification-show.blade.php`
+- `resources/css/main.css`
+- `resources/js/main.js`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/ExampleTest.php`
+- `database/exports/erp_database.sql`
+- `docs/prompts/project-history.md`
+
+Verification :
+
+- Migration `2026_05_26_000002_create_accounting_notifications_tables` appliquee sur la base locale.
+- Export SQL regenere avec `scripts/export-database.ps1` apres ajout de `C:\xampp\mysql\bin` au `PATH` de la commande.
+- `php -l` passe sur les nouveaux modeles, le service, le provider et le controleur.
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- Le test cible du tableau de bord comptable passe : 1 test, 82 assertions.
+- Le test cible des parametres comptables passe : 1 test, 17 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+
+### 2026-05-26 - Scroll conserve dans la sidebar comptable reduite
+
+Prompt utilisateur :
+
+```text
+je dois également etre en mesure de faire scroller avec la side barre reduit
+```
+
+Correction appliquée :
+
+- Restauration du scroll vertical de la navigation comptable en mode sidebar reduite.
+- Positionnement des sous-menus flottants en `fixed`, calcule en JavaScript depuis l'icone cliquee, afin qu'ils restent visibles au premier plan sans bloquer le scroll.
+- Repositionnement du sous-menu lors du scroll de la navigation et du redimensionnement de la fenetre.
+
+Fichiers modifiés :
+
+- `resources/js/main.js`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- Le test ciblé des paramètres comptables passe toujours : 1 test, 17 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+
+### 2026-05-26 - Alignement des icones et priorité des sous-menus de sidebar réduite
+
+Prompt utilisateur :
+
+```text
+les icones doivent etres droits et bien alligné.
+Les sous menus doivent toujours etres au premier plan
+```
+
+Correction appliquée :
+
+- Uniformisation des liens simples et des groupes de sous-menus en sidebar réduite sur une boîte stable de `52px x 52px`.
+- Centrage explicite des icônes via grille et `line-height: 1` afin d'éviter les décalages verticaux ou horizontaux.
+- Correction du decalage au survol : les libelles et chevrons des groupes sont retires du flux en mode reduit, afin que l'icone soit seule dans la cellule centree.
+- En mode ouvert, les groupes utilisent une grille `icone / libelle / fleche` pour garder la fleche et l'icone propres et alignes.
+- Ajout d'un `z-index` élevé à la sidebar comptable et d'un niveau supérieur au sous-menu flottant afin qu'il reste au premier plan devant le contenu.
+- Conservation de l'overflow visible en sidebar réduite pour permettre aux panneaux flottants de sortir de la colonne.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- Le test ciblé des paramètres comptables passe toujours : 1 test, 17 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+
+### 2026-05-26 - Notifications comptables : compteur, accès et espacements
+
+Prompt utilisateur :
+
+```text
+le nombre à côté de la notification doit etre le nombre de notification que l'utilisateur connecté n'a pas consulté, si c'est plus de 100 notifs on 99+
+Deuxiemement tous les users qui ont accès doivent voir les notifications.
+le bouton plein écran doit s'afficher partout sur toutes les pages.
+Troisiemement dans l'image 3 laisse un peu d'espace entre la liste de notification et le menu tab.
+quatriemement pareil pour les détails de la notifications laisse un peu d'espace entre les deux cards et les boutons d'ouvertures du module concerné.
+
+Si l'utilisateur n'a pas accès au modules n'affiche pas le bouton
+```
+
+Correction appliquée :
+
+- Le badge de notification compte maintenant toutes les notifications non consultees par l'utilisateur connecte, pas seulement les 10 dernieres affichees dans le menu.
+- Le badge affiche `99+` lorsque le nombre de notifications non lues depasse 99.
+- Les notifications restent visibles pour tous les utilisateurs qui ont acces au module comptabilite du site.
+- Sur la page de detail, le bouton d'ouverture du module concerne est masque si l'utilisateur n'a pas acces au menu comptable lie a la notification.
+- Ajout du bouton plein ecran au tableau de bord comptable et injection automatique du bouton sur les anciens headers comptables qui ne l'auraient pas encore.
+- Ajout d'espaces visuels entre les onglets et la liste des notifications, puis entre les cards de detail et le bouton d'ouverture du module.
+
+Fichiers modifiés :
+
+- `app/Support/AccountingActivityFeed.php`
+- `app/Providers/AppServiceProvider.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/partials/accounting-notifications.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/js/main.js`
+- `resources/css/main.css`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Support/AccountingActivityFeed.php` passe.
+- `php -l app/Providers/AppServiceProvider.php` passe.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- Le test cible du tableau de bord comptable passe : 1 test, 84 assertions.
+- Le test cible des parametres comptables passe : 1 test, 22 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+
+### 2026-05-26 - Icône de notification visible pour tous les rôles
+
+Prompt utilisateur :
+
+```text
+l'icone de notification doit s'afficher pour tous les utilisateurs c'est a dire meme un user qui a un role user, admin etc... on doit ils doit voir les notifications et les consulter aussi
+```
+
+Correction appliquée :
+
+- Factorisation des actions du header comptable dans `accounting-header-actions.blade.php`.
+- Le bouton plein ecran, l'icone de notification, le mode sombre, la langue et le profil sont maintenant partages par le topbar comptable et les anciennes pages comptables qui utilisaient encore un header manuel.
+- Les pages comptables manuelles affichent maintenant la cloche de notification pour les roles `user` et `admin`.
+- Ajout d'un test qui verifie qu'un utilisateur `user` avec acces limite voit la cloche et peut acceder a la page des notifications.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/partials/accounting-header-actions.blade.php`
+- `resources/views/main/modules/partials/accounting-topbar.blade.php`
+- `resources/views/main/modules/accounting-dashboard.blade.php`
+- `resources/views/main/modules/accounting-clients.blade.php`
+- `resources/views/main/modules/accounting-creditors.blade.php`
+- `resources/views/main/modules/accounting-currencies.blade.php`
+- `resources/views/main/modules/accounting-debtors.blade.php`
+- `resources/views/main/modules/accounting-partners.blade.php`
+- `resources/views/main/modules/accounting-payment-methods.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoice-create.blade.php`
+- `resources/views/main/modules/accounting-proforma-invoices.blade.php`
+- `resources/views/main/modules/accounting-prospects.blade.php`
+- `resources/views/main/modules/accounting-sales-representatives.blade.php`
+- `resources/views/main/modules/accounting-service-resource.blade.php`
+- `resources/views/main/modules/accounting-stock-resource.blade.php`
+- `resources/views/main/modules/accounting-suppliers.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Providers/AppServiceProvider.php` passe.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- Le test cible des parametres comptables passe : 1 test, 24 assertions.
+- Le test cible du tableau de bord comptable passe : 1 test, 84 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+
+### 2026-05-26 - Traduction du module sur le détail de notification
+
+Prompt utilisateur :
+
+```text
+merci de traduire l'information en jaune
+```
+
+Correction appliquée :
+
+- Remplacement de l'affichage brut de la cle technique du module (`tasks`, `suppliers`, etc.) par son libelle traduit.
+- Le detail de notification affiche maintenant par exemple `Tâches` au lieu de `tasks`.
+- Ajout d'un test empechant le retour d'une cle technique brute dans le champ module.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/accounting-notification-show.blade.php`
+- `tests/Feature/ExampleTest.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php artisan view:cache` passe.
+- Le test cible des parametres comptables passe : 1 test, 26 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+
+### 2026-05-26 - Corrections dark mode sur les notifications et cartes comptables
+
+Prompt utilisateur :
+
+```text
+quand je passe en mode dark beaucoup d'element ne passe pas en mode dark
+```
+
+Correction appliquée :
+
+- Ajout de styles dark mode pour les cartes d'operations du tableau de bord comptable.
+- Correction du dropdown des notifications en mode sombre, notamment les notifications non lues.
+- Correction des cartes de detail de notification, de la grille d'informations et de la liste des notifications.
+- Les icones colorees gardent une teinte lisible en dark mode sans fond blanc parasite.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- Le test cible du tableau de bord comptable passe : 1 test, 84 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+
+### 2026-05-26 - Audit dark mode élargi sur les pages comptables
+
+Prompt utilisateur :
+
+```text
+verifies dans toutes les où le problemes persistes et arrange ça
+```
+
+Correction appliquée :
+
+- Scan des fonds blancs et fonds clairs codés en dur dans les CSS principaux.
+- Ajout de règles dark mode plus larges pour les onglets de rapports, métriques de rapports, panneaux de réglages, aperçus PDF, cartes d'accès menu, pagination modale et états de rapprochement bancaire.
+- Correction des icônes de modules, icônes de rapports, boutons de table au survol et états bancaires pour rester lisibles en mode sombre.
+- Conservation des fonds blancs utiles aux logos/QR/switchs, qui doivent rester contrastés.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- Scan `rg` des fonds clairs restants effectué.
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- Le test cible du tableau de bord comptable passe : 1 test, 84 assertions.
+- Le test cible des parametres comptables passe : 1 test, 26 assertions.
+- Le test cible des rapports comptables passe : 1 test, 16 assertions.
+- Le test cible du rapprochement bancaire passe : 1 test, 14 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+
+### 2026-05-26 - Dark mode formulaires comptables et correction stock units
+
+Prompt utilisateur :
+
+```text
+première remarque sur les formules des modales les placeholders sont très sombre. et dans taux de commission % vous pouvez voir que ce n'est pas en dark.
+la page stock/units il y a erreur.
+dans devises les textes en bas est trop sombre
+dans nouvelle proforma le mode dark n'est pas completement appliqué; pareil pour nouvelle commande et modifier, bon de livraison, facture de vente, avoir , caisse enregistreuse, dépenses, bons de commandes, dépenses, dettes tous les restes
+```
+
+Correction appliquée :
+
+- Correction de l'erreur `stock/units` : la configuration charge maintenant les relations `items.category` et `items.subcategory` au lieu d'une relation `services` inexistante sur `AccountingStockUnit`.
+- Ajout de styles dark globaux pour les champs de formulaires comptables : `form-control`, `form-select`, `textarea`, placeholders, champs readonly/disabled, `input-group-text`, fichiers, `form-text`, `text-muted` et checkbox.
+- Correction du suffixe `%` dans les champs `input-group` en mode sombre.
+- Correction des cartes de lignes de proforma, commande client, facture, bon de livraison et avoir.
+- Correction de plusieurs états et badges en dark mode : documents, achats, stocks, devises, taxes, autres entrées, etc.
+- Ajout de règles dark pour la caisse enregistreuse : cartes produits/categories, panier, paiement, résumé, pavé numérique, alertes et notes.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- Le test cible de création de site et unités de stock passe : 1 test, 58 assertions.
+- Le test cible stock et mouvements passe : 1 test, 44 assertions.
+- Le test cible proforma passe : 1 test, 69 assertions.
+- Le test cible commandes client passe : 1 test, 23 assertions.
+- Le test cible factures de vente passe : 1 test, 62 assertions.
+- Le test cible bons de livraison passe : 1 test, 27 assertions.
+- Le test cible dettes passe : 1 test, 17 assertions.
+- Le test cible créances passe : 1 test, 17 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+- Note : le test cible caisse enregistreuse echoue sur une assertion de visibilité d'une reference dans la page, sans erreur serveur; la page rend bien et l'echec semble lie au contenu désormais present dans les notifications globales.
+
+### 2026-05-26 - Placeholders plus lisibles en dark mode
+
+Prompt utilisateur :
+
+```text
+les placeholders sur les formulaires des modales sont très sombres
+```
+
+Correction appliquée :
+
+- Renforcement de la couleur des placeholders en mode sombre pour les modales comptables.
+- Ajout de selecteurs plus specifiques pour `.modal-content`, `.admin-form` et `.proforma-page-form`.
+- Ajout des pseudo-selecteurs WebKit afin que Chrome applique aussi la couleur claire sans opacite sombre.
+- Les placeholders des champs de recherche custom des lignes proforma utilisent aussi la nouvelle couleur.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- Le test cible des parametres comptables passe : 1 test, 26 assertions.
+- `php artisan optimize:clear` execute pour vider les caches Laravel.
+
+### 2026-05-26 - Correction globale des placeholders dark mode
+
+Prompt utilisateur :
+
+```text
+ça ne fonctionne toujours pas
+```
+
+Correction appliquée :
+
+- Ajout de variables Bootstrap dark globales (`--bs-secondary-color`, `--bs-tertiary-color`, `--bs-body-color`, `--bs-body-bg`) afin que les champs Bootstrap utilisent des couleurs lisibles.
+- Ajout de règles indépendantes de `.accounting-shell` sur `html[data-theme="dark"]` et `body[data-theme="dark"]` pour les placeholders.
+- Couverture des placeholders dans les modales Bootstrap, y compris les variantes WebKit et Firefox.
+- Nettoyage des caches Laravel puis recompilation des vues.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+- Le test cible des parametres comptables passe : 1 test, 26 assertions.
+
+### 2026-05-26 - Suffixe pourcentage des commerciaux en dark mode
+
+Prompt utilisateur :
+
+```text
+dans commerciaux % n'a pas changé
+```
+
+Correction appliquée :
+
+- Ajout de règles directes dark mode pour `.input-group-text` sur `html[data-theme="dark"]` et `body[data-theme="dark"]`.
+- Le suffixe `%` du taux de commission utilise maintenant le même fond sombre et la même couleur que les champs de formulaire, y compris dans les modales Bootstrap hors `.accounting-shell`.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+
+### 2026-05-26 - Bandeau total encaissements en dark mode
+
+Prompt utilisateur :
+
+```text
+il y a un soucis dans encaissement
+```
+
+Correction appliquée :
+
+- Ajout du style dark mode pour `.modal-total-strip`, utilisé par le bandeau `Total encaissé` de la page Encaissements.
+- Le bandeau utilise maintenant un fond bleu sombre, une bordure adaptée et un montant lisible en mode sombre.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+
+### 2026-05-26 - Cartes trésorerie en dark mode
+
+Prompt utilisateur :
+
+```text
+pareil dans trésorerie
+```
+
+Correction appliquée :
+
+- Ajout des styles dark mode pour les cartes principales de la page Trésorerie : solde disponible, prévisions, entrées, sorties, créances et dettes.
+- Adaptation des badges devise/prévision, icônes colorées, séparateurs et couleurs positives/négatives en mode sombre.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+
+### 2026-05-26 - Rapprochement bancaire en dark mode
+
+Prompt utilisateur :
+
+```text
+rapprochement bancaire aussi
+```
+
+Correction appliquée :
+
+- Ajout du style dark mode pour le panneau de clôture `.bank-close-panel`.
+- Harmonisation dark mode des cartes internes du rapprochement bancaire : métriques, import, formulaire de ligne et tableau des lignes.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+
+### 2026-05-26 - Lisibilité widgets relances clients en dark mode
+
+Prompt utilisateur :
+
+```text
+dans relance clients les textes sur les widget ne sont pas trop lisible
+```
+
+Correction appliquée :
+
+- Ajout des surcharges dark mode pour les widgets de relance client.
+- Les libellés, montants et compteurs utilisent maintenant des couleurs plus contrastées.
+- Les icônes des widgets conservent leurs tons respectifs avec des fonds adaptés au mode sombre.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+
+### 2026-05-26 - Ajustement automatique du scroll sidebar
+
+Prompt utilisateur :
+
+```text
+sur la side barre lorsque je clique sur rapport par la side barre doit s'ajuster pour que rapport soit visible
+```
+
+Correction appliquée :
+
+- Ajout d'une routine JS qui repère le lien actif dans `.accounting-nav`.
+- La sidebar ajuste automatiquement son scroll pour garder le lien actif visible, par exemple `Rapports`.
+- Le recentrage est relancé au chargement, au changement responsive et après réduction/ouverture de la sidebar.
+
+Fichiers modifiés :
+
+- `resources/js/main.js`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+
+### 2026-05-26 - Bouton plein écran côté super admin
+
+Prompt utilisateur :
+
+```text
+alors maintenant du coté super admin tu as oublié le bouton plein écran
+```
+
+Correction appliquée :
+
+- Généralisation de l'injection automatique du bouton plein écran dans `resources/js/main.js`.
+- Le bouton n'est plus limité aux pages comptables et s'insère maintenant dans tout header `.main-shell .header-actions`, y compris les pages super admin.
+
+Fichiers modifiés :
+
+- `resources/js/main.js`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+
+### 2026-05-26 - Personnalisation des couleurs de l'application
+
+Prompt utilisateur :
+
+```text
+dans personalisation de l'application du coté superadmin je souhaite qu'on ai la possibilité aussi de personnaliser les couleurs aussi de l'application
+```
+
+Correction appliquée :
+
+- Ajout d'une section `Couleurs de l'application` dans la page super admin de personnalisation.
+- Ajout des champs : couleur principale, couleur secondaire, couleur d'accent, couleur de début de sidebar et couleur de fin de sidebar.
+- Sauvegarde des couleurs dans `application_settings` via le système de branding existant.
+- Ajout d'une injection globale des variables CSS de thème dans toutes les réponses HTML du groupe web.
+- Les variables `--blue-600`, `--blue-500`, `--violet`, `--navy` et `--navy-2` peuvent maintenant être pilotées depuis la personnalisation.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/AdminController.php`
+- `app/Http/Middleware/InjectApplicationTheme.php`
+- `app/Support/AppBranding.php`
+- `bootstrap/app.php`
+- `resources/views/admin/application-settings.blade.php`
+- `resources/css/admin/dashboard.css`
+- `lang/fr/admin.php`
+- `lang/en/admin.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Support/AppBranding.php` passe.
+- `php -l app/Http/Middleware/InjectApplicationTheme.php` passe.
+- `php -l app/Http/Controllers/AdminController.php` passe.
+- `node --check resources/js/main.js` passe.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=admin.application-settings` confirme les routes GET et PUT.
+
+### 2026-05-26 - Correction UTF-8 des libellés de personnalisation
+
+Prompt utilisateur :
+
+```text
+UTF8 pour le text
+```
+
+Correction appliquée :
+
+- Correction des libellés français de la page de personnalisation super admin affichés avec des caractères corrompus.
+- Les textes de la section couleurs utilisent maintenant des caractères UTF-8 corrects : `l’application`, `d’accent`, `début`, `latérale`, etc.
+
+Fichiers modifiés :
+
+- `lang/fr/admin.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l lang/fr/admin.php` passe.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+
+### 2026-05-26 - Couleurs personnalisées sur la page login
+
+Prompt utilisateur :
+
+```text
+le changement de couleur doit aussi tenir compte du login également
+```
+
+Correction appliquée :
+
+- Extension des variables de branding avec des versions RGB pour les effets transparents.
+- Adaptation de `resources/css/auth/login.css` afin que la page de connexion utilise les couleurs personnalisées.
+- Le panneau gauche, les accents, les icônes, badges, liens, focus de champs et bouton de connexion suivent maintenant la personnalisation super admin.
+
+Fichiers modifiés :
+
+- `app/Support/AppBranding.php`
+- `resources/css/auth/login.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Support/AppBranding.php` passe.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.

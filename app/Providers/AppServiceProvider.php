@@ -3,8 +3,13 @@
 namespace App\Providers;
 
 use App\Models\UserLoginHistory;
+use App\Models\CompanySite;
+use App\Models\User;
+use App\Support\AccountingActivityFeed;
+use App\Support\AppBranding;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
 use Illuminate\Support\ServiceProvider;
 
@@ -23,6 +28,33 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        config(['app.name' => AppBranding::name()]);
+        View::share('appBranding', AppBranding::all());
+        View::composer('main.modules.*', function ($view): void {
+            static $activityCache = [];
+
+            $site = request()->route('site');
+
+            if (! $site instanceof CompanySite) {
+                $view->with('accountingNotifications', []);
+                $view->with('accountingUnreadNotificationsCount', 0);
+
+                return;
+            }
+
+            $authUser = auth()->user();
+            $cacheKey = $site->id.'-'.($authUser?->id ?: 'guest');
+            $activityCache[$cacheKey] ??= [
+                'items' => AccountingActivityFeed::forSite($site, $authUser instanceof User ? $authUser : null, 10),
+                'unread_count' => $authUser instanceof User
+                    ? AccountingActivityFeed::unreadCount($site, $authUser)
+                    : 0,
+            ];
+
+            $view->with('accountingNotifications', $activityCache[$cacheKey]['items']);
+            $view->with('accountingUnreadNotificationsCount', $activityCache[$cacheKey]['unread_count']);
+        });
+
         Event::listen(Login::class, function (Login $event): void {
             UserLoginHistory::create([
                 'user_id' => $event->user->getAuthIdentifier(),

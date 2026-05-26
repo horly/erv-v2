@@ -4,6 +4,8 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Http\Middleware\EnsureUserIsSuperadmin;
+use App\Http\Middleware\EnsureAccountingMenuAccess;
+use App\Http\Middleware\InjectApplicationTheme;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Session\TokenMismatchException;
 
@@ -16,12 +18,14 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             SetLocale::class,
+            InjectApplicationTheme::class,
         ]);
 
         $middleware->redirectUsersTo(fn () => route('main'));
 
         $middleware->alias([
             'superadmin' => EnsureUserIsSuperadmin::class,
+            'accounting.menu' => EnsureAccountingMenuAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -8,6 +8,7 @@
         $pageTitle = $isEditingOrder ? __('main.edit_customer_order') : __('main.new_customer_order');
     @endphp
     <title>{{ $pageTitle }} | {{ config('app.name', 'EXAD ERP') }}</title>
+    <link rel="icon" href="{{ app_brand_favicon_url() }}">
     <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet">
     <style>{!! file_get_contents(resource_path('css/admin/dashboard.css')) !!}</style>

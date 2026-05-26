@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('main.accounting_dashboard') }} | {{ config('app.name', 'EXAD ERP') }}</title>
+    <link rel="icon" href="{{ app_brand_favicon_url() }}">
     <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet">
     <style>{!! file_get_contents(resource_path('css/admin/dashboard.css')) !!}</style>
@@ -12,7 +13,6 @@
 <body class="accounting-module-body">
     @php
         $currentLocale = app()->getLocale();
-        $moduleRoute = route('main.companies.sites.modules.show', [$company, $site, $module]);
         $siteCurrency = $site->currency ?: 'CDF';
         $clientStats = array_merge([
             'total' => 0,
@@ -48,20 +48,14 @@
             'total' => 0,
             'active' => 0,
         ], $salesRepresentativeStats ?? []);
-        $weeklyLabels = collect(range(7, 0))
-            ->map(fn (int $weeksAgo) => \Carbon\CarbonImmutable::now()->subWeeks($weeksAgo)->startOfWeek());
-        $monthlyLabels = collect(range(5, 0))
-            ->map(fn (int $monthsAgo) => \Carbon\CarbonImmutable::now()->subMonths($monthsAgo)->startOfMonth());
-        $yearlyLabels = collect(range(4, 0))
-            ->map(fn (int $yearsAgo) => \Carbon\CarbonImmutable::now()->subYears($yearsAgo)->startOfYear());
-        $kpis = [
-            ['label' => __('main.revenue'), 'value' => '24,8M '.$siteCurrency, 'icon' => 'bi-graph-up-arrow', 'tone' => 'blue', 'trend' => '+18%'],
-            ['label' => __('main.sales_invoices'), 'value' => 128, 'icon' => 'bi-receipt', 'tone' => 'violet', 'trend' => '+12%'],
-            ['label' => __('main.customers'), 'value' => $clientStats['total'], 'icon' => 'bi-person-check', 'tone' => 'green', 'trend' => null],
-            ['label' => __('main.receivables'), 'value' => '12,4M '.$siteCurrency, 'icon' => 'bi-arrow-down-left-circle', 'tone' => 'amber', 'trend' => null],
-            ['label' => __('main.expenses'), 'value' => '8,7M '.$siteCurrency, 'icon' => 'bi-wallet2', 'tone' => 'rose', 'trend' => null],
-        ];
-        $accountingChartData = [
+        $accountingDashboard = array_merge([
+            'kpis' => [],
+            'chartData' => [],
+            'operations' => [],
+            'scheduleSummary' => [],
+            'scheduleItems' => [],
+        ], $accountingDashboard ?? []);
+        $fallbackChartData = [
             'emptyLabel' => __('main.no_accounting_documents'),
             'emptyClientsLabel' => __('main.no_clients'),
             'labels' => [
@@ -82,30 +76,9 @@
                 'schedule' => __('main.schedule'),
             ],
             'periods' => [
-                'week' => [
-                    'labels' => $weeklyLabels->map(fn (\Carbon\CarbonImmutable $date) => $date->translatedFormat('d M'))->all(),
-                    'revenue' => [0, 0, 0, 0, 8, 18, 26, 14],
-                    'sales' => [0, 0, 0, 0, 5, 13, 20, 9],
-                    'expenses' => [0, 0, 0, 0, 3, 8, 12, 7],
-                    'receivables' => [0, 0, 0, 0, 4, 9, 16, 11],
-                    'debts' => [0, 0, 0, 0, 2, 5, 8, 6],
-                ],
-                'month' => [
-                    'labels' => $monthlyLabels->map(fn (\Carbon\CarbonImmutable $date) => $date->translatedFormat('M Y'))->all(),
-                    'revenue' => [0, 0, 0, 9, 24, 38],
-                    'sales' => [0, 0, 0, 6, 17, 27],
-                    'expenses' => [0, 0, 0, 4, 12, 18],
-                    'receivables' => [0, 0, 0, 5, 13, 21],
-                    'debts' => [0, 0, 0, 2, 8, 12],
-                ],
-                'year' => [
-                    'labels' => $yearlyLabels->map(fn (\Carbon\CarbonImmutable $date) => $date->format('Y'))->all(),
-                    'revenue' => [0, 0, 6, 28, 68],
-                    'sales' => [0, 0, 4, 19, 51],
-                    'expenses' => [0, 0, 3, 12, 34],
-                    'receivables' => [0, 0, 2, 14, 32],
-                    'debts' => [0, 0, 1, 9, 18],
-                ],
+                'week' => ['labels' => [], 'revenue' => [], 'sales' => [], 'expenses' => [], 'receivables' => [], 'debts' => []],
+                'month' => ['labels' => [], 'revenue' => [], 'sales' => [], 'expenses' => [], 'receivables' => [], 'debts' => []],
+                'year' => ['labels' => [], 'revenue' => [], 'sales' => [], 'expenses' => [], 'receivables' => [], 'debts' => []],
             ],
             'contacts' => [
                 'labels' => [__('main.prospects'), __('main.customers'), __('main.suppliers'), __('main.partners'), __('main.sales_representatives'), __('main.client_contacts'), __('main.supplier_contacts')],
@@ -113,213 +86,31 @@
             ],
             'stockServices' => [
                 'labels' => [__('main.items'), __('main.categories'), __('main.services'), __('main.price_list')],
-                'series' => [126, 24, 58, 31],
+                'series' => [0, 0, 0, 0],
             ],
             'documents' => [
-                'labels' => [__('main.sales_invoices'), __('main.proforma_invoices'), __('main.delivery_notes'), __('main.cash_register'), __('main.purchase_orders')],
-                'series' => [128, 54, 71, 39, 46],
+                'labels' => [__('main.sales_invoices'), __('main.proforma_invoices'), __('main.customer_orders'), __('main.delivery_notes'), __('main.purchase_orders'), __('main.credit_notes')],
+                'series' => [0, 0, 0, 0, 0, 0],
             ],
         ];
-        $scheduleSummary = [
+        $kpis = $accountingDashboard['kpis'] ?: [
+            ['label' => __('main.revenue'), 'value' => '0,00 '.$siteCurrency, 'icon' => 'bi-graph-up-arrow', 'tone' => 'blue', 'trend' => null],
+            ['label' => __('main.sales_invoices'), 'value' => 0, 'icon' => 'bi-receipt', 'tone' => 'violet', 'trend' => null],
+            ['label' => __('main.customers'), 'value' => $clientStats['total'], 'icon' => 'bi-person-check', 'tone' => 'green', 'trend' => null],
+            ['label' => __('main.receivables'), 'value' => $debtorBalance.' '.$siteCurrency, 'icon' => 'bi-arrow-down-left-circle', 'tone' => 'amber', 'trend' => null],
+            ['label' => __('main.expenses'), 'value' => '0,00 '.$siteCurrency, 'icon' => 'bi-wallet2', 'tone' => 'rose', 'trend' => null],
+        ];
+        $accountingChartData = array_replace_recursive($fallbackChartData, $accountingDashboard['chartData'] ?: []);
+        $scheduleSummary = $accountingDashboard['scheduleSummary'] ?: [
             ['label' => __('main.clients_owe_me'), 'amount' => $debtorBalance.' '.$siteCurrency, 'tone' => 'green', 'icon' => 'bi-arrow-down-left-circle'],
             ['label' => __('main.i_owe_suppliers'), 'amount' => $creditorBalance.' '.$siteCurrency, 'tone' => 'rose', 'icon' => 'bi-arrow-up-right-circle'],
         ];
-        $scheduleItems = [
-            ['label' => __('main.customer_receivable'), 'subject' => 'EXAD SARL', 'amount' => '4,2M '.$siteCurrency, 'date' => now()->addDays(2)->translatedFormat('d M'), 'tone' => 'green'],
-            ['label' => __('main.customer_receivable'), 'subject' => 'Prestervice', 'amount' => '2,9M '.$siteCurrency, 'date' => now()->addDays(9)->translatedFormat('d M'), 'tone' => 'blue'],
-            ['label' => __('main.supplier_debt'), 'subject' => 'Fournisseur IT', 'amount' => '1,6M '.$siteCurrency, 'date' => now()->addDays(5)->translatedFormat('d M'), 'tone' => 'amber'],
-            ['label' => __('main.supplier_debt'), 'subject' => 'Logistique Kin', 'amount' => '980K '.$siteCurrency, 'date' => now()->addDays(13)->translatedFormat('d M'), 'tone' => 'rose'],
-        ];
-        $stockRoute = fn (string $resource) => route('main.accounting.stock.index', [$company, $site, $resource]);
-        $serviceRoute = fn (string $resource) => route('main.accounting.services.index', [$company, $site, $resource]);
-        $navigationGroups = [
-            [
-                'label' => __('main.contacts'),
-                'icon' => 'bi-person-lines-fill',
-                'items' => [
-                    ['label' => __('main.prospects'), 'icon' => 'bi-person-plus', 'href' => route('main.accounting.prospects', [$company, $site])],
-                    ['label' => __('main.customers'), 'icon' => 'bi-person-check', 'href' => route('main.accounting.clients', [$company, $site])],
-                    ['label' => __('main.suppliers'), 'icon' => 'bi-truck', 'href' => route('main.accounting.suppliers', [$company, $site])],
-                    ['label' => __('main.creditors'), 'icon' => 'bi-arrow-up-right-circle', 'href' => route('main.accounting.creditors', [$company, $site])],
-                    ['label' => __('main.debtors'), 'icon' => 'bi-arrow-down-left-circle', 'href' => route('main.accounting.debtors', [$company, $site])],
-                    ['label' => __('main.partners'), 'icon' => 'bi-diagram-3', 'href' => route('main.accounting.partners', [$company, $site])],
-                    ['label' => __('main.sales_representatives'), 'icon' => 'bi-briefcase', 'href' => route('main.accounting.sales-representatives', [$company, $site])],
-                ],
-            ],
-            [
-                'label' => __('main.stock'),
-                'icon' => 'bi-box-seam',
-                'items' => [
-                    ['label' => __('main.items'), 'icon' => 'bi-box', 'href' => $stockRoute('items')],
-                    ['label' => __('main.categories'), 'icon' => 'bi-folder', 'href' => $stockRoute('categories')],
-                    ['label' => __('main.subcategories'), 'icon' => 'bi-tags', 'href' => $stockRoute('subcategories')],
-                    ['label' => __('main.stock_warehouses'), 'icon' => 'bi-buildings', 'href' => $stockRoute('warehouses')],
-                    ['label' => __('main.stock_movements'), 'icon' => 'bi-arrow-left-right', 'href' => $stockRoute('movements')],
-                    ['label' => __('main.stock_inventories'), 'icon' => 'bi-clipboard-check', 'href' => $stockRoute('inventories')],
-                    ['label' => __('main.stock_alerts'), 'icon' => 'bi-bell', 'href' => $stockRoute('alerts')],
-                    ['label' => __('main.stock_units'), 'icon' => 'bi-rulers', 'href' => $stockRoute('units')],
-                    ['label' => __('main.stock_batches'), 'icon' => 'bi-upc-scan', 'href' => $stockRoute('batches')],
-                    ['label' => __('main.stock_transfers'), 'icon' => 'bi-truck', 'href' => $stockRoute('transfers')],
-                ],
-            ],
-            [
-                'label' => __('main.services'),
-                'icon' => 'bi-grid-1x2',
-                'items' => [
-                    ['label' => __('main.price_list'), 'icon' => 'bi-card-list', 'href' => $serviceRoute('price-list')],
-                    ['label' => __('main.service_categories'), 'icon' => 'bi-folder', 'href' => $serviceRoute('categories')],
-                    ['label' => __('main.service_subcategories'), 'icon' => 'bi-tags', 'href' => $serviceRoute('subcategories')],
-                    ['label' => __('main.service_units'), 'icon' => 'bi-rulers', 'href' => $serviceRoute('units')],
-                    ['label' => __('main.recurring_services'), 'icon' => 'bi-arrow-repeat', 'href' => $serviceRoute('recurring')],
-                ],
-            ],
-        ];
-        $salesItems = [
-            ['label' => __('main.proforma_invoices'), 'icon' => 'bi-file-earmark-richtext', 'href' => route('main.accounting.proforma-invoices', [$company, $site])],
-            ['label' => __('main.customer_orders'), 'icon' => 'bi-clipboard-check'],
-            ['label' => __('main.delivery_notes'), 'icon' => 'bi-box-arrow-up'],
-            ['label' => __('main.sales_invoices'), 'icon' => 'bi-receipt'],
-            ['label' => __('main.payments_received'), 'icon' => 'bi-cash-coin'],
-            ['label' => __('main.cash_register'), 'icon' => 'bi-calculator'],
-            ['label' => __('main.credit_notes'), 'icon' => 'bi-arrow-counterclockwise'],
-            ['label' => __('main.other_income'), 'icon' => 'bi-plus-circle'],
-        ];
-        $expenseItems = [
-            ['label' => __('main.purchases'), 'icon' => 'bi-bag-check'],
-            ['label' => __('main.purchase_orders'), 'icon' => 'bi-clipboard-check'],
-            ['label' => __('main.expenses'), 'icon' => 'bi-wallet2'],
-        ];
-        $otherItems = [
-            ['label' => __('main.debts'), 'icon' => 'bi-arrow-up-right'],
-            ['label' => __('main.receivables'), 'icon' => 'bi-arrow-down-left'],
-            ['label' => __('main.taxes'), 'icon' => 'bi-percent'],
-            ['label' => __('main.cashflow'), 'icon' => 'bi-activity'],
-            ['label' => __('main.bank_reconciliation'), 'icon' => 'bi-bank'],
-            ['label' => __('main.payment_reminders'), 'icon' => 'bi-bell'],
-        ];
+        $scheduleItems = $accountingDashboard['scheduleItems'] ?: [];
+        $operations = $accountingDashboard['operations'] ?: [];
     @endphp
 
     <div class="dashboard-shell main-shell accounting-shell" data-theme="light">
-        <aside class="dashboard-sidebar accounting-sidebar">
-            <a class="sidebar-brand" href="{{ $moduleRoute }}" aria-label="EXAD ERP">
-                <span class="sidebar-logo">
-                    <img src="{{ asset('img/logo/exad-1200x1200.jpg') }}" alt="EXAD Solution & Services">
-                </span>
-                <span>
-                    <strong>EXAD ERP</strong>
-                    <small>{{ __('main.accounting_dashboard') }}</small>
-                </span>
-            </a>
-
-            <button
-                class="sidebar-toggle"
-                type="button"
-                id="sidebarToggle"
-                aria-label="{{ __('admin.collapse_sidebar') }}"
-                title="{{ __('admin.collapse_sidebar') }}"
-                data-label-collapse="{{ __('admin.collapse_sidebar') }}"
-                data-label-expand="{{ __('admin.expand_sidebar') }}"
-            >
-                <i class="bi bi-chevron-left" aria-hidden="true"></i>
-            </button>
-
-            <nav class="sidebar-nav accounting-nav" aria-label="{{ __('main.accounting_navigation') }}">
-                <a class="nav-link active" href="{{ $moduleRoute }}">
-                    <i class="bi bi-speedometer2" aria-hidden="true"></i>
-                    {{ __('main.dashboard') }}
-                </a>
-
-                @foreach ($navigationGroups as $group)
-                    <div class="sidebar-group">
-                        <button class="sidebar-group-toggle" type="button" title="{{ $group['label'] }}" aria-expanded="false" data-accounting-submenu>
-                            <i class="bi {{ $group['icon'] }}" aria-hidden="true"></i>
-                            <span>{{ $group['label'] }}</span>
-                            <i class="bi bi-chevron-down sidebar-group-chevron" aria-hidden="true"></i>
-                        </button>
-                        <div class="sidebar-subnav">
-                            @foreach ($group['items'] as $item)
-                                <a href="{{ $item['href'] ?? '#' }}" title="{{ $item['label'] }}">
-                                    <i class="bi {{ $item['icon'] }}" aria-hidden="true"></i>
-                                    <span>{{ $item['label'] }}</span>
-                                </a>
-                            @endforeach
-                        </div>
-                    </div>
-                @endforeach
-
-                <a class="nav-link" href="{{ route('main.accounting.currencies', [$company, $site]) }}">
-                    <i class="bi bi-currency-exchange" aria-hidden="true"></i>
-                    {{ __('main.currencies') }}
-                </a>
-                <a class="nav-link" href="{{ route('main.accounting.payment-methods', [$company, $site]) }}">
-                    <i class="bi bi-credit-card-2-front" aria-hidden="true"></i>
-                    {{ __('main.payment_methods') }}
-                </a>
-
-                <span class="sidebar-section-title">{{ __('main.billing') }}</span>
-
-                <div class="sidebar-group">
-                    <button class="sidebar-group-toggle" type="button" title="{{ __('main.sales') }}" aria-expanded="false" data-accounting-submenu>
-                        <i class="bi bi-cart-check" aria-hidden="true"></i>
-                        <span>{{ __('main.sales') }}</span>
-                        <i class="bi bi-chevron-down sidebar-group-chevron" aria-hidden="true"></i>
-                    </button>
-                    <div class="sidebar-subnav">
-                        @foreach ($salesItems as $item)
-                            <a href="{{ $item['href'] ?? '#' }}" title="{{ $item['label'] }}">
-                                <i class="bi {{ $item['icon'] }}" aria-hidden="true"></i>
-                                <span>{{ $item['label'] }}</span>
-                            </a>
-                        @endforeach
-                    </div>
-                </div>
-
-                <div class="sidebar-group">
-                    <button class="sidebar-group-toggle" type="button" title="{{ __('main.expenses_group') }}" aria-expanded="false" data-accounting-submenu>
-                        <i class="bi bi-cash-stack" aria-hidden="true"></i>
-                        <span>{{ __('main.expenses_group') }}</span>
-                        <i class="bi bi-chevron-down sidebar-group-chevron" aria-hidden="true"></i>
-                    </button>
-                    <div class="sidebar-subnav">
-                        @foreach ($expenseItems as $item)
-                            <a href="#" title="{{ $item['label'] }}">
-                                <i class="bi {{ $item['icon'] }}" aria-hidden="true"></i>
-                                <span>{{ $item['label'] }}</span>
-                            </a>
-                        @endforeach
-                    </div>
-                </div>
-
-                <span class="sidebar-section-title">{{ __('main.other') }}</span>
-
-                @foreach ($otherItems as $item)
-                    <a class="nav-link" href="#">
-                        <i class="bi {{ $item['icon'] }}" aria-hidden="true"></i>
-                        {{ $item['label'] }}
-                    </a>
-                @endforeach
-
-                <a class="nav-link" href="#">
-                    <i class="bi bi-check2-square" aria-hidden="true"></i>
-                    {{ __('main.tasks') }}
-                </a>
-
-                <a class="nav-link" href="#">
-                    <i class="bi bi-bar-chart-line" aria-hidden="true"></i>
-                    {{ __('main.reports') }}
-                </a>
-
-                <a class="nav-link" href="#">
-                    <i class="bi bi-sliders" aria-hidden="true"></i>
-                    {{ __('main.module_settings') }}
-                </a>
-            </nav>
-
-            <div class="sidebar-footer">
-                <i class="bi bi-receipt-cutoff" aria-hidden="true"></i>
-                <span>{{ $site->name }}</span>
-            </div>
-        </aside>
+        @include('main.modules.partials.accounting-sidebar', ['activeAccountingPage' => 'dashboard'])
 
         <main class="dashboard-main">
             <header class="dashboard-topbar">
@@ -328,65 +119,7 @@
                     <p>{{ $company->name }} / {{ $site->name }}</p>
                 </div>
 
-                <div class="header-actions">
-                    <button class="icon-button" type="button" id="themeButton" aria-label="{{ __('auth.theme_dark') }}" title="{{ __('auth.theme_dark') }}">
-                        <i class="bi bi-brightness-high-fill" aria-hidden="true"></i>
-                    </button>
-                    <div class="language-menu">
-                        <button class="language-button" type="button" id="languageButton" aria-label="{{ __('auth.language_switch') }}" aria-expanded="false" aria-controls="languageDropdown" title="{{ __('auth.language_switch') }}">
-                            <i class="bi bi-globe2" aria-hidden="true"></i>
-                            <span>{{ strtoupper($currentLocale) }}</span>
-                            <i class="bi bi-chevron-down language-chevron" aria-hidden="true"></i>
-                        </button>
-                        <div class="language-dropdown" id="languageDropdown" aria-labelledby="languageButton">
-                            <a class="language-option {{ $currentLocale === 'fr' ? 'active' : '' }}" href="{{ route('locale.switch', 'fr') }}">
-                                <span class="language-code">FR</span>
-                                <span class="language-name">{{ __('auth.language_fr') }}</span>
-                                @if ($currentLocale === 'fr')
-                                    <i class="bi bi-check-lg language-check" aria-hidden="true"></i>
-                                @endif
-                            </a>
-                            <a class="language-option {{ $currentLocale === 'en' ? 'active' : '' }}" href="{{ route('locale.switch', 'en') }}">
-                                <span class="language-code">EN</span>
-                                <span class="language-name">{{ __('auth.language_en') }}</span>
-                                @if ($currentLocale === 'en')
-                                    <i class="bi bi-check-lg language-check" aria-hidden="true"></i>
-                                @endif
-                            </a>
-                        </div>
-                    </div>
-                    <div class="profile-menu">
-                        <button class="profile-button" type="button" id="profileButton" aria-expanded="false" aria-controls="profileDropdown">
-                            @include('partials.user-avatar', ['avatarUser' => $user])
-                            <span class="profile-name">{{ $user->name }}</span>
-                            <i class="bi bi-chevron-down profile-chevron" aria-hidden="true"></i>
-                        </button>
-                        <div class="profile-dropdown" id="profileDropdown" aria-labelledby="profileButton">
-                            <div class="profile-summary">
-                                <strong>{{ $user->name }}</strong>
-                                <span>{{ $user->email }}</span>
-                                <em>{{ $user->role === 'admin' ? __('main.admin_badge') : strtoupper($user->role) }}</em>
-                            </div>
-                            <a href="{{ route('profile.edit') }}" class="profile-link">
-                                <i class="bi bi-person-circle" aria-hidden="true"></i>
-                                {{ __('main.profile') }}
-                            </a>
-                            @if ($user->isAdmin())
-                                <a href="{{ route('main.users') }}" class="profile-link">
-                                    <i class="bi bi-people" aria-hidden="true"></i>
-                                    {{ __('main.users') }}
-                                </a>
-                            @endif
-                            <form method="POST" action="{{ route('logout') }}">
-                                @csrf
-                                <button class="profile-link logout-link" type="submit">
-                                    <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
-                                    {{ __('main.logout') }}
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
+                @include('main.modules.partials.accounting-header-actions')
             </header>
 
             <section class="dashboard-content module-dashboard-page">
@@ -429,6 +162,29 @@
                             </article>
                         @endforeach
                     </section>
+
+                    @if ($operations !== [])
+                        <section class="accounting-operations-grid" aria-label="{{ __('main.accounting_operations_overview') }}">
+                            @foreach ($operations as $operation)
+                                @php($operationUrl = isset($operation['route']) ? route($operation['route'], [$company, $site]) : null)
+                                <article class="accounting-operation-card operation-{{ $operation['tone'] ?? 'blue' }}">
+                                    <div class="operation-icon">
+                                        <i class="bi {{ $operation['icon'] }}" aria-hidden="true"></i>
+                                    </div>
+                                    <div>
+                                        <span>{{ $operation['label'] }}</span>
+                                        <strong>{{ $operation['value'] }}</strong>
+                                        <small>{{ $operation['meta'] }}</small>
+                                    </div>
+                                    @if ($operationUrl)
+                                        <a href="{{ $operationUrl }}" aria-label="{{ $operation['label'] }}">
+                                            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                                        </a>
+                                    @endif
+                                </article>
+                            @endforeach
+                        </section>
+                    @endif
 
                     <section class="dashboard-grid accounting-dashboard-grid">
                         <article class="dashboard-panel panel-wide">

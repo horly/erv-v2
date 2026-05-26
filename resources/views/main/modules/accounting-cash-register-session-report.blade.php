@@ -1,9 +1,17 @@
+@php
+    $pdfSettings = $site->accountingModuleSetting;
+    $pdfPrimaryColor = $pdfSettings?->pdf_primary_color ?: '#2F70C8';
+    $pdfAccentColor = $pdfSettings?->pdf_accent_color ?: '#40AEF4';
+    $pdfTintColor = $pdfSettings?->pdf_tint_color ?: '#D7EEF8';
+    $pdfShowFooterBranding = $pdfSettings?->pdf_show_footer_branding ?? true;
+@endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('main.cash_register_closing_report') }} {{ $session->reference }}</title>
+    <link rel="icon" href="{{ app_brand_favicon_url() }}">
     @unless (($isPdf ?? false) === true)
         <link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet">
     @endunless
@@ -211,6 +219,11 @@
             color: #0b55ff;
             font-style: italic;
         }
+        .report-title, .pdf-footer-emphasis { color: {{ $pdfPrimaryColor }}; }
+        .rule-blue { background: {{ $pdfAccentColor }}; }
+        .session-table tr:nth-child(2),
+        .data-table tbody tr:nth-child(even) { background: {{ $pdfTintColor }}; }
+        .data-table th { background: {{ $pdfPrimaryColor }}; }
         .report-actions {
             display: flex;
             justify-content: flex-end;
@@ -384,7 +397,9 @@
         @if ($primaryAccount)
             <div>Compte : {{ $primaryAccount->account_number ?: '-' }} - {{ $primaryAccount->currency ?: '-' }} @if ($primaryAccount->bank_name) - {{ $primaryAccount->bank_name }} @endif</div>
         @endif
-        <div class="pdf-footer-emphasis">{{ __('main.invoice_generated_by') }}</div>
+        @if ($pdfShowFooterBranding)
+            <div class="pdf-footer-emphasis">{{ __('main.invoice_generated_by', ['app' => app_brand_name()]) }}</div>
+        @endif
     </footer>
 </body>
 </html>

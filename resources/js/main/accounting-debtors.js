@@ -5,6 +5,8 @@
     const modeInput = document.getElementById('debtorFormMode');
     const idInput = document.getElementById('debtorId');
     const submitButton = document.getElementById('debtorSubmit');
+    const existingDebtorWrapper = modal?.querySelector('[data-existing-debtor-wrapper]');
+    const existingDebtorSelect = modal?.querySelector('[data-existing-debtor-select]');
 
     const fields = {
         type: document.getElementById('debtorType'),
@@ -54,6 +56,11 @@
         submitButton.textContent = isEdit ? form.dataset.submitEdit : form.dataset.submitCreate;
         modeInput.value = isEdit ? 'edit' : 'create';
         idInput.value = isEdit ? trigger.dataset.debtorId : '';
+        existingDebtorWrapper?.classList.toggle('d-none', isEdit);
+
+        if (existingDebtorSelect) {
+            existingDebtorSelect.value = '';
+        }
 
         if (methodInput) {
             methodInput.disabled = !isEdit;
@@ -72,6 +79,21 @@
         setFieldValue(fields.description, isEdit ? trigger.dataset.debtorDescription : '');
         setFieldValue(fields.status, isEdit ? trigger.dataset.debtorStatus : defaults.status);
     };
+
+    existingDebtorSelect?.addEventListener('change', () => {
+        const option = existingDebtorSelect.selectedOptions[0];
+
+        if (!option?.value) {
+            return;
+        }
+
+        setFieldValue(fields.type, option.dataset.debtorType || defaults.type);
+        setFieldValue(fields.name, option.dataset.debtorName || '');
+        setFieldValue(fields.phone, option.dataset.debtorPhone || '');
+        setFieldValue(fields.email, option.dataset.debtorEmail || '');
+        setFieldValue(fields.address, option.dataset.debtorAddress || '');
+        setFieldValue(fields.currency, option.dataset.debtorCurrency || defaults.currency);
+    });
 
     document.addEventListener('click', (event) => {
         const trigger = event.target.closest('[data-debtor-mode]');

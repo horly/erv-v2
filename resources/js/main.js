@@ -1,10 +1,12 @@
 (() => {
     const shell = document.querySelector('.main-shell');
     const root = document.documentElement;
-    const fullscreenButton = document.getElementById('fullscreenButton');
+    let fullscreenButton = document.getElementById('fullscreenButton');
     const themeButton = document.getElementById('themeButton');
     const languageMenu = document.querySelector('.language-menu');
     const languageButton = document.getElementById('languageButton');
+    const notificationMenu = document.querySelector('.notification-menu');
+    const notificationButton = document.getElementById('notificationButton');
     const profileMenu = document.querySelector('.profile-menu');
     const profileButton = document.getElementById('profileButton');
     const sidebarToggle = document.getElementById('sidebarToggle');
@@ -23,6 +25,30 @@
     const submitLoadingLabel = document.documentElement.lang?.toLowerCase().startsWith('en')
         ? 'Processing...'
         : 'Traitement...';
+
+    const ensureFullscreenButton = () => {
+        if (fullscreenButton || !themeButton) {
+            return;
+        }
+
+        const headerActions = document.querySelector('.main-shell .header-actions');
+
+        if (!headerActions) {
+            return;
+        }
+
+        const isEnglish = document.documentElement.lang?.toLowerCase().startsWith('en');
+        const button = document.createElement('button');
+
+        button.className = 'icon-button';
+        button.type = 'button';
+        button.id = 'fullscreenButton';
+        button.dataset.labelEnter = isEnglish ? 'Enter fullscreen' : 'Activer le plein ecran';
+        button.dataset.labelExit = isEnglish ? 'Exit fullscreen' : 'Quitter le plein ecran';
+        button.innerHTML = '<i class="bi bi-fullscreen" aria-hidden="true"></i>';
+        headerActions.insertBefore(button, themeButton);
+        fullscreenButton = button;
+    };
 
     const applyTheme = (theme) => {
         const darkMode = theme === 'dark';
@@ -52,6 +78,11 @@
     };
 
     const closeMenus = (except = null) => {
+        if (except !== 'notifications') {
+            notificationMenu?.classList.remove('open');
+            notificationButton?.setAttribute('aria-expanded', 'false');
+        }
+
         if (except !== 'language') {
             languageMenu?.classList.remove('open');
             languageButton?.setAttribute('aria-expanded', 'false');
@@ -63,9 +94,37 @@
         }
     };
 
+    ensureFullscreenButton();
     applyTheme(localStorage.getItem(storageKey) || root.dataset.theme || 'light');
 
     const getSidebarCollapsed = () => sidebarCompactQuery.matches || localStorage.getItem(sidebarStorageKey) === 'true';
+
+    const scrollActiveSidebarItemIntoView = () => {
+        if (!isAccountingShell) {
+            return;
+        }
+
+        const sidebarNav = document.querySelector('.accounting-nav');
+        const activeItem = sidebarNav?.querySelector('.nav-link.active, .sidebar-subnav a.active');
+
+        if (!sidebarNav || !activeItem) {
+            return;
+        }
+
+        const scrollTarget = activeItem.closest('.sidebar-group') ?? activeItem;
+
+        requestAnimationFrame(() => {
+            const navRect = sidebarNav.getBoundingClientRect();
+            const targetRect = scrollTarget.getBoundingClientRect();
+            const spacing = 18;
+
+            if (targetRect.top < navRect.top + spacing) {
+                sidebarNav.scrollTop -= (navRect.top + spacing) - targetRect.top;
+            } else if (targetRect.bottom > navRect.bottom - spacing) {
+                sidebarNav.scrollTop += targetRect.bottom - (navRect.bottom - spacing);
+            }
+        });
+    };
 
     const applySidebarState = (collapsed) => {
         shell?.classList.toggle('sidebar-collapsed', collapsed);
@@ -87,9 +146,11 @@
     };
 
     applySidebarState(getSidebarCollapsed());
+    scrollActiveSidebarItemIntoView();
 
     sidebarCompactQuery.addEventListener('change', () => {
         applySidebarState(getSidebarCollapsed());
+        scrollActiveSidebarItemIntoView();
     });
 
     sidebarToggle?.addEventListener('click', () => {
@@ -101,18 +162,67 @@
         const collapsed = !shell?.classList.contains('sidebar-collapsed');
         localStorage.setItem(sidebarStorageKey, collapsed ? 'true' : 'false');
         applySidebarState(collapsed);
+        scrollActiveSidebarItemIntoView();
     });
 
     accountingSubmenuButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-            if (shell?.classList.contains('sidebar-collapsed')) {
+        const positionCollapsedSubmenu = () => {
+            const group = button.closest('.sidebar-group');
+
+            if (!group || !shell?.classList.contains('sidebar-collapsed')) {
                 return;
             }
 
+            const rect = button.getBoundingClientRect();
+
+            group.style.setProperty('--submenu-top', `${Math.max(12, rect.top)}px`);
+            group.style.setProperty('--submenu-left', `${rect.right + 10}px`);
+        };
+
+        button.addEventListener('click', () => {
             const group = button.closest('.sidebar-group');
+
+            if (shell?.classList.contains('sidebar-collapsed')) {
+                if (!isAccountingShell) {
+                    return;
+                }
+
+                const isOpen = group?.classList.contains('open') ?? false;
+
+                document.querySelectorAll('.sidebar-group.open').forEach((openGroup) => {
+                    if (openGroup !== group) {
+                        openGroup.classList.remove('open');
+                        openGroup.querySelector('[data-accounting-submenu]')?.setAttribute('aria-expanded', 'false');
+                    }
+                });
+
+                positionCollapsedSubmenu();
+                group?.classList.toggle('open', !isOpen);
+                button.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+                return;
+            }
+
             const isOpen = group?.classList.toggle('open') ?? false;
 
             button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+
+        window.addEventListener('resize', positionCollapsedSubmenu);
+        document.querySelector('.accounting-nav')?.addEventListener('scroll', positionCollapsedSubmenu, { passive: true });
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!isAccountingShell || !shell?.classList.contains('sidebar-collapsed')) {
+            return;
+        }
+
+        if (event.target.closest('.sidebar-group')) {
+            return;
+        }
+
+        document.querySelectorAll('.sidebar-group.open').forEach((group) => {
+            group.classList.remove('open');
+            group.querySelector('[data-accounting-submenu]')?.setAttribute('aria-expanded', 'false');
         });
     });
 
@@ -143,6 +253,12 @@
         closeMenus('language');
     });
 
+    notificationButton?.addEventListener('click', () => {
+        const isOpen = notificationMenu.classList.toggle('open');
+        notificationButton.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        closeMenus('notifications');
+    });
+
     profileButton?.addEventListener('click', () => {
         const isOpen = profileMenu.classList.toggle('open');
         profileButton.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
@@ -150,7 +266,7 @@
     });
 
     document.addEventListener('click', (event) => {
-        if (!languageMenu?.contains(event.target) && !profileMenu?.contains(event.target)) {
+        if (!languageMenu?.contains(event.target) && !profileMenu?.contains(event.target) && !notificationMenu?.contains(event.target)) {
             closeMenus();
         }
     });

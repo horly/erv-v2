@@ -77,6 +77,26 @@ class AccountingPaymentMethod extends Model
         return $this->hasMany(AccountingPurchasePayment::class, 'payment_method_id');
     }
 
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(AccountingExpense::class, 'payment_method_id');
+    }
+
+    public function creditorPayments(): HasMany
+    {
+        return $this->hasMany(AccountingCreditorPayment::class, 'payment_method_id');
+    }
+
+    public function debtorPayments(): HasMany
+    {
+        return $this->hasMany(AccountingDebtorPayment::class, 'payment_method_id');
+    }
+
+    public function bankReconciliations(): HasMany
+    {
+        return $this->hasMany(AccountingBankReconciliation::class, 'payment_method_id');
+    }
+
     public static function types(): array
     {
         return [

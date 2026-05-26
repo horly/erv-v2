@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class CompanySite extends Model
 {
@@ -121,14 +122,59 @@ class CompanySite extends Model
         return $this->hasMany(AccountingPaymentMethod::class);
     }
 
+    public function accountingModuleSetting(): HasOne
+    {
+        return $this->hasOne(AccountingModuleSetting::class);
+    }
+
+    public function accountingMenuPermissions(): HasMany
+    {
+        return $this->hasMany(AccountingMenuPermission::class);
+    }
+
+    public function accountingTaxes(): HasMany
+    {
+        return $this->hasMany(AccountingTax::class);
+    }
+
+    public function accountingTreasuryMovements(): HasMany
+    {
+        return $this->hasMany(AccountingTreasuryMovement::class);
+    }
+
+    public function accountingBankReconciliations(): HasMany
+    {
+        return $this->hasMany(AccountingBankReconciliation::class);
+    }
+
+    public function accountingPaymentReminders(): HasMany
+    {
+        return $this->hasMany(AccountingPaymentReminder::class);
+    }
+
     public function accountingOtherIncomes(): HasMany
     {
         return $this->hasMany(AccountingOtherIncome::class);
     }
 
+    public function accountingExpenseCategories(): HasMany
+    {
+        return $this->hasMany(AccountingExpenseCategory::class);
+    }
+
+    public function accountingExpenses(): HasMany
+    {
+        return $this->hasMany(AccountingExpense::class);
+    }
+
     public function accountingPurchases(): HasMany
     {
         return $this->hasMany(AccountingPurchase::class);
+    }
+
+    public function accountingPurchaseOrders(): HasMany
+    {
+        return $this->hasMany(AccountingPurchaseOrder::class);
     }
 
     public function accountingStockCategories(): HasMany
@@ -179,6 +225,11 @@ class CompanySite extends Model
     public function accountingCreditNotes(): HasMany
     {
         return $this->hasMany(AccountingCreditNote::class);
+    }
+
+    public function accountingTasks(): HasMany
+    {
+        return $this->hasMany(AccountingTask::class);
     }
 
     public function accountingCashRegisterSessions(): HasMany

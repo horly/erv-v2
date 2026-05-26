@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('admin.subscriptions') }} | {{ config('app.name', 'EXAD ERP') }}</title>
+    <link rel="icon" href="{{ app_brand_favicon_url() }}">
     <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet">
     <style>{!! file_get_contents(resource_path('css/admin/dashboard.css')) !!}</style>
@@ -23,12 +24,12 @@
 
     <div class="dashboard-shell main-shell" data-theme="light">
         <aside class="dashboard-sidebar">
-            <a class="sidebar-brand" href="{{ route('admin.dashboard') }}" aria-label="EXAD ERP">
+            <a class="sidebar-brand" href="{{ route('admin.dashboard') }}" aria-label="{{ app_brand_name() }}">
                 <span class="sidebar-logo">
-                    <img src="{{ asset('img/logo/exad-1200x1200.jpg') }}" alt="EXAD Solution & Services">
+                    <img src="{{ app_brand_logo_url() }}" alt="{{ app_brand_name() }}">
                 </span>
                 <span>
-                    <strong>EXAD ERP</strong>
+                    <strong>{{ app_brand_short_name() }}</strong>
                     <small>{{ __('admin.console') }}</small>
                 </span>
             </a>
@@ -62,11 +63,15 @@
                     <i class="bi bi-buildings" aria-hidden="true"></i>
                     {{ __('admin.companies') }}
                 </a>
+                <a class="nav-link {{ request()->routeIs('admin.application-settings') ? 'active' : '' }}" href="{{ route('admin.application-settings') }}">
+                    <i class="bi bi-sliders" aria-hidden="true"></i>
+                    {{ __('admin.application_settings') }}
+                </a>
             </nav>
 
             <div class="sidebar-footer">
                 <i class="bi bi-shield-lock-fill" aria-hidden="true"></i>
-                <span>{{ __('admin.version') }}</span>
+                <span>{{ app_brand_short_name() }} · v.2.0</span>
             </div>
         </aside>
 

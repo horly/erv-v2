@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('main.title') }} | {{ config('app.name', 'EXAD ERP') }}</title>
+    <link rel="icon" href="{{ app_brand_favicon_url() }}">
     <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet">
     <style>{!! file_get_contents(resource_path('css/main.css')) !!}</style>
@@ -19,12 +20,12 @@
 
     <div class="main-shell" data-theme="light">
         <header class="app-header">
-            <a class="brand-block" href="{{ route('main') }}" aria-label="EXAD ERP">
+            <a class="brand-block" href="{{ route('main') }}" aria-label="{{ app_brand_name() }}">
                 <span class="brand-logo">
-                    <img src="{{ asset('img/logo/exad-1200x1200.jpg') }}" alt="EXAD Solution & Services">
+                    <img src="{{ app_brand_logo_url() }}" alt="{{ app_brand_name() }}">
                 </span>
                 <span>
-                    <strong>EXAD ERP</strong>
+                    <strong>{{ app_brand_short_name() }}</strong>
                     <small>{{ __('main.management_space') }}</small>
                 </span>
             </a>

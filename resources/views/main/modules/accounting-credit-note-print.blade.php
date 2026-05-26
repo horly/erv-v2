@@ -1,8 +1,17 @@
+@php
+    $pdfSettings = $site->accountingModuleSetting;
+    $pdfPrimaryColor = $pdfSettings?->pdf_primary_color ?: '#2F70C8';
+    $pdfAccentColor = $pdfSettings?->pdf_accent_color ?: '#40AEF4';
+    $pdfTintColor = $pdfSettings?->pdf_tint_color ?: '#D7EEF8';
+    $pdfShowQrCode = $pdfSettings?->pdf_show_qr_code ?? true;
+    $pdfShowFooterBranding = $pdfSettings?->pdf_show_footer_branding ?? true;
+@endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
     <title>{{ __('main.credit_note_print_title', ['reference' => $creditNote->reference]) }} | {{ config('app.name', 'EXAD ERP') }}</title>
+    <link rel="icon" href="{{ app_brand_favicon_url() }}">
     <style>
         @page { margin: 28px 38px 118px 38px; }
         body, body * { font-family: "Courier", "Courier New", "DejaVu Sans Mono", monospace !important; }
@@ -55,6 +64,10 @@
         .pdf-footer { position: fixed; left: 0; right: 0; bottom: -92px; color: #172033; font-size: 9.5px; line-height: 1.25; }
         .pdf-footer-line { width: 100%; margin-bottom: 4px; }
         .pdf-footer-emphasis { color: #0b55ff; font-style: italic; }
+        .document-title, .pdf-footer-emphasis { color: {{ $pdfPrimaryColor }}; }
+        .rule-blue { background: {{ $pdfAccentColor }}; }
+        .items th, .grand-total td { background: {{ $pdfPrimaryColor }}; }
+        .items tbody tr:nth-child(even) td { background: {{ $pdfTintColor }}; }
     </style>
 </head>
 <body>
@@ -158,7 +171,7 @@
             <tr>
                 <td class="summary-left">
                     <div class="notice">{{ __('main.credit_note_notice') }}</div>
-                    @if ($creditNoteQrCodeDataUri)
+                    @if ($pdfShowQrCode && $creditNoteQrCodeDataUri)
                         <div class="document-qr">
                             <img src="{{ $creditNoteQrCodeDataUri }}" alt="{{ __('main.credit_note_qr_alt') }}">
                         </div>
@@ -219,7 +232,9 @@
         @if ($primaryAccount)
             <div>{{ $primaryAccount->bank_name }} / {{ $primaryAccount->account_number }} - {{ $primaryAccount->currency }}</div>
         @endif
-        <div class="pdf-footer-emphasis">{{ __('main.invoice_generated_by') }}</div>
+        @if ($pdfShowFooterBranding)
+            <div class="pdf-footer-emphasis">{{ __('main.invoice_generated_by', ['app' => app_brand_name()]) }}</div>
+        @endif
     </footer>
 </body>
 </html>

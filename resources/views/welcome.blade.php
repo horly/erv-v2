@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Connexion | {{ config('app.name', 'EXAD ERP') }}</title>
+    <link rel="icon" href="{{ app_brand_favicon_url() }}">
     <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet">
     <style>
@@ -531,7 +532,7 @@
     <main class="auth-shell" data-theme="light">
         <section class="brand-side" aria-label="Présentation de la plateforme ERP">
             <div class="brand-inner">
-                <div class="logo-card" aria-label="EXAD Solution & Services">
+                <div class="logo-card" aria-label="{{ app_brand_name() }}">
                     <div>
                         <div class="logo-word">EXAD</div>
                         <div class="logo-sub">Solution & Services</div>

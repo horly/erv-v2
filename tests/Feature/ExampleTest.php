@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\AccountingClient;
+use App\Models\AccountingBankReconciliation;
+use App\Models\AccountingBankStatementLine;
 use App\Models\AccountingCashRegisterSession;
 use App\Models\AccountingCreditNote;
 use App\Models\AccountingCreditor;
@@ -13,8 +15,13 @@ use App\Models\AccountingDebtor;
 use App\Models\AccountingDeliveryNote;
 use App\Models\AccountingDeliveryNoteLine;
 use App\Models\AccountingDeliveryNoteSerial;
+use App\Models\AccountingExpense;
+use App\Models\AccountingExpenseCategory;
+use App\Models\AccountingNotification;
 use App\Models\AccountingOtherIncome;
 use App\Models\AccountingPaymentMethod;
+use App\Models\AccountingPaymentPromise;
+use App\Models\AccountingPaymentReminder;
 use App\Models\AccountingPartner;
 use App\Models\AccountingProformaInvoice;
 use App\Models\AccountingProformaInvoiceLine;
@@ -35,6 +42,9 @@ use App\Models\AccountingStockSubcategory;
 use App\Models\AccountingStockUnit;
 use App\Models\AccountingStockWarehouse;
 use App\Models\AccountingSupplier;
+use App\Models\AccountingTask;
+use App\Models\AccountingTax;
+use App\Models\AccountingTreasuryMovement;
 use App\Models\Company;
 use App\Models\CompanySite;
 use App\Models\Subscription;
@@ -654,6 +664,55 @@ class ExampleTest extends TestCase
             'status' => AccountingSalesRepresentative::STATUS_ACTIVE,
         ]);
 
+        AccountingSalesInvoice::create([
+            'company_site_id' => $site->id,
+            'client_id' => $businessClient->id,
+            'created_by' => $admin->id,
+            'reference' => 'FAC-REAL-001',
+            'title' => 'Facture chiffre affaires',
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(15)->toDateString(),
+            'currency' => 'CDF',
+            'status' => AccountingSalesInvoice::STATUS_ISSUED,
+            'subtotal' => 10000000,
+            'discount_total' => 0,
+            'total_ht' => 10000000,
+            'tax_rate' => 0,
+            'tax_amount' => 0,
+            'total_ttc' => 10000000,
+            'paid_total' => 0,
+            'credit_total' => 2000000,
+            'balance_due' => 8000000,
+        ]);
+
+        AccountingOtherIncome::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'reference' => 'ENT-REAL-001',
+            'income_date' => now()->toDateString(),
+            'type' => AccountingOtherIncome::TYPE_OWNER_CONTRIBUTION,
+            'label' => 'Apport exploitant',
+            'amount' => 4000000,
+            'currency' => 'CDF',
+            'status' => AccountingOtherIncome::STATUS_VALIDATED,
+        ]);
+
+        foreach (range(1, 101) as $index) {
+            AccountingNotification::create([
+                'company_site_id' => $site->id,
+                'actor_id' => $admin->id,
+                'action_key' => 'bulk_unread_'.$index,
+                'module_key' => 'dashboard',
+                'subject_type' => User::class,
+                'subject_id' => $index,
+                'subject_reference' => 'BULK-'.$index,
+                'icon' => 'bi-bell',
+                'title' => 'Notification en attente',
+                'message' => 'Notification en attente '.$index,
+                'occurred_at' => now()->subDays(10)->addSeconds($index),
+            ]);
+        }
+
         $response = $this->actingAs($admin)->get(route('main.companies.sites.modules.show', [$company, $site, CompanySite::MODULE_ACCOUNTING]));
 
         $response->assertOk();
@@ -670,9 +729,25 @@ class ExampleTest extends TestCase
         $response->assertSee(__('main.i_owe_suppliers'), false);
         $response->assertSee(__('main.customer_receivable'), false);
         $response->assertSee(__('main.supplier_debt'), false);
-        $response->assertSee('7 000 000 CDF', false);
-        $response->assertSee('3 750 000 CDF', false);
+        $response->assertSee('7,0M CDF', false);
+        $response->assertSee('3,8M CDF', false);
         $response->assertSee(__('main.cashflow_overview'), false);
+        $response->assertSee('8,0M CDF', false);
+        $response->assertDontSee('14,0M CDF', false);
+        $response->assertSee('id="notificationButton"', false);
+        $response->assertSee('<span class="notification-badge">99+</span>', false);
+        $response->assertSee('id="fullscreenButton"', false);
+        $response->assertSee(__('main.notifications'), false);
+        $response->assertSee(__('main.activity_added_invoice'), false);
+        $response->assertSee('FAC-REAL-001', false);
+        $response->assertSee(route('main.accounting.notifications', [$company, $site]), false);
+        $response->assertSee(__('main.accounting_operations_overview'), false);
+        $response->assertSee(__('main.treasury_balance'), false);
+        $response->assertSee(__('main.open_tasks'), false);
+        $response->assertSee(__('main.payment_reminders'), false);
+        $response->assertSee(__('main.unmatched_bank_lines'), false);
+        $response->assertSee('accounting-operations-grid', false);
+        $response->assertSee('treasuryInflows', false);
         $response->assertSee('module-kpi-grid', false);
         $response->assertSee('accountingDashboardData', false);
         $response->assertSee('accountingRevenueChart', false);
@@ -710,10 +785,190 @@ class ExampleTest extends TestCase
         $response->assertSee(__('main.expenses_group'), false);
         $response->assertSee(__('main.debts'), false);
         $response->assertSee(__('main.receivables'), false);
+        $response->assertSee(__('main.taxes'), false);
+        $response->assertSee('href="'.route('main.accounting.taxes', [$company, $site]).'"', false);
         $response->assertSee(__('main.bank_reconciliation'), false);
         $response->assertSee(__('main.tasks'), false);
         $response->assertSee(__('main.reports'), false);
         $response->assertSee(__('main.module_settings'), false);
+
+        $notification = AccountingNotification::query()
+            ->where('company_site_id', $site->id)
+            ->where('subject_reference', 'FAC-REAL-001')
+            ->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.notifications', [$company, $site, 'status' => 'unread']))
+            ->assertOk()
+            ->assertSee(__('main.unread_notifications'), false)
+            ->assertSee('FAC-REAL-001', false)
+            ->assertSee('class="notification-row unread"', false);
+
+        $this->actingAs($admin)
+            ->get(route('main.accounting.notifications.show', [$company, $site, $notification]))
+            ->assertOk()
+            ->assertSee(__('main.notification_details'), false)
+            ->assertSee('FAC-REAL-001', false);
+
+        $this->assertDatabaseHas('accounting_notification_reads', [
+            'accounting_notification_id' => $notification->id,
+            'user_id' => $admin->id,
+        ]);
+    }
+
+    public function test_accounting_module_settings_are_admin_only_and_limit_user_menu_access(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Settings',
+            'code' => 'ACCOUNTING_SETTINGS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'settings admin',
+            'email' => 'settings-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $member = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'settings member',
+            'email' => 'settings-member@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_USER,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Settings Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'settings-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Settings Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $member->sites()->sync([
+            $site->id => [
+                'module_permissions' => json_encode([
+                    CompanySite::MODULE_ACCOUNTING => [
+                        'can_create' => false,
+                        'can_update' => false,
+                        'can_delete' => false,
+                    ],
+                ]),
+                'can_create' => false,
+                'can_update' => false,
+                'can_delete' => false,
+            ],
+        ]);
+
+        $settingsRoute = route('main.accounting.settings', [$company, $site]);
+
+        $this->actingAs($admin)
+            ->get($settingsRoute)
+            ->assertOk()
+            ->assertSee(__('main.pdf_print_identity'), false)
+            ->assertSee(__('main.menu_access_management'), false);
+
+        $this->actingAs($admin)
+            ->put(route('main.accounting.settings.update', [$company, $site]), [
+                'pdf_primary_color' => '#123456',
+                'pdf_accent_color' => '#ABCDEF',
+                'pdf_tint_color' => '#EFF6FF',
+                'pdf_show_qr_code' => '1',
+                'pdf_show_footer_branding' => '1',
+                'menu_access' => [
+                    $member->id => ['dashboard', 'clients'],
+                ],
+            ])
+            ->assertRedirect($settingsRoute);
+
+        $this->assertDatabaseHas('accounting_module_settings', [
+            'company_site_id' => $site->id,
+            'pdf_primary_color' => '#123456',
+            'pdf_show_qr_code' => true,
+        ]);
+        $this->assertDatabaseHas('accounting_menu_permissions', [
+            'company_site_id' => $site->id,
+            'user_id' => $member->id,
+            'menu_key' => 'clients',
+            'is_allowed' => true,
+        ]);
+        $this->assertDatabaseHas('accounting_menu_permissions', [
+            'company_site_id' => $site->id,
+            'user_id' => $member->id,
+            'menu_key' => 'suppliers',
+            'is_allowed' => false,
+        ]);
+
+        $deniedNotification = AccountingNotification::create([
+            'company_site_id' => $site->id,
+            'actor_id' => $admin->id,
+            'action_key' => 'supplier_access_denied',
+            'module_key' => 'suppliers',
+            'subject_type' => AccountingSupplier::class,
+            'subject_id' => 1,
+            'subject_reference' => 'SUP-DENIED',
+            'icon' => 'bi-building',
+            'title' => 'Notification fournisseur',
+            'message' => 'Notification fournisseur : SUP-DENIED',
+            'occurred_at' => now(),
+        ]);
+
+        $this->actingAs($member)
+            ->get(route('main.accounting.clients', [$company, $site]))
+            ->assertOk()
+            ->assertSee('id="notificationButton"', false)
+            ->assertSee(route('main.accounting.notifications', [$company, $site]), false)
+            ->assertDontSee('href="'.route('main.accounting.suppliers', [$company, $site]).'"', false);
+
+        $this->actingAs($member)
+            ->get(route('main.accounting.notifications', [$company, $site]))
+            ->assertOk()
+            ->assertSee('SUP-DENIED', false);
+
+        $this->actingAs($member)
+            ->get(route('main.accounting.notifications.show', [$company, $site, $deniedNotification]))
+            ->assertOk()
+            ->assertSee('SUP-DENIED', false)
+            ->assertSee(__('main.suppliers'), false)
+            ->assertDontSee('<strong>suppliers</strong>', false)
+            ->assertDontSee(__('main.open_related_module'), false);
+
+        $this->actingAs($member)
+            ->get(route('main.accounting.suppliers', [$company, $site]))
+            ->assertRedirect(route('main.companies.sites.modules.show', [$company, $site, CompanySite::MODULE_ACCOUNTING]));
+
+        $this->actingAs($admin)
+            ->put(route('main.accounting.settings.update', [$company, $site]), [
+                'pdf_primary_color' => '#123456',
+                'pdf_accent_color' => '#ABCDEF',
+                'pdf_tint_color' => '#EFF6FF',
+                'pdf_show_qr_code' => '1',
+                'pdf_show_footer_branding' => '1',
+                'menu_access' => [
+                    $member->id => ['clients'],
+                ],
+            ])
+            ->assertRedirect($settingsRoute);
+
+        $this->actingAs($member)
+            ->get(route('main.companies.sites.modules.show', [$company, $site, CompanySite::MODULE_ACCOUNTING]))
+            ->assertRedirect(route('main.accounting.clients', [$company, $site]));
+
+        $this->actingAs($member)->get($settingsRoute)->assertForbidden();
     }
 
     public function test_accounting_clients_page_manages_individual_and_company_clients(): void
@@ -2267,15 +2522,728 @@ class ExampleTest extends TestCase
             ->assertSee('Mobile money')
             ->assertSee(__('main.payment_method_type_mobile_money'), false)
             ->assertSee(__('main.view_receipts'), false)
-            ->assertSee(__('main.disbursements_coming_soon'), false)
+            ->assertSee(__('main.view_disbursements'), false)
             ->assertSee(__('main.payment_method_receipts_title', ['name' => 'Mobile money']), false)
             ->assertSee(__('main.payment_method_receipts_total'), false)
+            ->assertSee(__('main.payment_method_disbursements_title', ['name' => 'Mobile money']), false)
+            ->assertSee(__('main.no_payment_method_disbursements'), false)
             ->assertSee('FAC-PAY-METHOD')
             ->assertSee('Receipt Client')
             ->assertSee('250,00 CDF')
             ->assertSee('PAY-RECEIPT-001')
             ->assertDontSee(__('main.delete_payment_method_text', ['name' => 'Protected cash']), false)
             ->assertSeeInOrder(['Espèces', 'Mobile money']);
+    }
+
+    public function test_accounting_taxes_page_manages_default_site_tax(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Taxes',
+            'code' => 'ACCOUNTING_TAXES',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'tax admin',
+            'email' => 'tax-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Tax Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'tax-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Tax Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $route = route('main.accounting.taxes', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.taxes'), false)
+            ->assertSee(__('main.new_tax'), false)
+            ->assertSee('resources/js/main/accounting-taxes.js', false)
+            ->assertSee(__('main.tax_exemption'), false);
+
+        $this->assertDatabaseHas('accounting_taxes', [
+            'company_site_id' => $site->id,
+            'reference' => 'TAX-000001',
+            'code' => 'TVA',
+            'value' => 16,
+            'is_default' => true,
+            'is_system_default' => true,
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.taxes.store', [$company, $site]), [
+            'name' => 'Retenue prestataire',
+            'code' => 'RET-5',
+            'kind' => AccountingTax::KIND_WITHHOLDING,
+            'calculation_type' => AccountingTax::CALCULATION_PERCENTAGE,
+            'value' => 5,
+            'nature' => AccountingTax::NATURE_WITHHELD,
+            'applies_to' => AccountingTax::APPLIES_PURCHASES,
+            'status' => AccountingTax::STATUS_ACTIVE,
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_taxes', [
+            'company_site_id' => $site->id,
+            'reference' => 'TAX-000003',
+            'code' => 'RET-5',
+            'value' => 5,
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.taxes.store', [$company, $site]), [
+            'name' => 'Timbre fixe',
+            'code' => 'TIMBRE',
+            'kind' => AccountingTax::KIND_STAMP_DUTY,
+            'calculation_type' => AccountingTax::CALCULATION_FIXED,
+            'value' => 10,
+            'nature' => AccountingTax::NATURE_COLLECTED,
+            'applies_to' => AccountingTax::APPLIES_BOTH,
+            'is_default' => '1',
+            'status' => AccountingTax::STATUS_ACTIVE,
+        ])->assertSessionHasErrors('calculation_type');
+
+        $vat = AccountingTax::query()->where('code', 'TVA')->firstOrFail();
+
+        $this->actingAs($admin)->put(route('main.accounting.taxes.update', [$company, $site, $vat]), [
+            'name' => 'TVA',
+            'code' => 'TVA',
+            'kind' => AccountingTax::KIND_VAT,
+            'calculation_type' => AccountingTax::CALCULATION_PERCENTAGE,
+            'value' => 18,
+            'nature' => AccountingTax::NATURE_COLLECTED,
+            'applies_to' => AccountingTax::APPLIES_BOTH,
+            'is_default' => '1',
+            'status' => AccountingTax::STATUS_ACTIVE,
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_taxes', [
+            'id' => $vat->id,
+            'value' => 18,
+            'is_default' => true,
+        ]);
+    }
+
+    public function test_accounting_treasury_consolidates_validated_cash_movements(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Treasury',
+            'code' => 'ACCOUNTING_TREASURY',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'treasury admin',
+            'email' => 'treasury-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Treasury Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'treasury-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Treasury Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $method = AccountingPaymentMethod::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Caisse principale',
+            'type' => AccountingPaymentMethod::TYPE_CASH,
+            'currency_code' => 'CDF',
+            'is_default' => true,
+            'status' => AccountingPaymentMethod::STATUS_ACTIVE,
+        ]);
+
+        $client = AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Client Tresorerie',
+            'currency' => 'CDF',
+        ]);
+
+        $invoice = AccountingSalesInvoice::create([
+            'company_site_id' => $site->id,
+            'client_id' => $client->id,
+            'created_by' => $admin->id,
+            'reference' => 'FAC-TREASURY-001',
+            'title' => 'Facture encaissée',
+            'invoice_date' => '2026-05-25',
+            'due_date' => '2026-05-25',
+            'currency' => 'CDF',
+            'status' => AccountingSalesInvoice::STATUS_PARTIALLY_PAID,
+            'subtotal' => 700,
+            'discount_total' => 0,
+            'total_ht' => 700,
+            'tax_rate' => 0,
+            'tax_amount' => 0,
+            'total_ttc' => 700,
+            'paid_total' => 500,
+            'balance_due' => 200,
+        ]);
+
+        AccountingSalesInvoicePayment::create([
+            'sales_invoice_id' => $invoice->id,
+            'payment_method_id' => $method->id,
+            'received_by' => $admin->id,
+            'payment_date' => '2026-05-25',
+            'amount' => 500,
+            'currency' => 'CDF',
+            'reference' => 'ENC-TREASURY-001',
+        ]);
+
+        $category = AccountingExpenseCategory::create([
+            'company_site_id' => $site->id,
+            'name' => 'Charges',
+            'slug' => 'charges-treasury-test',
+            'status' => AccountingExpenseCategory::STATUS_ACTIVE,
+        ]);
+
+        AccountingExpense::create([
+            'company_site_id' => $site->id,
+            'expense_category_id' => $category->id,
+            'payment_method_id' => $method->id,
+            'created_by' => $admin->id,
+            'expense_date' => '2026-05-25',
+            'label' => 'Achat fournitures',
+            'amount' => 150,
+            'currency' => 'CDF',
+            'status' => AccountingExpense::STATUS_VALIDATED,
+        ]);
+
+        $this->actingAs($admin)->get(route('main.accounting.treasury', [$company, $site]))
+            ->assertOk()
+            ->assertSee(__('main.cashflow'), false)
+            ->assertSee('treasury-summary-grid', false)
+            ->assertSee(__('main.treasury_available_caption'), false)
+            ->assertSee(__('main.treasury_projected_caption'), false)
+            ->assertSee('resources/js/main/accounting-treasury.js', false)
+            ->assertSee('500,00 CDF')
+            ->assertSee('150,00 CDF');
+
+        $this->assertDatabaseHas('accounting_treasury_movements', [
+            'company_site_id' => $site->id,
+            'movement_type' => AccountingTreasuryMovement::TYPE_SALES_PAYMENT,
+            'direction' => AccountingTreasuryMovement::DIRECTION_INFLOW,
+            'amount' => 500,
+            'currency' => 'CDF',
+        ]);
+
+        $this->assertDatabaseHas('accounting_treasury_movements', [
+            'company_site_id' => $site->id,
+            'movement_type' => AccountingTreasuryMovement::TYPE_EXPENSE,
+            'direction' => AccountingTreasuryMovement::DIRECTION_OUTFLOW,
+            'amount' => 150,
+            'currency' => 'CDF',
+        ]);
+    }
+
+    public function test_accounting_bank_reconciliation_matches_and_closes_a_bank_statement(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Bank Reconciliation',
+            'code' => 'BANK_RECONCILIATION',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'bank admin',
+            'email' => 'bank-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Bank Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'bank-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Bank Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $method = AccountingPaymentMethod::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Compte bancaire CDF',
+            'type' => AccountingPaymentMethod::TYPE_BANK,
+            'currency_code' => 'CDF',
+            'bank_name' => 'Rawbank',
+            'account_number' => '00112233',
+            'is_default' => false,
+            'status' => AccountingPaymentMethod::STATUS_ACTIVE,
+        ]);
+
+        $movement = AccountingTreasuryMovement::create([
+            'company_site_id' => $site->id,
+            'payment_method_id' => $method->id,
+            'created_by' => $admin->id,
+            'movement_type' => AccountingTreasuryMovement::TYPE_OTHER_INCOME,
+            'source_type' => User::class,
+            'source_id' => $admin->id,
+            'source_reference' => 'EXT-001',
+            'direction' => AccountingTreasuryMovement::DIRECTION_INFLOW,
+            'label' => 'Versement client',
+            'amount' => 500,
+            'currency' => 'CDF',
+            'movement_date' => '2026-05-25',
+            'status' => AccountingTreasuryMovement::STATUS_VALIDATED,
+        ]);
+
+        $route = route('main.accounting.bank-reconciliations', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.bank_reconciliation'), false)
+            ->assertSee(__('main.new_bank_reconciliation'), false);
+
+        $this->actingAs($admin)->post(route('main.accounting.bank-reconciliations.store', [$company, $site]), [
+            'payment_method_id' => $method->id,
+            'period_start' => '2026-05-01',
+            'period_end' => '2026-05-31',
+            'statement_opening_balance' => 0,
+            'statement_closing_balance' => 500,
+            'notes' => 'Contrôle mensuel',
+        ])->assertRedirect();
+
+        $reconciliation = AccountingBankReconciliation::firstOrFail();
+
+        $this->actingAs($admin)->post(route('main.accounting.bank-reconciliations.lines.store', [$company, $site, $reconciliation]), [
+            'transaction_date' => '2026-05-25',
+            'bank_reference' => 'BNK-001',
+            'description' => 'Versement client',
+            'direction' => AccountingBankStatementLine::DIRECTION_INFLOW,
+            'amount' => 500,
+        ])->assertRedirect();
+
+        $line = AccountingBankStatementLine::firstOrFail();
+
+        $this->actingAs($admin)->post(route('main.accounting.bank-reconciliations.lines.match', [$company, $site, $reconciliation, $line]), [
+            'treasury_movement_id' => $movement->id,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('accounting_bank_statement_lines', [
+            'id' => $line->id,
+            'status' => AccountingBankStatementLine::STATUS_MATCHED,
+        ]);
+        $this->assertDatabaseHas('accounting_bank_reconciliation_matches', [
+            'statement_line_id' => $line->id,
+            'treasury_movement_id' => $movement->id,
+            'amount' => 500,
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.bank-reconciliations.close', [$company, $site, $reconciliation]))
+            ->assertRedirect()
+            ->assertSessionHas('success', __('main.bank_reconciliation_closed'));
+
+        $this->assertDatabaseHas('accounting_bank_reconciliations', [
+            'id' => $reconciliation->id,
+            'status' => AccountingBankReconciliation::STATUS_CLOSED,
+            'difference' => 0,
+            'closed_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)->get(route('main.accounting.bank-reconciliations.report', [$company, $site, $reconciliation]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+    }
+
+    public function test_accounting_payment_reminders_track_promises_and_generate_letters(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Payment Reminders',
+            'code' => 'PAYMENT_REMINDERS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'collection admin',
+            'email' => 'collection-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Collection Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'collection-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Collection Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'CDF',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $client = AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Client en retard',
+            'address' => 'Kinshasa',
+        ]);
+
+        $invoice = AccountingSalesInvoice::create([
+            'company_site_id' => $site->id,
+            'client_id' => $client->id,
+            'created_by' => $admin->id,
+            'title' => 'Facture impayée',
+            'invoice_date' => now()->subDays(20)->toDateString(),
+            'due_date' => now()->subDays(5)->toDateString(),
+            'currency' => 'CDF',
+            'status' => AccountingSalesInvoice::STATUS_ISSUED,
+            'subtotal' => 500,
+            'discount_total' => 0,
+            'total_ht' => 500,
+            'tax_rate' => 0,
+            'tax_amount' => 0,
+            'total_ttc' => 500,
+            'paid_total' => 0,
+            'credit_total' => 0,
+            'balance_due' => 500,
+        ]);
+
+        $receivable = AccountingDebtor::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingDebtor::TYPE_CLIENT,
+            'name' => 'Créance manuelle ouverte',
+            'currency' => 'CDF',
+            'initial_amount' => 200,
+            'received_amount' => 0,
+            'due_date' => now()->subDays(2)->toDateString(),
+            'description' => 'Créance à relancer',
+            'status' => AccountingDebtor::STATUS_ACTIVE,
+        ]);
+
+        $route = route('main.accounting.payment-reminders', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.payment_reminders'), false)
+            ->assertSee($invoice->reference)
+            ->assertSee($receivable->reference)
+            ->assertSee(__('main.reminder_status_overdue'), false);
+
+        $this->actingAs($admin)->post(route('main.accounting.payment-reminders.store', [$company, $site]), [
+            'source_type' => 'invoice',
+            'source_id' => $invoice->id,
+            'level' => AccountingPaymentReminder::LEVEL_FIRST,
+            'channel' => AccountingPaymentReminder::CHANNEL_EMAIL,
+            'subject' => 'Rappel de paiement',
+            'message' => 'Merci de régler votre solde.',
+            'next_reminder_date' => now()->addDays(3)->toDateString(),
+        ])->assertRedirect($route);
+
+        $reminder = AccountingPaymentReminder::query()->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_payment_reminder_actions', [
+            'payment_reminder_id' => $reminder->id,
+            'action_type' => 'reminder_sent',
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.payment-reminders.dispute', [$company, $site, $reminder]), [
+            'reason' => 'Le client conteste le montant facturé.',
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_payment_reminder_actions', [
+            'payment_reminder_id' => $reminder->id,
+            'action_type' => 'disputed',
+        ]);
+        $this->assertSame(AccountingPaymentReminder::STATUS_DISPUTED, $reminder->fresh()->status);
+
+        $this->actingAs($admin)->post(route('main.accounting.payment-reminders.promises.store', [$company, $site, $reminder]), [
+            'amount' => 250,
+            'promised_date' => now()->addWeek()->toDateString(),
+            'notes' => 'Engagement client confirmé.',
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_payment_promises', [
+            'payment_reminder_id' => $reminder->id,
+            'amount' => 250,
+            'currency' => 'CDF',
+            'status' => AccountingPaymentPromise::STATUS_PENDING,
+        ]);
+        $this->assertSame(AccountingPaymentReminder::STATUS_PROMISE, $reminder->fresh()->status);
+
+        $this->actingAs($admin)->get(route('main.accounting.payment-reminders.letter', [$company, $site, $reminder]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+
+        $invoice->update([
+            'paid_total' => 500,
+            'balance_due' => 0,
+            'status' => AccountingSalesInvoice::STATUS_PAID,
+        ]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.settled'), false);
+
+        $this->assertDatabaseHas('accounting_payment_reminders', [
+            'id' => $reminder->id,
+            'status' => AccountingPaymentReminder::STATUS_SETTLED,
+        ]);
+    }
+
+    public function test_accounting_tasks_generate_overdue_follow_up_and_manage_manual_tasks(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Tasks',
+            'code' => 'ACCOUNTING_TASKS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'task admin',
+            'email' => 'task-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Task Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'task-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Task Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'USD',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $client = AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Late Client',
+        ]);
+
+        $invoice = AccountingSalesInvoice::create([
+            'company_site_id' => $site->id,
+            'client_id' => $client->id,
+            'created_by' => $admin->id,
+            'title' => 'Late invoice',
+            'invoice_date' => now()->subDays(10)->toDateString(),
+            'due_date' => now()->subDay()->toDateString(),
+            'currency' => 'USD',
+            'status' => AccountingSalesInvoice::STATUS_ISSUED,
+            'subtotal' => 125,
+            'discount_total' => 0,
+            'total_ht' => 125,
+            'tax_rate' => 0,
+            'tax_amount' => 0,
+            'total_ttc' => 125,
+            'paid_total' => 0,
+            'credit_total' => 0,
+            'balance_due' => 125,
+        ]);
+
+        $route = route('main.accounting.tasks', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.tasks'), false)
+            ->assertSee($invoice->reference);
+
+        $this->assertDatabaseHas('accounting_tasks', [
+            'company_site_id' => $site->id,
+            'automation_key' => 'overdue_invoice:'.$invoice->id,
+            'is_automatic' => true,
+            'priority' => AccountingTask::PRIORITY_HIGH,
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.tasks.store', [$company, $site]), [
+            'title' => 'Appeler le client',
+            'type' => AccountingTask::TYPE_CALL,
+            'priority' => AccountingTask::PRIORITY_NORMAL,
+            'status' => AccountingTask::STATUS_TODO,
+            'due_date' => now()->addDay()->toDateString(),
+            'assigned_to' => $admin->id,
+            'client_id' => $client->id,
+            'description' => 'Confirmer la date de paiement.',
+        ])->assertRedirect($route);
+
+        $task = AccountingTask::query()->where('is_automatic', false)->firstOrFail();
+
+        $this->assertDatabaseHas('accounting_task_activities', [
+            'accounting_task_id' => $task->id,
+            'action_type' => 'created',
+        ]);
+
+        $this->actingAs($admin)->post(route('main.accounting.tasks.complete', [$company, $site, $task]), [
+            'completion_notes' => 'Appel réalisé.',
+        ])->assertRedirect($route);
+
+        $this->assertDatabaseHas('accounting_tasks', [
+            'id' => $task->id,
+            'status' => AccountingTask::STATUS_COMPLETED,
+            'completed_by' => $admin->id,
+        ]);
+    }
+
+    public function test_accounting_reports_display_real_data_and_export_current_section(): void
+    {
+        $subscription = Subscription::create([
+            'name' => 'Accounting Reports',
+            'code' => 'ACCOUNTING_REPORTS',
+            'type' => 'business',
+            'status' => 'active',
+        ]);
+
+        $admin = User::create([
+            'subscription_id' => $subscription->id,
+            'name' => 'report admin',
+            'email' => 'report-admin@example.test',
+            'password' => 'StrongPass@123',
+            'role' => User::ROLE_ADMIN,
+        ]);
+
+        $company = Company::create([
+            'subscription_id' => $subscription->id,
+            'created_by' => $admin->id,
+            'name' => 'Report Company',
+            'country' => 'Congo (RDC)',
+            'email' => 'report-company@example.test',
+        ]);
+
+        $site = CompanySite::create([
+            'company_id' => $company->id,
+            'responsible_id' => $admin->id,
+            'name' => 'Report Site',
+            'type' => CompanySite::TYPE_OFFICE,
+            'modules' => [CompanySite::MODULE_ACCOUNTING],
+            'currency' => 'USD',
+            'status' => CompanySite::STATUS_ACTIVE,
+        ]);
+
+        $client = AccountingClient::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'type' => AccountingClient::TYPE_COMPANY,
+            'name' => 'Client Report',
+        ]);
+
+        $paymentMethod = AccountingPaymentMethod::create([
+            'company_site_id' => $site->id,
+            'created_by' => $admin->id,
+            'name' => 'Caisse USD',
+            'type' => AccountingPaymentMethod::TYPE_CASH,
+            'currency_code' => 'USD',
+            'is_default' => true,
+            'status' => AccountingPaymentMethod::STATUS_ACTIVE,
+        ]);
+
+        $invoice = AccountingSalesInvoice::create([
+            'company_site_id' => $site->id,
+            'client_id' => $client->id,
+            'created_by' => $admin->id,
+            'title' => 'Rapport vente',
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(10)->toDateString(),
+            'currency' => 'USD',
+            'status' => AccountingSalesInvoice::STATUS_PARTIALLY_PAID,
+            'subtotal' => 275,
+            'discount_total' => 0,
+            'total_ht' => 275,
+            'tax_rate' => 0,
+            'tax_amount' => 0,
+            'total_ttc' => 275,
+            'paid_total' => 100,
+            'credit_total' => 0,
+            'balance_due' => 175,
+        ]);
+
+        AccountingSalesInvoicePayment::create([
+            'sales_invoice_id' => $invoice->id,
+            'payment_method_id' => $paymentMethod->id,
+            'received_by' => $admin->id,
+            'payment_date' => now()->toDateString(),
+            'amount' => 100,
+            'currency' => 'USD',
+            'reference' => 'REC-RAPPORT',
+        ]);
+
+        $route = route('main.accounting.reports', [$company, $site]);
+
+        $this->actingAs($admin)->get($route)
+            ->assertOk()
+            ->assertSee(__('main.reports'), false)
+            ->assertSee($invoice->reference)
+            ->assertSee('275,00 USD', false)
+            ->assertSee('accountingReportChart', false);
+
+        $this->actingAs($admin)->get($route.'?section=receipts')
+            ->assertOk()
+            ->assertSee(__('main.report_section_receipts'), false)
+            ->assertSee('REC-RAPPORT')
+            ->assertSee('100,00 USD', false);
+
+        $export = $this->actingAs($admin)->get(route('main.accounting.reports.export', [$company, $site]));
+        $export->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
+        $this->assertStringContainsString($invoice->reference, $export->streamedContent());
+
+        $this->actingAs($admin)->get(route('main.accounting.reports.pdf', [$company, $site]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
     }
 
     public function test_accounting_proforma_invoices_page_manages_proformas_with_global_vat(): void

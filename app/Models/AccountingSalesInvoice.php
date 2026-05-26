@@ -118,6 +118,11 @@ class AccountingSalesInvoice extends Model
         return $this->hasMany(AccountingCreditNote::class, 'sales_invoice_id');
     }
 
+    public function paymentReminders(): HasMany
+    {
+        return $this->hasMany(AccountingPaymentReminder::class, 'sales_invoice_id');
+    }
+
     public function creditableAmount(): float
     {
         return max(0, round((float) $this->total_ttc - (float) $this->credit_total, 2));
