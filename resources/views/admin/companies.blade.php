@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
 <head>
     <meta charset="utf-8">
@@ -117,7 +117,13 @@
                                 <span>{{ $user->email }}</span>
                                 <em>{{ strtoupper($user->role) }}</em>
                             </div>
-                            <a href="{{ route('profile.edit') }}" class="profile-link">
+                            @if ($user->isSuperadmin())
+                            <a href="{{ route('admin.dashboard') }}" class="profile-link">
+                                <i class="bi bi-speedometer2" aria-hidden="true"></i>
+                                {{ __('admin.dashboard') }}
+                            </a>
+                        @endif
+                        <a href="{{ route('profile.edit') }}" class="profile-link">
                                 <i class="bi bi-person-circle" aria-hidden="true"></i>
                                 {{ __('admin.profile') }}
                             </a>
@@ -196,7 +202,9 @@
                                                         <i class="bi bi-building" aria-hidden="true"></i>
                                                     </span>
                                                 @endif
-                                                <span class="linked-subscription">{{ $company->name }}</span>
+                                                <a class="linked-subscription" href="{{ route('main.companies.sites', $company) }}">
+                                                    {{ $company->name }}
+                                                </a>
                                             </span>
                                         </td>
                                         <td>{{ $company->subscription?->name ?? '-' }}</td>
@@ -374,3 +382,5 @@
     <script>{!! file_get_contents(resource_path('js/main.js')) !!}</script>
 </body>
 </html>
+
+

@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\ArchivingController;
+use App\Http\Controllers\DocumentManagementController;
+use App\Http\Controllers\HumanResourcesController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\MainController;
 use App\Http\Controllers\ProfileController;
@@ -19,6 +22,110 @@ Route::controller(MainController::class)->group(function (): void {
         Route::get('/main/companies/{company}/sites', 'companySites')->name('main.companies.sites');
         Route::post('/main/companies/{company}/sites', 'storeCompanySite')->name('main.companies.sites.store');
         Route::get('/main/companies/{company}/sites/{site}', 'showCompanySite')->name('main.companies.sites.show');
+        Route::get('/main/companies/{company}/sites/{site}/modules/archiving', [ArchivingController::class, 'dashboard'])->name('main.archiving.dashboard');
+        Route::get('/main/companies/{company}/sites/{site}/modules/archiving/locations', [ArchivingController::class, 'locations'])->name('main.archiving.locations');
+        Route::post('/main/companies/{company}/sites/{site}/modules/archiving/locations', [ArchivingController::class, 'storeLocation'])->name('main.archiving.locations.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/archiving/locations/{type}/{location}', [ArchivingController::class, 'updateLocation'])->name('main.archiving.locations.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/archiving/locations/{type}/{location}', [ArchivingController::class, 'destroyLocation'])->name('main.archiving.locations.destroy');
+        Route::get('/main/companies/{company}/sites/{site}/modules/archiving/containers', [ArchivingController::class, 'containers'])->name('main.archiving.containers');
+        Route::post('/main/companies/{company}/sites/{site}/modules/archiving/containers', [ArchivingController::class, 'storeContainer'])->name('main.archiving.containers.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/archiving/containers/{container}', [ArchivingController::class, 'updateContainer'])->name('main.archiving.containers.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/archiving/containers/{container}', [ArchivingController::class, 'destroyContainer'])->name('main.archiving.containers.destroy');
+        Route::get('/main/companies/{company}/sites/{site}/modules/archiving/records', [ArchivingController::class, 'records'])->name('main.archiving.records');
+        Route::post('/main/companies/{company}/sites/{site}/modules/archiving/records', [ArchivingController::class, 'storeRecord'])->name('main.archiving.records.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/archiving/records/{record}', [ArchivingController::class, 'updateRecord'])->name('main.archiving.records.update');
+        Route::post('/main/companies/{company}/sites/{site}/modules/archiving/records/{record}/file', [ArchivingController::class, 'attachRecordFile'])->name('main.archiving.records.file.attach');
+        Route::post('/main/companies/{company}/sites/{site}/modules/archiving/records/{record}/file/replace', [ArchivingController::class, 'replaceRecordFile'])->name('main.archiving.records.file.replace');
+        Route::get('/main/companies/{company}/sites/{site}/modules/archiving/movements', [ArchivingController::class, 'movements'])->name('main.archiving.movements');
+        Route::post('/main/companies/{company}/sites/{site}/modules/archiving/movements', [ArchivingController::class, 'storeMovement'])->name('main.archiving.movements.store');
+        Route::get('/main/companies/{company}/sites/{site}/modules/archiving/retention', [ArchivingController::class, 'retention'])->name('main.archiving.retention');
+        Route::post('/main/companies/{company}/sites/{site}/modules/archiving/retention', [ArchivingController::class, 'storeRetentionRule'])->name('main.archiving.retention.store');
+        Route::get('/main/companies/{company}/sites/{site}/modules/archiving/traceability', [ArchivingController::class, 'traceability'])->name('main.archiving.traceability');
+        Route::get('/main/companies/{company}/sites/{site}/modules/archiving/reports', [ArchivingController::class, 'reports'])->name('main.archiving.reports');
+        Route::get('/main/companies/{company}/sites/{site}/modules/archiving/reports/pdf', [ArchivingController::class, 'printReport'])->name('main.archiving.reports.pdf');
+        Route::get('/main/companies/{company}/sites/{site}/modules/archiving/notifications', [ArchivingController::class, 'notifications'])->name('main.archiving.notifications');
+        Route::get('/main/companies/{company}/sites/{site}/modules/archiving/notifications/{notification}', [ArchivingController::class, 'showNotification'])->name('main.archiving.notifications.show');
+        Route::get('/main/companies/{company}/sites/{site}/modules/archiving/settings', [ArchivingController::class, 'settings'])->name('main.archiving.settings');
+        Route::put('/main/companies/{company}/sites/{site}/modules/archiving/settings', [ArchivingController::class, 'updateSettings'])->name('main.archiving.settings.update');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management', [DocumentManagementController::class, 'dashboard'])->name('main.document-management.dashboard');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management/incoming', [DocumentManagementController::class, 'incoming'])->name('main.document-management.incoming');
+        Route::post('/main/companies/{company}/sites/{site}/modules/document_management/incoming', [DocumentManagementController::class, 'storeIncoming'])->name('main.document-management.incoming.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/document_management/incoming/{record}', [DocumentManagementController::class, 'updateIncoming'])->name('main.document-management.incoming.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/document_management/incoming/{record}', [DocumentManagementController::class, 'destroyIncoming'])->name('main.document-management.incoming.destroy');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management/outgoing', [DocumentManagementController::class, 'outgoing'])->name('main.document-management.outgoing');
+        Route::post('/main/companies/{company}/sites/{site}/modules/document_management/outgoing', [DocumentManagementController::class, 'storeOutgoing'])->name('main.document-management.outgoing.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/document_management/outgoing/{record}', [DocumentManagementController::class, 'updateOutgoing'])->name('main.document-management.outgoing.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/document_management/outgoing/{record}', [DocumentManagementController::class, 'destroyOutgoing'])->name('main.document-management.outgoing.destroy');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management/internal', [DocumentManagementController::class, 'internal'])->name('main.document-management.internal');
+        Route::post('/main/companies/{company}/sites/{site}/modules/document_management/internal', [DocumentManagementController::class, 'storeInternal'])->name('main.document-management.internal.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/document_management/internal/{record}', [DocumentManagementController::class, 'updateInternal'])->name('main.document-management.internal.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/document_management/internal/{record}', [DocumentManagementController::class, 'destroyInternal'])->name('main.document-management.internal.destroy');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management/folders', [DocumentManagementController::class, 'folders'])->name('main.document-management.folders');
+        Route::post('/main/companies/{company}/sites/{site}/modules/document_management/folders', [DocumentManagementController::class, 'storeFolder'])->name('main.document-management.folders.store');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management/folders/{folder}', [DocumentManagementController::class, 'showFolder'])->name('main.document-management.folders.show');
+        Route::put('/main/companies/{company}/sites/{site}/modules/document_management/folders/{folder}', [DocumentManagementController::class, 'updateFolder'])->name('main.document-management.folders.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/document_management/folders/{folder}', [DocumentManagementController::class, 'destroyFolder'])->name('main.document-management.folders.destroy');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management/assignments', [DocumentManagementController::class, 'assignments'])->name('main.document-management.assignments');
+        Route::put('/main/companies/{company}/sites/{site}/modules/document_management/assignments/{record}', [DocumentManagementController::class, 'updateAssignment'])->name('main.document-management.assignments.update');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management/traceability', [DocumentManagementController::class, 'traceability'])->name('main.document-management.traceability');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management/reports', [DocumentManagementController::class, 'reports'])->name('main.document-management.reports');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management/reports/pdf', [DocumentManagementController::class, 'printReport'])->name('main.document-management.reports.pdf');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management/notifications', [DocumentManagementController::class, 'notifications'])->name('main.document-management.notifications');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management/notifications/{notification}', [DocumentManagementController::class, 'showNotification'])->name('main.document-management.notifications.show');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management/settings', [DocumentManagementController::class, 'settings'])->name('main.document-management.settings');
+        Route::put('/main/companies/{company}/sites/{site}/modules/document_management/settings', [DocumentManagementController::class, 'updateSettings'])->name('main.document-management.settings.update');
+        Route::get('/main/companies/{company}/sites/{site}/modules/document_management/validation-circuits', [DocumentManagementController::class, 'validationCircuits'])->name('main.document-management.validation-circuits');
+        Route::post('/main/companies/{company}/sites/{site}/modules/document_management/validation-circuits', [DocumentManagementController::class, 'storeValidationCircuit'])->name('main.document-management.validation-circuits.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/document_management/validation-circuits/{circuit}', [DocumentManagementController::class, 'updateValidationCircuit'])->name('main.document-management.validation-circuits.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/document_management/validation-circuits/{circuit}', [DocumentManagementController::class, 'destroyValidationCircuit'])->name('main.document-management.validation-circuits.destroy');
+        Route::post('/main/companies/{company}/sites/{site}/modules/document_management/validation-requests', [DocumentManagementController::class, 'storeValidationRequest'])->name('main.document-management.validation-requests.store');
+        Route::post('/main/companies/{company}/sites/{site}/modules/document_management/validation-requests/{validationRequest}/approve', [DocumentManagementController::class, 'approveValidationRequest'])->name('main.document-management.validation-requests.approve');
+        Route::post('/main/companies/{company}/sites/{site}/modules/document_management/validation-requests/{validationRequest}/reject', [DocumentManagementController::class, 'rejectValidationRequest'])->name('main.document-management.validation-requests.reject');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources', [HumanResourcesController::class, 'dashboard'])->name('main.human-resources.dashboard');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources/employees', [HumanResourcesController::class, 'employees'])->name('main.human-resources.employees');
+        Route::post('/main/companies/{company}/sites/{site}/modules/human_resources/employees', [HumanResourcesController::class, 'storeEmployee'])->name('main.human-resources.employees.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/human_resources/employees/{employee}', [HumanResourcesController::class, 'updateEmployee'])->name('main.human-resources.employees.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/human_resources/employees/{employee}', [HumanResourcesController::class, 'destroyEmployee'])->name('main.human-resources.employees.destroy');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources/departments', [HumanResourcesController::class, 'departments'])->name('main.human-resources.departments');
+        Route::post('/main/companies/{company}/sites/{site}/modules/human_resources/departments', [HumanResourcesController::class, 'storeDepartment'])->name('main.human-resources.departments.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/human_resources/departments/{department}', [HumanResourcesController::class, 'updateDepartment'])->name('main.human-resources.departments.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/human_resources/departments/{department}', [HumanResourcesController::class, 'destroyDepartment'])->name('main.human-resources.departments.destroy');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources/attendance', [HumanResourcesController::class, 'attendance'])->name('main.human-resources.attendance');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources/attendance/report/pdf', [HumanResourcesController::class, 'printAttendanceReport'])->name('main.human-resources.attendance.report.pdf');
+        Route::post('/main/companies/{company}/sites/{site}/modules/human_resources/attendance', [HumanResourcesController::class, 'storeAttendance'])->name('main.human-resources.attendance.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/human_resources/attendance/{attendance}', [HumanResourcesController::class, 'updateAttendance'])->name('main.human-resources.attendance.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/human_resources/attendance/{attendance}', [HumanResourcesController::class, 'destroyAttendance'])->name('main.human-resources.attendance.destroy');
+        Route::post('/main/companies/{company}/sites/{site}/modules/human_resources/attendance/import', [HumanResourcesController::class, 'importAttendance'])->name('main.human-resources.attendance.import');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources/contracts', [HumanResourcesController::class, 'contracts'])->name('main.human-resources.contracts');
+        Route::post('/main/companies/{company}/sites/{site}/modules/human_resources/contracts', [HumanResourcesController::class, 'storeContract'])->name('main.human-resources.contracts.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/human_resources/contracts/{contract}', [HumanResourcesController::class, 'updateContract'])->name('main.human-resources.contracts.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/human_resources/contracts/{contract}', [HumanResourcesController::class, 'destroyContract'])->name('main.human-resources.contracts.destroy');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources/leave', [HumanResourcesController::class, 'leave'])->name('main.human-resources.leave');
+        Route::post('/main/companies/{company}/sites/{site}/modules/human_resources/leave', [HumanResourcesController::class, 'storeLeave'])->name('main.human-resources.leave.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/human_resources/leave/{leave}', [HumanResourcesController::class, 'updateLeave'])->name('main.human-resources.leave.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/human_resources/leave/{leave}', [HumanResourcesController::class, 'destroyLeave'])->name('main.human-resources.leave.destroy');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources/notifications', [HumanResourcesController::class, 'notifications'])->name('main.human-resources.notifications');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources/notifications/{notification}', [HumanResourcesController::class, 'showNotification'])->name('main.human-resources.notifications.show');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources/payroll', [HumanResourcesController::class, 'payroll'])->name('main.human-resources.payroll');
+        Route::post('/main/companies/{company}/sites/{site}/modules/human_resources/payroll', [HumanResourcesController::class, 'storePayroll'])->name('main.human-resources.payroll.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/human_resources/payroll/{payroll}', [HumanResourcesController::class, 'updatePayroll'])->name('main.human-resources.payroll.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/human_resources/payroll/{payroll}', [HumanResourcesController::class, 'destroyPayroll'])->name('main.human-resources.payroll.destroy');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources/reports', [HumanResourcesController::class, 'reports'])->name('main.human-resources.reports');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources/reports/pdf', [HumanResourcesController::class, 'printReport'])->name('main.human-resources.reports.pdf');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources/settings', [HumanResourcesController::class, 'settings'])->name('main.human-resources.settings');
+        Route::put('/main/companies/{company}/sites/{site}/modules/human_resources/settings', [HumanResourcesController::class, 'updateSettings'])->name('main.human-resources.settings.update');
+        Route::get('/main/companies/{company}/sites/{site}/modules/human_resources/{hrResource}', [HumanResourcesController::class, 'resourcePage'])
+            ->whereIn('hrResource', ['documents', 'salary-advances', 'payroll-adjustments', 'schedules', 'evaluations', 'trainings', 'sanctions', 'recruitment'])
+            ->name('main.human-resources.resources');
+        Route::post('/main/companies/{company}/sites/{site}/modules/human_resources/{hrResource}', [HumanResourcesController::class, 'storeResource'])
+            ->whereIn('hrResource', ['documents', 'salary-advances', 'payroll-adjustments', 'schedules', 'evaluations', 'trainings', 'sanctions', 'recruitment'])
+            ->name('main.human-resources.resources.store');
+        Route::put('/main/companies/{company}/sites/{site}/modules/human_resources/{hrResource}/{record}', [HumanResourcesController::class, 'updateResource'])
+            ->whereIn('hrResource', ['documents', 'salary-advances', 'payroll-adjustments', 'schedules', 'evaluations', 'trainings', 'sanctions', 'recruitment'])
+            ->name('main.human-resources.resources.update');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/human_resources/{hrResource}/{record}', [HumanResourcesController::class, 'destroyResource'])
+            ->whereIn('hrResource', ['documents', 'salary-advances', 'payroll-adjustments', 'schedules', 'evaluations', 'trainings', 'sanctions', 'recruitment'])
+            ->name('main.human-resources.resources.destroy');
         Route::get('/main/companies/{company}/sites/{site}/modules/{module}', 'showSiteModule')->name('main.companies.sites.modules.show');
         Route::get('/main/companies/{company}/sites/{site}/modules/accounting/clients', 'accountingClients')->name('main.accounting.clients');
         Route::post('/main/companies/{company}/sites/{site}/modules/accounting/clients', 'storeAccountingClient')->name('main.accounting.clients.store');

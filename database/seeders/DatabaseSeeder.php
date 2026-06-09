@@ -21,8 +21,8 @@ class DatabaseSeeder extends Seeder
             ['code' => 'EXAD-DEFAULT'],
             [
                 'name' => 'Abonnement EXAD par defaut',
-                'type' => 'standard',
-                'company_limit' => 1,
+                'type' => 'pro',
+                'company_limit' => 2,
                 'status' => 'active',
                 'expires_at' => now()->addYear()->toDateString(),
             ],
@@ -77,5 +77,9 @@ class DatabaseSeeder extends Seeder
                 'can_delete' => false,
             ],
         ]);
+
+        $this->call(HumanResourcesSeeder::class);
+        $this->call(DocumentManagementSeeder::class);
+        $this->call(ArchivingSeeder::class);
     }
 }

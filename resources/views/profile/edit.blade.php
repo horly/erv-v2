@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
 <head>
     <meta charset="utf-8">
@@ -154,6 +154,12 @@
                             <span>{{ $user->email }}</span>
                             <em>{{ $roleLabel }}</em>
                         </div>
+                        @if ($user->isSuperadmin())
+                            <a href="{{ route('admin.dashboard') }}" class="profile-link">
+                                <i class="bi bi-speedometer2" aria-hidden="true"></i>
+                                {{ __('admin.dashboard') }}
+                            </a>
+                        @endif
                         <a href="{{ route('profile.edit') }}" class="profile-link">
                             <i class="bi bi-person-circle" aria-hidden="true"></i>
                             {{ __('main.profile') }}
@@ -505,3 +511,5 @@
     <script src="{{ asset('js/profile.js') }}"></script>
 </body>
 </html>
+
+

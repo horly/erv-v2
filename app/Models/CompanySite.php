@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class CompanySite extends Model
@@ -24,6 +25,7 @@ class CompanySite extends Model
     public const MODULE_HUMAN_RESOURCES = 'human_resources';
     public const MODULE_ARCHIVING = 'archiving';
     public const MODULE_DOCUMENT_MANAGEMENT = 'document_management';
+    public const MODULE_GMAO = 'gmao';
 
     public const STATUS_ACTIVE = 'active';
     public const STATUS_INACTIVE = 'inactive';
@@ -272,9 +274,109 @@ class CompanySite extends Model
         return $this->hasMany(AccountingService::class);
     }
 
+    public function humanResourceDepartments(): HasMany
+    {
+        return $this->hasMany(HumanResourceDepartment::class);
+    }
+
+    public function humanResourceEmployees(): HasMany
+    {
+        return $this->hasMany(HumanResourceEmployee::class);
+    }
+
+    public function humanResourceContracts(): HasManyThrough
+    {
+        return $this->hasManyThrough(HumanResourceContract::class, HumanResourceEmployee::class);
+    }
+
+    public function humanResourceLeaveRequests(): HasManyThrough
+    {
+        return $this->hasManyThrough(HumanResourceLeaveRequest::class, HumanResourceEmployee::class);
+    }
+
+    public function humanResourceAttendances(): HasManyThrough
+    {
+        return $this->hasManyThrough(HumanResourceAttendance::class, HumanResourceEmployee::class);
+    }
+
     public function accountingRecurringServices(): HasMany
     {
         return $this->hasMany(AccountingRecurringService::class);
+    }
+
+    public function documentManagementFolders(): HasMany
+    {
+        return $this->hasMany(DocumentManagementFolder::class);
+    }
+
+    public function documentManagementRecords(): HasMany
+    {
+        return $this->hasMany(DocumentManagementRecord::class);
+    }
+
+    public function documentManagementValidationCircuits(): HasMany
+    {
+        return $this->hasMany(DocumentManagementValidationCircuit::class);
+    }
+
+    public function archiveLocations(): HasMany
+    {
+        return $this->hasMany(ArchiveLocation::class);
+    }
+
+    public function archiveRooms(): HasMany
+    {
+        return $this->hasMany(ArchiveRoom::class);
+    }
+
+    public function archiveRacks(): HasMany
+    {
+        return $this->hasMany(ArchiveRack::class);
+    }
+
+    public function archiveCabinets(): HasMany
+    {
+        return $this->hasMany(ArchiveCabinet::class);
+    }
+
+    public function archiveShelves(): HasMany
+    {
+        return $this->hasMany(ArchiveShelf::class);
+    }
+
+    public function archiveCompartments(): HasMany
+    {
+        return $this->hasMany(ArchiveCompartment::class);
+    }
+
+    public function archiveBoxes(): HasMany
+    {
+        return $this->hasMany(ArchiveBox::class);
+    }
+
+    public function archiveContainers(): HasMany
+    {
+        return $this->hasMany(ArchiveContainer::class);
+    }
+
+    public function archiveRecords(): HasMany
+    {
+        return $this->hasMany(ArchiveRecord::class);
+    }
+
+    public function archiveMovements(): HasMany
+    {
+        return $this->hasMany(ArchiveMovement::class);
+    }
+
+    public function archiveRetentionRules(): HasMany
+    {
+        return $this->hasMany(ArchiveRetentionRule::class);
+    }
+
+    public function archiveActivities(): HasMany
+    {
+        return $this->hasMany(ArchiveActivity::class);
     }
 
     public static function types(): array
@@ -294,8 +396,9 @@ class CompanySite extends Model
         return [
             self::MODULE_ACCOUNTING,
             self::MODULE_HUMAN_RESOURCES,
-            self::MODULE_ARCHIVING,
             self::MODULE_DOCUMENT_MANAGEMENT,
+            self::MODULE_ARCHIVING,
+            self::MODULE_GMAO,
         ];
     }
 

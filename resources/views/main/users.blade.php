@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
 <head>
     <meta charset="utf-8">
@@ -18,10 +18,16 @@
         $hasUserErrors = $errors->hasAny(['name', 'email', 'password', 'password_confirmation', 'role', 'site_id', 'modules', 'phone_number', 'grade', 'address']);
         $isEditingUser = old('form_mode') === 'edit' && old('user_id');
         $userFormAction = $isEditingUser ? route('main.users.update', old('user_id')) : route('main.users.store');
+        $moduleOrder = \App\Models\CompanySite::modules();
+        $sortModules = fn ($modules) => collect($modules ?? [])
+            ->unique()
+            ->sortBy(fn ($module) => array_search($module, $moduleOrder, true) === false ? 999 : array_search($module, $moduleOrder, true))
+            ->values()
+            ->all();
         $siteModules = $siteOptions->mapWithKeys(fn ($site) => [
             (string) $site->id => [
-                'modules' => array_values($site->modules ?? []),
-                'labels' => collect($site->modules ?? [])->mapWithKeys(fn ($module) => [$module => $moduleLabels[$module] ?? $module])->all(),
+                'modules' => $sortModules($site->modules),
+                'labels' => collect($sortModules($site->modules))->mapWithKeys(fn ($module) => [$module => $moduleLabels[$module] ?? $module])->all(),
             ],
         ])->all();
     @endphp
@@ -71,6 +77,12 @@
                             <span>{{ $user->email }}</span>
                             <em>{{ __('main.admin_badge') }}</em>
                         </div>
+                        @if ($user->isSuperadmin())
+                            <a href="{{ route('admin.dashboard') }}" class="profile-link">
+                                <i class="bi bi-speedometer2" aria-hidden="true"></i>
+                                {{ __('admin.dashboard') }}
+                            </a>
+                        @endif
                         <a href="{{ route('profile.edit') }}" class="profile-link">
                             <i class="bi bi-person-circle" aria-hidden="true"></i>
                             {{ __('main.profile') }}

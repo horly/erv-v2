@@ -1,4 +1,4 @@
-@php($currentLocale = app()->getLocale())
+﻿@php($currentLocale = app()->getLocale())
 
 <div class="header-actions">
     <button
@@ -51,7 +51,13 @@
                 <span>{{ $user->email }}</span>
                 <em>{{ $user->role === 'admin' ? __('main.admin_badge') : strtoupper($user->role) }}</em>
             </div>
-            <a href="{{ route('profile.edit') }}" class="profile-link">
+            @if ($user->isSuperadmin())
+                            <a href="{{ route('admin.dashboard') }}" class="profile-link">
+                                <i class="bi bi-speedometer2" aria-hidden="true"></i>
+                                {{ __('admin.dashboard') }}
+                            </a>
+                        @endif
+                        <a href="{{ route('profile.edit') }}" class="profile-link">
                 <i class="bi bi-person-circle" aria-hidden="true"></i>
                 {{ __('main.profile') }}
             </a>
@@ -71,3 +77,4 @@
         </div>
     </div>
 </div>
+

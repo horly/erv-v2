@@ -37,6 +37,10 @@
             box-sizing: border-box;
         }
 
+        html {
+            font-size: 15px;
+        }
+
         body {
             min-height: 100vh;
             margin: 0;

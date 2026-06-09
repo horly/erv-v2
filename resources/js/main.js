@@ -288,8 +288,9 @@
             return;
         }
 
+        const searchParam = dataTableSearch.name || dataTableSearch.dataset.searchParam || 'search';
         const params = new URLSearchParams(window.location.search);
-        const currentSearch = params.get('search') || '';
+        const currentSearch = params.get(searchParam) || '';
         let searchTimer = null;
         let activeRequest = null;
 
@@ -419,9 +420,9 @@
             const nextParams = new URLSearchParams(window.location.search);
 
             if (nextSearch) {
-                nextParams.set('search', nextSearch);
+                nextParams.set(searchParam, nextSearch);
             } else {
-                nextParams.delete('search');
+                nextParams.delete(searchParam);
             }
 
             nextParams.delete('page');
@@ -449,7 +450,7 @@
 
         window.addEventListener('popstate', () => {
             const params = new URLSearchParams(window.location.search);
-            const nextSearch = params.get('search') || '';
+            const nextSearch = params.get(searchParam) || '';
 
             if (dataTableSearch.value !== nextSearch) {
                 dataTableSearch.value = nextSearch;
@@ -556,7 +557,174 @@
         bindSortButtons();
     };
 
-    initDataTable(table, searchInput, visibleCount, { serverSearch: true });
+    const shouldUseServerSearch = searchInput?.dataset.serverSearch === 'true'
+        || Boolean(searchInput?.name);
+
+    initDataTable(table, searchInput, visibleCount, { serverSearch: shouldUseServerSearch });
+
+    const bindStandaloneSearchForms = () => {
+        let activeStandaloneRequest = null;
+
+        const getStandaloneContent = () => document.querySelector('.dashboard-content');
+
+        const setStandaloneLoading = (loading) => {
+            const content = getStandaloneContent();
+
+            if (!content) {
+                return;
+            }
+
+            content.style.opacity = loading ? '0.55' : '';
+            content.style.pointerEvents = loading ? 'none' : '';
+            content.setAttribute('aria-busy', loading ? 'true' : 'false');
+        };
+
+        const fetchStandaloneContent = async (url, historyMode = 'replace') => {
+            activeStandaloneRequest?.abort();
+            activeStandaloneRequest = new AbortController();
+            const activeSearchInput = document.activeElement?.matches?.('form.search-box input[type="search"][name]')
+                ? document.activeElement
+                : null;
+            const focusState = activeSearchInput ? {
+                name: activeSearchInput.name,
+                value: activeSearchInput.value,
+                selectionStart: activeSearchInput.selectionStart,
+                selectionEnd: activeSearchInput.selectionEnd,
+            } : null;
+
+            setStandaloneLoading(true);
+
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'text/html',
+                    },
+                    signal: activeStandaloneRequest.signal,
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const html = await response.text();
+                const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
+                const currentContent = getStandaloneContent();
+                const nextContent = parsedDocument.querySelector('.dashboard-content');
+
+                if (!currentContent || !nextContent) {
+                    return;
+                }
+
+                currentContent.outerHTML = nextContent.outerHTML;
+
+                if (historyMode === 'push') {
+                    window.history.pushState({}, '', url);
+                } else if (historyMode === 'replace') {
+                    window.history.replaceState({}, '', url);
+                }
+
+                bindStandaloneSearchForms();
+                bindModalDataTables();
+
+                if (focusState) {
+                    const restoredInput = Array.from(document.querySelectorAll('form.search-box input[type="search"][name]'))
+                        .find((input) => input.name === focusState.name);
+
+                    if (restoredInput) {
+                        restoredInput.focus({ preventScroll: true });
+
+                        if (restoredInput.value === focusState.value && typeof restoredInput.setSelectionRange === 'function') {
+                            restoredInput.setSelectionRange(focusState.selectionStart ?? restoredInput.value.length, focusState.selectionEnd ?? restoredInput.value.length);
+                        }
+                    }
+                }
+
+                document.dispatchEvent(new CustomEvent('exad:standalone-search-updated', {
+                    detail: { url },
+                }));
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error(error);
+                }
+            } finally {
+                setStandaloneLoading(false);
+            }
+        };
+
+        const buildStandaloneSearchUrl = (form, input) => {
+            const url = new URL(form.action || window.location.href, window.location.origin);
+            const currentParams = new URLSearchParams(window.location.search);
+            const formParams = new URLSearchParams(new FormData(form));
+            const param = input.name;
+
+            currentParams.forEach((value, key) => {
+                if (!url.searchParams.has(key)) {
+                    url.searchParams.set(key, value);
+                }
+            });
+
+            formParams.forEach((value, key) => {
+                const trimmed = String(value).trim();
+
+                if (trimmed) {
+                    url.searchParams.set(key, trimmed);
+                } else {
+                    url.searchParams.delete(key);
+                }
+            });
+
+            Array.from(url.searchParams.keys())
+                .filter((key) => key === 'page' || key.endsWith('_page'))
+                .forEach((key) => url.searchParams.delete(key));
+
+            if (!input.value.trim()) {
+                url.searchParams.delete(param);
+            }
+
+            return url.toString();
+        };
+
+        document.querySelectorAll('form.search-box input[type="search"][name]').forEach((input) => {
+            const form = input.closest('form');
+
+            if (!form || form.dataset.searchBoxBound === 'true' || input.id === 'companySearch') {
+                return;
+            }
+
+            form.dataset.searchBoxBound = 'true';
+            let timer = null;
+
+            input.addEventListener('input', () => {
+                window.clearTimeout(timer);
+                timer = window.setTimeout(() => fetchStandaloneContent(buildStandaloneSearchUrl(form, input), 'replace'), 350);
+            });
+
+            form.addEventListener('submit', (event) => {
+                event.preventDefault();
+                window.clearTimeout(timer);
+                fetchStandaloneContent(buildStandaloneSearchUrl(form, input), 'replace');
+            });
+        });
+
+        if (document.body.dataset.standaloneSearchPaginationBound !== 'true') {
+            document.body.dataset.standaloneSearchPaginationBound = 'true';
+
+            document.addEventListener('click', (event) => {
+                const link = event.target.closest('.subscriptions-pagination:not(.modal-table-pagination) a');
+                const hasStandaloneSearch = Boolean(document.querySelector('.dashboard-content form.search-box input[type="search"][name]:not(#companySearch)'));
+
+                if (!link || !hasStandaloneSearch || link.origin !== window.location.origin || link.pathname !== window.location.pathname) {
+                    return;
+                }
+
+                event.preventDefault();
+                fetchStandaloneContent(link.href, 'push');
+            });
+        }
+    };
+
+    bindStandaloneSearchForms();
 
     const bindModalDataTables = () => {
         document.querySelectorAll('[data-datatable]').forEach((wrapper) => {

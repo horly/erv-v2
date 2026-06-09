@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
 <head>
     <meta charset="utf-8">
@@ -13,6 +13,7 @@
 <body>
     @php
         $currentLocale = app()->getLocale();
+        $brandColorDefaults = \App\Support\AppBranding::defaults();
     @endphp
 
     <div class="dashboard-shell main-shell" data-theme="light">
@@ -116,7 +117,13 @@
                                 <span>{{ $user->email }}</span>
                                 <em>{{ strtoupper($user->role) }}</em>
                             </div>
-                            <a href="{{ route('profile.edit') }}" class="profile-link">
+                            @if ($user->isSuperadmin())
+                            <a href="{{ route('admin.dashboard') }}" class="profile-link">
+                                <i class="bi bi-speedometer2" aria-hidden="true"></i>
+                                {{ __('admin.dashboard') }}
+                            </a>
+                        @endif
+                        <a href="{{ route('profile.edit') }}" class="profile-link">
                                 <i class="bi bi-person-circle" aria-hidden="true"></i>
                                 {{ __('admin.profile') }}
                             </a>
@@ -219,31 +226,37 @@
                     </section>
 
                     <section class="form-section">
-                        <h2><i class="bi bi-palette" aria-hidden="true"></i>{{ __('admin.application_colors') }}</h2>
+                        <div class="brand-color-heading">
+                            <h2><i class="bi bi-palette" aria-hidden="true"></i>{{ __('admin.application_colors') }}</h2>
+                            <button class="section-add-button brand-color-reset" type="button" data-reset-brand-colors>
+                                <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                                {{ __('admin.restore_default_colors') }}
+                            </button>
+                        </div>
                         <div class="brand-color-grid">
                             <label class="brand-color-field" for="primaryColor">
                                 <span>{{ __('admin.primary_color') }}</span>
-                                <input id="primaryColor" name="primary_color" type="color" class="@error('primary_color') is-invalid @enderror" value="{{ old('primary_color', $branding['primary_color'] ?? '#2563eb') }}">
+                                <input id="primaryColor" name="primary_color" type="color" class="@error('primary_color') is-invalid @enderror" value="{{ old('primary_color', $branding['primary_color'] ?? $brandColorDefaults['primary_color']) }}" data-brand-default-color="{{ $brandColorDefaults['primary_color'] }}">
                                 @error('primary_color')<em>{{ $message }}</em>@enderror
                             </label>
                             <label class="brand-color-field" for="primaryHoverColor">
                                 <span>{{ __('admin.primary_hover_color') }}</span>
-                                <input id="primaryHoverColor" name="primary_hover_color" type="color" class="@error('primary_hover_color') is-invalid @enderror" value="{{ old('primary_hover_color', $branding['primary_hover_color'] ?? '#3b82f6') }}">
+                                <input id="primaryHoverColor" name="primary_hover_color" type="color" class="@error('primary_hover_color') is-invalid @enderror" value="{{ old('primary_hover_color', $branding['primary_hover_color'] ?? $brandColorDefaults['primary_hover_color']) }}" data-brand-default-color="{{ $brandColorDefaults['primary_hover_color'] }}">
                                 @error('primary_hover_color')<em>{{ $message }}</em>@enderror
                             </label>
                             <label class="brand-color-field" for="accentColor">
                                 <span>{{ __('admin.accent_color') }}</span>
-                                <input id="accentColor" name="accent_color" type="color" class="@error('accent_color') is-invalid @enderror" value="{{ old('accent_color', $branding['accent_color'] ?? '#7c3aed') }}">
+                                <input id="accentColor" name="accent_color" type="color" class="@error('accent_color') is-invalid @enderror" value="{{ old('accent_color', $branding['accent_color'] ?? $brandColorDefaults['accent_color']) }}" data-brand-default-color="{{ $brandColorDefaults['accent_color'] }}">
                                 @error('accent_color')<em>{{ $message }}</em>@enderror
                             </label>
                             <label class="brand-color-field" for="sidebarColor">
                                 <span>{{ __('admin.sidebar_color') }}</span>
-                                <input id="sidebarColor" name="sidebar_color" type="color" class="@error('sidebar_color') is-invalid @enderror" value="{{ old('sidebar_color', $branding['sidebar_color'] ?? '#071b42') }}">
+                                <input id="sidebarColor" name="sidebar_color" type="color" class="@error('sidebar_color') is-invalid @enderror" value="{{ old('sidebar_color', $branding['sidebar_color'] ?? $brandColorDefaults['sidebar_color']) }}" data-brand-default-color="{{ $brandColorDefaults['sidebar_color'] }}">
                                 @error('sidebar_color')<em>{{ $message }}</em>@enderror
                             </label>
                             <label class="brand-color-field" for="sidebarSecondaryColor">
                                 <span>{{ __('admin.sidebar_secondary_color') }}</span>
-                                <input id="sidebarSecondaryColor" name="sidebar_secondary_color" type="color" class="@error('sidebar_secondary_color') is-invalid @enderror" value="{{ old('sidebar_secondary_color', $branding['sidebar_secondary_color'] ?? '#0d2b61') }}">
+                                <input id="sidebarSecondaryColor" name="sidebar_secondary_color" type="color" class="@error('sidebar_secondary_color') is-invalid @enderror" value="{{ old('sidebar_secondary_color', $branding['sidebar_secondary_color'] ?? $brandColorDefaults['sidebar_secondary_color']) }}" data-brand-default-color="{{ $brandColorDefaults['sidebar_secondary_color'] }}">
                                 @error('sidebar_secondary_color')<em>{{ $message }}</em>@enderror
                             </label>
                         </div>
@@ -323,3 +336,5 @@
     <script>{!! file_get_contents(resource_path('js/admin/application-settings.js')) !!}</script>
 </body>
 </html>
+
+

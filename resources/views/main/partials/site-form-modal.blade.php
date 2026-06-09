@@ -16,8 +16,16 @@
     $moduleClasses = [
         'accounting' => 'module-accounting',
         'human_resources' => 'module-human-resources',
-        'archiving' => 'module-archiving',
         'document_management' => 'module-document-management',
+        'archiving' => 'module-archiving',
+        'gmao' => 'module-gmao',
+    ];
+    $moduleIcons = [
+        'accounting' => 'bi-receipt',
+        'human_resources' => 'bi-people',
+        'document_management' => 'bi-file-earmark-text',
+        'archiving' => 'bi-archive',
+        'gmao' => 'bi-tools',
     ];
 @endphp
 
@@ -85,7 +93,7 @@
                                 @endphp
                                 <label class="site-module-card {{ $moduleClasses[$module] ?? '' }} {{ ! $allowed ? 'is-disabled' : '' }}">
                                     <input type="checkbox" name="modules[]" value="{{ $module }}" @checked($checked) @disabled(! $allowed)>
-                                    <span class="module-card-icon"><i class="bi {{ $module === 'accounting' ? 'bi-receipt' : ($module === 'human_resources' ? 'bi-people' : ($module === 'archiving' ? 'bi-archive' : 'bi-file-earmark-text')) }}" aria-hidden="true"></i></span>
+                                    <span class="module-card-icon"><i class="bi {{ $moduleIcons[$module] ?? 'bi-grid' }}" aria-hidden="true"></i></span>
                                     <span>{{ $moduleLabels[$module] }}</span>
                                     @unless ($allowed)<i class="bi bi-lock-fill module-lock" aria-hidden="true"></i>@endunless
                                 </label>

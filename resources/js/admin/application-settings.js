@@ -2,6 +2,15 @@
     const modalElement = document.getElementById('brandingCropModal');
     const image = document.getElementById('brandingCropImage');
     const applyButton = document.getElementById('brandingCropApply');
+    const resetBrandColorsButton = document.querySelector('[data-reset-brand-colors]');
+
+    resetBrandColorsButton?.addEventListener('click', () => {
+        document.querySelectorAll('[data-brand-default-color]').forEach((input) => {
+            input.value = input.dataset.brandDefaultColor;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
 
     if (!modalElement || !image || !applyButton || typeof bootstrap === 'undefined') {
         return;

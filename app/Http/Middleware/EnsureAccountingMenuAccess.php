@@ -6,6 +6,9 @@ use App\Models\AccountingMenuPermission;
 use App\Models\Company;
 use App\Models\CompanySite;
 use App\Support\AccountingModuleNavigation;
+use App\Support\ArchivingModuleNavigation;
+use App\Support\DocumentManagementModuleNavigation;
+use App\Support\HumanResourcesModuleNavigation;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -16,15 +19,86 @@ class EnsureAccountingMenuAccess
     {
         $menuKey = AccountingModuleNavigation::keyForRequest($request);
 
-        if ($menuKey === null) {
-            return $next($request);
+        if ($menuKey !== null) {
+            return $this->handleModuleMenu(
+                $request,
+                $next,
+                $menuKey,
+                AccountingModuleNavigation::keys(),
+                fn (string $key, Company $company, CompanySite $site): ?string => AccountingModuleNavigation::urlForKey($key, $company, $site),
+                'settings',
+                'accounting_visible_menu_keys',
+                'can_manage_accounting_settings',
+            );
         }
+
+        $menuKey = HumanResourcesModuleNavigation::keyForRequest($request);
+
+        if ($menuKey !== null) {
+            return $this->handleModuleMenu(
+                $request,
+                $next,
+                $menuKey,
+                HumanResourcesModuleNavigation::keys(),
+                fn (string $key, Company $company, CompanySite $site): ?string => HumanResourcesModuleNavigation::urlForKey($key, $company, $site),
+                'hr-settings',
+                'human_resources_visible_menu_keys',
+                'can_manage_human_resources_settings',
+            );
+        }
+
+        $menuKey = DocumentManagementModuleNavigation::keyForRequest($request);
+
+        if ($menuKey === null) {
+            $menuKey = ArchivingModuleNavigation::keyForRequest($request);
+
+            if ($menuKey === null) {
+                return $next($request);
+            }
+
+            return $this->handleModuleMenu(
+                $request,
+                $next,
+                $menuKey,
+                ArchivingModuleNavigation::keys(),
+                fn (string $key, Company $company, CompanySite $site): ?string => ArchivingModuleNavigation::urlForKey($key, $company, $site),
+                'archive-settings',
+                'archiving_visible_menu_keys',
+                'can_manage_archiving_settings',
+            );
+        }
+
+        return $this->handleModuleMenu(
+            $request,
+            $next,
+            $menuKey,
+            DocumentManagementModuleNavigation::keys(),
+            fn (string $key, Company $company, CompanySite $site): ?string => DocumentManagementModuleNavigation::urlForKey($key, $company, $site),
+            'ged-settings',
+            'document_management_visible_menu_keys',
+            'can_manage_document_management_settings',
+        );
+    }
+
+    /**
+     * @param  array<int, string>  $allMenuKeys
+     */
+    private function handleModuleMenu(
+        Request $request,
+        Closure $next,
+        string $menuKey,
+        array $allMenuKeys,
+        callable $urlForKey,
+        string $settingsKey,
+        string $visibleAttribute,
+        string $manageAttribute,
+    ): Response {
 
         $user = $request->user();
         $site = $request->route('site');
         $canManageSettings = $user && ($user->isAdmin() || $user->isSuperadmin());
 
-        if ($menuKey === 'settings') {
+        if ($menuKey === $settingsKey) {
             abort_unless($canManageSettings, Response::HTTP_FORBIDDEN);
         }
 
@@ -32,12 +106,13 @@ class EnsureAccountingMenuAccess
             return $next($request);
         }
 
-        $visibleMenuKeys = AccountingModuleNavigation::keys();
+        $visibleMenuKeys = $allMenuKeys;
 
         if (! $canManageSettings) {
             $storedPermissions = AccountingMenuPermission::query()
                 ->where('company_site_id', $site->id)
                 ->where('user_id', $user->id)
+                ->whereIn('menu_key', $allMenuKeys)
                 ->get(['menu_key', 'is_allowed']);
 
             if ($storedPermissions->isNotEmpty()) {
@@ -53,11 +128,11 @@ class EnsureAccountingMenuAccess
                 }
 
                 $company = $request->route('company');
-                $fallbackKey = collect(AccountingModuleNavigation::keys())
+                $fallbackKey = collect($allMenuKeys)
                     ->first(fn (string $key): bool => in_array($key, $visibleMenuKeys, true));
 
                 if ($company instanceof Company && $fallbackKey) {
-                    $fallbackUrl = AccountingModuleNavigation::urlForKey($fallbackKey, $company, $site);
+                    $fallbackUrl = $urlForKey($fallbackKey, $company, $site);
 
                     if ($fallbackUrl) {
                         return redirect($fallbackUrl)
@@ -73,8 +148,8 @@ class EnsureAccountingMenuAccess
             }
         }
 
-        $request->attributes->set('accounting_visible_menu_keys', $visibleMenuKeys);
-        $request->attributes->set('can_manage_accounting_settings', $canManageSettings);
+        $request->attributes->set($visibleAttribute, $visibleMenuKeys);
+        $request->attributes->set($manageAttribute, $canManageSettings);
 
         return $next($request);
     }

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\AccountingActivityFeed;
 use App\Support\AppBranding;
 use Illuminate\Auth\Events\Login;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
@@ -28,6 +29,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Paginator::useBootstrapFive();
+
         config(['app.name' => AppBranding::name()]);
         View::share('appBranding', AppBranding::all());
         View::composer('main.modules.*', function ($view): void {
@@ -43,16 +46,21 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $authUser = auth()->user();
-            $cacheKey = $site->id.'-'.($authUser?->id ?: 'guest');
+            $moduleGroup = $this->notificationModuleGroup();
+            $cacheKey = $site->id.'-'.($authUser?->id ?: 'guest').'-'.($moduleGroup ?: 'none');
             $activityCache[$cacheKey] ??= [
-                'items' => AccountingActivityFeed::forSite($site, $authUser instanceof User ? $authUser : null, 10),
+                'items' => $moduleGroup
+                    ? AccountingActivityFeed::forSite($site, $authUser instanceof User ? $authUser : null, 10, $moduleGroup)
+                    : [],
                 'unread_count' => $authUser instanceof User
-                    ? AccountingActivityFeed::unreadCount($site, $authUser)
+                    ? ($moduleGroup ? AccountingActivityFeed::unreadCount($site, $authUser, $moduleGroup) : 0)
                     : 0,
+                'module_group' => $moduleGroup,
             ];
 
             $view->with('accountingNotifications', $activityCache[$cacheKey]['items']);
             $view->with('accountingUnreadNotificationsCount', $activityCache[$cacheKey]['unread_count']);
+            $view->with('notificationModuleGroup', $activityCache[$cacheKey]['module_group']);
         });
 
         Event::listen(Login::class, function (Login $event): void {
@@ -90,5 +98,30 @@ class AppServiceProvider extends ServiceProvider
         };
 
         return $browser.' on '.$platform;
+    }
+
+    private function notificationModuleGroup(): ?string
+    {
+        $routeName = request()->route()?->getName();
+
+        if (is_string($routeName) && Str::startsWith($routeName, 'main.accounting.')) {
+            return CompanySite::MODULE_ACCOUNTING;
+        }
+
+        if (is_string($routeName) && Str::startsWith($routeName, 'main.human-resources.')) {
+            return CompanySite::MODULE_HUMAN_RESOURCES;
+        }
+
+        if (is_string($routeName) && Str::startsWith($routeName, 'main.document-management.')) {
+            return CompanySite::MODULE_DOCUMENT_MANAGEMENT;
+        }
+
+        if (is_string($routeName) && Str::startsWith($routeName, 'main.archiving.')) {
+            return CompanySite::MODULE_ARCHIVING;
+        }
+
+        $module = request()->route('module');
+
+        return is_string($module) ? $module : null;
     }
 }

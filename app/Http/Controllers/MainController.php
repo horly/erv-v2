@@ -268,7 +268,7 @@ class MainController extends Controller
             'user' => $user,
             'company' => $company,
             'site' => $site,
-            'modules' => $this->availableSiteModulesForUser($user, $site),
+            'modules' => $this->sortSiteModules($this->availableSiteModulesForUser($user, $site)),
             'moduleLabels' => $this->siteModuleLabels(),
             'typeLabels' => $this->siteTypeLabels(),
             'planRules' => $this->sitePlanRules($company),
@@ -298,9 +298,14 @@ class MainController extends Controller
             return redirect()->route('main.companies.sites.show', [$company, $site]);
         }
 
-        $view = $module === CompanySite::MODULE_ACCOUNTING
-            ? 'main.modules.accounting-dashboard'
-            : 'main.modules.under-development';
+        if ($module === CompanySite::MODULE_ARCHIVING) {
+            return redirect()->route('main.archiving.dashboard', [$company, $site]);
+        }
+
+        $view = match ($module) {
+            CompanySite::MODULE_ACCOUNTING => 'main.modules.accounting.dashboard',
+            default => 'main.modules.under-development',
+        };
 
         return view($view, [
             'user' => $user,
@@ -371,7 +376,7 @@ class MainController extends Controller
             ];
         });
 
-        return view('main.modules.accounting-settings', [
+        return view('main.modules.accounting.settings', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -471,19 +476,20 @@ class MainController extends Controller
         }
 
         [$user, $moduleMeta] = $access;
-        AccountingActivityFeed::syncSite($site);
+        AccountingActivityFeed::syncSite($site, CompanySite::MODULE_ACCOUNTING);
 
         $status = $request->query('status', 'all');
         $notifications = AccountingNotification::query()
             ->with(['actor:id,name,email', 'reads' => fn ($query) => $query->where('user_id', $user->id)])
             ->where('company_site_id', $site->id)
+            ->whereIn('module_key', AccountingActivityFeed::moduleKeys(CompanySite::MODULE_ACCOUNTING))
             ->when($status === 'unread', fn ($query) => $query->whereDoesntHave('reads', fn ($readQuery) => $readQuery->where('user_id', $user->id)->whereNotNull('read_at')))
             ->latest('occurred_at')
             ->latest('id')
             ->paginate(12)
             ->withQueryString();
 
-        return view('main.modules.accounting-notifications', [
+        return view('main.modules.accounting.notifications', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -505,6 +511,7 @@ class MainController extends Controller
         [$user, $moduleMeta] = $access;
 
         abort_unless((int) $notification->company_site_id === (int) $site->id, Response::HTTP_NOT_FOUND);
+        abort_unless(in_array($notification->module_key, AccountingActivityFeed::moduleKeys(CompanySite::MODULE_ACCOUNTING), true), Response::HTTP_NOT_FOUND);
 
         $notification->load(['actor:id,name,email', 'reads' => fn ($query) => $query->where('user_id', $user->id)]);
         $notification->markReadBy($user);
@@ -512,7 +519,7 @@ class MainController extends Controller
             ? AccountingModuleNavigation::urlForKey($notification->module_key, $company, $site)
             : null;
 
-        return view('main.modules.accounting-notification-show', [
+        return view('main.modules.accounting.notification-show', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -535,7 +542,7 @@ class MainController extends Controller
 
         [$user, $moduleMeta] = $access;
 
-        return view('main.modules.accounting-clients', [
+        return view('main.modules.accounting.clients', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -681,7 +688,7 @@ class MainController extends Controller
 
         [$user, $moduleMeta] = $access;
 
-        return view('main.modules.accounting-suppliers', [
+        return view('main.modules.accounting.suppliers', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -849,7 +856,7 @@ class MainController extends Controller
             ->groupBy('company_site_id', 'type', 'name', 'phone', 'email', 'address', 'currency')
             ->latest('updated_at');
 
-        return view('main.modules.accounting-creditors', [
+        return view('main.modules.accounting.creditors', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -988,7 +995,7 @@ class MainController extends Controller
             ->groupBy('company_site_id', 'type', 'name', 'phone', 'email', 'address', 'currency')
             ->latest('updated_at');
 
-        return view('main.modules.accounting-debtors', [
+        return view('main.modules.accounting.debtors', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -1087,7 +1094,7 @@ class MainController extends Controller
 
         [$user, $moduleMeta] = $access;
 
-        return view('main.modules.accounting-partners', [
+        return view('main.modules.accounting.partners', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -1204,7 +1211,7 @@ class MainController extends Controller
 
         [$user, $moduleMeta] = $access;
 
-        return view('main.modules.accounting-sales-representatives', [
+        return view('main.modules.accounting.sales-representatives', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -1340,7 +1347,7 @@ class MainController extends Controller
             ->paginate(5)
             ->withQueryString();
 
-        return view('main.modules.accounting-stock-resource', [
+        return view('main.modules.accounting.stock-resource', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -1482,7 +1489,7 @@ class MainController extends Controller
             $recordsQuery->orderByDesc('is_default');
         }
 
-        return view('main.modules.accounting-service-resource', [
+        return view('main.modules.accounting.service-resource', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -1599,7 +1606,7 @@ class MainController extends Controller
         [$user, $moduleMeta] = $access;
         $this->ensureDefaultAccountingCurrencyRecord($site);
 
-        return view('main.modules.accounting-currencies', [
+        return view('main.modules.accounting.currencies', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -1725,7 +1732,7 @@ class MainController extends Controller
         $this->ensureDefaultAccountingCurrencyRecord($site);
         $this->ensureDefaultAccountingPaymentMethodRecord($site);
 
-        return view('main.modules.accounting-payment-methods', [
+        return view('main.modules.accounting.payment-methods', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -1925,7 +1932,7 @@ class MainController extends Controller
         [$user, $moduleMeta] = $access;
         $this->ensureDefaultAccountingTaxRecords($site, $company);
 
-        return view('main.modules.accounting-taxes', [
+        return view('main.modules.accounting.taxes', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -2134,7 +2141,7 @@ class MainController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('main.modules.accounting-treasury', [
+        return view('main.modules.accounting.treasury', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -2257,7 +2264,7 @@ class MainController extends Controller
             }
         }
 
-        return view('main.modules.accounting-bank-reconciliations', [
+        return view('main.modules.accounting.bank-reconciliations', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -2635,7 +2642,7 @@ class MainController extends Controller
         $this->refreshAccountingBankReconciliationTotals($reconciliation);
         $reconciliation->refresh()->load(['paymentMethod', 'creator', 'closer', 'lines.matches.treasuryMovement']);
 
-        return Pdf::loadView('main.modules.accounting-bank-reconciliation-report', [
+        return Pdf::loadView('main.modules.accounting.bank-reconciliation-report', [
             'user' => $user,
             'company' => $company,
             'site' => $site,
@@ -2764,7 +2771,7 @@ class MainController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
-        return view('main.modules.accounting-payment-reminders', [
+        return view('main.modules.accounting.payment-reminders', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -2984,7 +2991,7 @@ class MainController extends Controller
         $this->ensureAccountingPaymentReminderBelongsToSite($site, $reminder);
         $reminder->load(['client', 'salesInvoice.client', 'debtor', 'creator']);
 
-        return Pdf::loadView('main.modules.accounting-payment-reminder-letter', [
+        return Pdf::loadView('main.modules.accounting.payment-reminder-letter', [
             'user' => $user,
             'company' => $company,
             'site' => $site,
@@ -3052,7 +3059,7 @@ class MainController extends Controller
             $task->setAttribute('document_url', $this->accountingTaskDocumentUrl($task, $company, $site));
         });
 
-        return view('main.modules.accounting-tasks', [
+        return view('main.modules.accounting.tasks', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -3215,7 +3222,7 @@ class MainController extends Controller
         $this->refreshOverdueSalesInvoices($site);
         $this->refreshOverdueAccountingPurchases($site);
 
-        return view('main.modules.accounting-reports', array_merge([
+        return view('main.modules.accounting.reports', array_merge([
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -3237,7 +3244,7 @@ class MainController extends Controller
         $this->refreshOverdueSalesInvoices($site);
         $this->refreshOverdueAccountingPurchases($site);
 
-        return Pdf::loadView('main.modules.accounting-report-print', array_merge([
+        return Pdf::loadView('main.modules.accounting.report-print', array_merge([
             'user' => $user,
             'company' => $company,
             'site' => $site,
@@ -3688,7 +3695,7 @@ class MainController extends Controller
                 $this->relationTableSearch('supplier', ['reference', 'name', 'email', 'phone', 'address']),
             ]));
 
-        return view('main.modules.accounting-purchase-orders', [
+        return view('main.modules.accounting.purchase-orders', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -3720,7 +3727,7 @@ class MainController extends Controller
         $this->ensureDefaultAccountingCurrencyRecord($site);
         $this->ensureDefaultAccountingStockRecords($site);
 
-        return view('main.modules.accounting-purchase-order-create', [
+        return view('main.modules.accounting.purchase-order-create', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -3764,7 +3771,7 @@ class MainController extends Controller
         $this->ensureDefaultAccountingCurrencyRecord($site);
         $this->ensureDefaultAccountingStockRecords($site);
 
-        return view('main.modules.accounting-purchase-order-create', [
+        return view('main.modules.accounting.purchase-order-create', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -3945,7 +3952,7 @@ class MainController extends Controller
         $purchaseOrder->load(['supplier', 'creator', 'lines.item.unit', 'lines.service.unit']);
         $purchaseOrderUrl = route('main.accounting.purchase-orders.print', [$company, $site, $purchaseOrder]);
 
-        return Pdf::loadView('main.modules.accounting-purchase-order-print', [
+        return Pdf::loadView('main.modules.accounting.purchase-order-print', [
             'user' => $user,
             'company' => $company->load(['subscription', 'accounts']),
             'site' => $site->load('responsible'),
@@ -3998,7 +4005,7 @@ class MainController extends Controller
 
         $this->ensureDefaultAccountingCurrencyRecord($site);
 
-        return view('main.modules.accounting-proforma-invoices', [
+        return view('main.modules.accounting.proforma-invoices', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -4051,7 +4058,7 @@ class MainController extends Controller
 
         $this->ensureDefaultAccountingCurrencyRecord($site);
 
-        return view('main.modules.accounting-proforma-invoice-create', [
+        return view('main.modules.accounting.proforma-invoice-create', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -4150,7 +4157,7 @@ class MainController extends Controller
 
         $this->ensureDefaultAccountingCurrencyRecord($site);
 
-        return view('main.modules.accounting-proforma-invoice-create', [
+        return view('main.modules.accounting.proforma-invoice-create', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -4265,7 +4272,7 @@ class MainController extends Controller
         $filename = 'facture-proforma-'.$proforma->reference.'.pdf';
         $proformaUrl = route('main.accounting.proforma-invoices.print', [$company, $site, $proforma], true);
 
-        return Pdf::loadView('main.modules.accounting-proforma-invoice-print', [
+        return Pdf::loadView('main.modules.accounting.proforma-invoice-print', [
             'user' => $user,
             'company' => $company->load(['subscription', 'accounts']),
             'site' => $site->load('responsible'),
@@ -4410,7 +4417,7 @@ class MainController extends Controller
 
         $this->ensureDefaultAccountingCurrencyRecord($site);
 
-        return view('main.modules.accounting-customer-orders', [
+        return view('main.modules.accounting.customer-orders', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -4457,7 +4464,7 @@ class MainController extends Controller
 
         $this->ensureDefaultAccountingCurrencyRecord($site);
 
-        return view('main.modules.accounting-customer-order-create', [
+        return view('main.modules.accounting.customer-order-create', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -4494,7 +4501,7 @@ class MainController extends Controller
 
         $this->ensureDefaultAccountingCurrencyRecord($site);
 
-        return view('main.modules.accounting-customer-order-create', [
+        return view('main.modules.accounting.customer-order-create', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -4609,7 +4616,7 @@ class MainController extends Controller
 
         [$user, $moduleMeta] = $access;
 
-        return view('main.modules.accounting-delivery-notes', [
+        return view('main.modules.accounting.delivery-notes', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -4677,7 +4684,7 @@ class MainController extends Controller
                 ->with('toast_type', 'danger');
         }
 
-        return view('main.modules.accounting-delivery-note-create', [
+        return view('main.modules.accounting.delivery-note-create', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -4774,7 +4781,7 @@ class MainController extends Controller
         $filename = 'bon-livraison-'.$deliveryNote->reference.'.pdf';
         $deliveryNoteUrl = route('main.accounting.delivery-notes.print', [$company, $site, $deliveryNote], true);
 
-        return Pdf::loadView('main.modules.accounting-delivery-note-print', [
+        return Pdf::loadView('main.modules.accounting.delivery-note-print', [
             'user' => $user,
             'company' => $company->load(['subscription', 'accounts']),
             'site' => $site->load('responsible'),
@@ -4828,7 +4835,7 @@ class MainController extends Controller
         $this->ensureDefaultAccountingCurrencyRecord($site);
         $this->refreshOverdueSalesInvoices($site);
 
-        return view('main.modules.accounting-sales-invoices', [
+        return view('main.modules.accounting.sales-invoices', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -4873,7 +4880,7 @@ class MainController extends Controller
 
         [$user, $moduleMeta] = $access;
 
-        return view('main.modules.accounting-credit-notes', [
+        return view('main.modules.accounting.credit-notes', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -4980,7 +4987,7 @@ class MainController extends Controller
             ->distinct('sales_invoice_id')
             ->count('sales_invoice_id');
 
-        return view('main.modules.accounting-receipts', [
+        return view('main.modules.accounting.receipts', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -5073,7 +5080,7 @@ class MainController extends Controller
             ->paginate(5)
             ->withQueryString();
 
-        return view('main.modules.accounting-other-incomes', [
+        return view('main.modules.accounting.other-incomes', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -5245,7 +5252,7 @@ class MainController extends Controller
             ->paginate(5)
             ->withQueryString();
 
-        return view('main.modules.accounting-expenses', [
+        return view('main.modules.accounting.expenses', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -5477,7 +5484,7 @@ class MainController extends Controller
             ->filter(fn (array $row) => filled($row['due_date']) && $row['due_date'] < now()->toDateString() && (float) $row['balance'] > 0)
             ->sum('balance');
 
-        return view('main.modules.accounting-debts', [
+        return view('main.modules.accounting.debts', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -5779,7 +5786,7 @@ class MainController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
-        return view('main.modules.accounting-receivables', [
+        return view('main.modules.accounting.receivables', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -6029,7 +6036,7 @@ class MainController extends Controller
             ->paginate(5)
             ->withQueryString();
 
-        return view('main.modules.accounting-purchases', [
+        return view('main.modules.accounting.purchases', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -6076,7 +6083,7 @@ class MainController extends Controller
         $this->ensureDefaultAccountingCurrencyRecord($site);
         $this->ensureDefaultAccountingStockRecords($site);
 
-        return view('main.modules.accounting-purchase-create', [
+        return view('main.modules.accounting.purchase-create', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -6117,7 +6124,7 @@ class MainController extends Controller
         $this->ensureDefaultAccountingCurrencyRecord($site);
         $this->ensureDefaultAccountingStockRecords($site);
 
-        return view('main.modules.accounting-purchase-create', [
+        return view('main.modules.accounting.purchase-create', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -6375,7 +6382,7 @@ class MainController extends Controller
         $todaySales = (float) (clone $query)->whereDate('invoice_date', $today)->sum('total_ttc');
         $ticketsCount = (int) (clone $query)->count();
 
-        return view('main.modules.accounting-cash-register', [
+        return view('main.modules.accounting.cash-register', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -6553,7 +6560,7 @@ class MainController extends Controller
 
         $filename = 'rapport-caisse-'.$session->reference.'.pdf';
 
-        return Pdf::loadView('main.modules.accounting-cash-register-session-report', [
+        return Pdf::loadView('main.modules.accounting.cash-register-session-report', [
             'user' => $user,
             'company' => $company->load(['subscription', 'accounts']),
             'site' => $site->load('responsible'),
@@ -6715,7 +6722,7 @@ class MainController extends Controller
         $this->ensureDefaultAccountingCurrencyRecord($site);
         $this->ensureDefaultAccountingStockRecords($site);
 
-        return view('main.modules.accounting-sales-invoice-create', [
+        return view('main.modules.accounting.sales-invoice-create', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -6761,7 +6768,7 @@ class MainController extends Controller
         $this->ensureDefaultAccountingCurrencyRecord($site);
         $this->ensureDefaultAccountingStockRecords($site);
 
-        return view('main.modules.accounting-sales-invoice-create', [
+        return view('main.modules.accounting.sales-invoice-create', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -6878,7 +6885,7 @@ class MainController extends Controller
         $filename = 'facture-vente-'.$invoice->reference.'.pdf';
         $invoiceUrl = route('main.accounting.sales-invoices.print', [$company, $site, $invoice], true);
 
-        return Pdf::loadView('main.modules.accounting-sales-invoice-print', [
+        return Pdf::loadView('main.modules.accounting.sales-invoice-print', [
             'user' => $user,
             'company' => $company->load(['subscription', 'accounts']),
             'site' => $site->load('responsible'),
@@ -7015,7 +7022,7 @@ class MainController extends Controller
         $this->refreshSalesInvoicePaymentStatus($invoice);
         $invoice->refresh()->load(['client', 'lines.item.unit', 'lines.service.unit', 'creditNotes.lines']);
 
-        return view('main.modules.accounting-credit-note-create', [
+        return view('main.modules.accounting.credit-note-create', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -7132,7 +7139,7 @@ class MainController extends Controller
         $filename = 'avoir-'.$creditNote->reference.'.pdf';
         $creditNoteUrl = route('main.accounting.credit-notes.print', [$company, $site, $creditNote], true);
 
-        return Pdf::loadView('main.modules.accounting-credit-note-print', [
+        return Pdf::loadView('main.modules.accounting.credit-note-print', [
             'user' => $user,
             'company' => $company->load(['subscription', 'accounts']),
             'site' => $site->load('responsible'),
@@ -7188,7 +7195,7 @@ class MainController extends Controller
 
         [$user, $moduleMeta] = $access;
 
-        return view('main.modules.accounting-prospects', [
+        return view('main.modules.accounting.prospects', [
             'user' => $user,
             'company' => $company->load('subscription'),
             'site' => $site->load('responsible'),
@@ -9480,8 +9487,9 @@ class MainController extends Controller
         return [
             CompanySite::MODULE_ACCOUNTING => __('main.module_accounting'),
             CompanySite::MODULE_HUMAN_RESOURCES => __('main.module_human_resources'),
-            CompanySite::MODULE_ARCHIVING => __('main.module_archiving'),
             CompanySite::MODULE_DOCUMENT_MANAGEMENT => __('main.module_document_management'),
+            CompanySite::MODULE_ARCHIVING => __('main.module_archiving'),
+            CompanySite::MODULE_GMAO => __('main.module_gmao'),
         ];
     }
 
@@ -9502,13 +9510,6 @@ class MainController extends Controller
                 'tone' => 'violet',
                 'class' => 'module-human-resources',
             ],
-            CompanySite::MODULE_ARCHIVING => [
-                'label' => __('main.module_archiving'),
-                'description' => __('main.module_archiving_description'),
-                'icon' => 'bi-archive',
-                'tone' => 'amber',
-                'class' => 'module-archiving',
-            ],
             CompanySite::MODULE_DOCUMENT_MANAGEMENT => [
                 'label' => __('main.module_document_management'),
                 'description' => __('main.module_document_management_description'),
@@ -9516,7 +9517,32 @@ class MainController extends Controller
                 'tone' => 'green',
                 'class' => 'module-document-management',
             ],
+            CompanySite::MODULE_ARCHIVING => [
+                'label' => __('main.module_archiving'),
+                'description' => __('main.module_archiving_description'),
+                'icon' => 'bi-archive',
+                'tone' => 'amber',
+                'class' => 'module-archiving',
+            ],
+            CompanySite::MODULE_GMAO => [
+                'label' => __('main.module_gmao'),
+                'description' => __('main.module_gmao_description'),
+                'icon' => 'bi-tools',
+                'tone' => 'cyan',
+                'class' => 'module-gmao',
+            ],
         ];
+    }
+
+    private function sortSiteModules(array $modules): array
+    {
+        $orderedModules = CompanySite::modules();
+
+        return collect($modules)
+            ->unique()
+            ->sortBy(fn (string $module): int => array_search($module, $orderedModules, true) === false ? 999 : array_search($module, $orderedModules, true))
+            ->values()
+            ->all();
     }
 
     private function accountingProspectSourceLabels(): array

@@ -204,6 +204,7 @@ return [
     'sidebar_color' => 'Sidebar start',
     'sidebar_secondary_color' => 'Sidebar end',
     'application_colors_help' => 'These colors customize buttons, active links, charts and the sidebar across the application.',
+    'restore_default_colors' => 'Restore default colors',
     'support_information' => 'Support information',
     'support_email' => 'Support email',
     'support_phone' => 'Support phone',

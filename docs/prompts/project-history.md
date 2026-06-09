@@ -11503,3 +11503,3398 @@ Vérification :
 - `php -l app/Support/AppBranding.php` passe.
 - `php artisan optimize:clear` passe.
 - `php artisan view:cache` passe.
+
+### 2026-05-27 - Restauration des couleurs par défaut
+
+Prompt utilisateur :
+
+```text
+dans la palette des couleurs donne la possibilité de restaurer la couleur par défaut
+```
+
+Correction appliquée :
+
+- Ajout d'un bouton `Restaurer les couleurs par défaut` dans la section couleurs de la personnalisation super admin.
+- Les champs couleur portent maintenant leur valeur par défaut via `data-brand-default-color`.
+- Ajout du JS qui remet instantanément tous les sélecteurs couleur aux valeurs par défaut avant enregistrement.
+- Ajout des traductions FR/EN et du style responsive du bouton.
+
+Fichiers modifiés :
+
+- `resources/views/admin/application-settings.blade.php`
+- `resources/js/admin/application-settings.js`
+- `resources/css/admin/dashboard.css`
+- `lang/fr/admin.php`
+- `lang/en/admin.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/admin/application-settings.js` passe.
+- `php -l lang/fr/admin.php` passe.
+- `php -l lang/en/admin.php` passe.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+
+### 2026-05-27 - Lien entreprise vers ses sites côté super admin
+
+Prompt utilisateur :
+
+```text
+dans entreprise chez le superadmin le nom de l'entreprise doit etre cliquable lorsque le superadmin clique, il sera redirigé vers les sites de l'entreprise en question
+```
+
+Correction appliquée :
+
+- Le nom de l'entreprise dans la liste super admin des entreprises est maintenant un lien.
+- Le lien redirige vers `main.companies.sites` pour afficher les sites de l'entreprise sélectionnée.
+
+Fichiers modifiés :
+
+- `resources/views/admin/companies.blade.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=main.companies.sites` confirme la route cible.
+
+### 2026-05-27 - Lien tableau de bord superadmin dans le menu profil
+
+Prompt utilisateur :
+
+```text
+ajoute un lien avant profil uniquement pour le superadmin lui permettant d'afficher son tableau de bord
+```
+
+Correction appliquée :
+
+- Ajout d'un lien `Tableau de bord` avant `Profil` dans les menus profil.
+- Le lien est affiché uniquement lorsque l'utilisateur connecté est superadmin.
+- Le lien redirige vers `admin.dashboard`.
+
+Fichiers modifiés :
+
+- Menus profil des vues `admin`, `main`, `profile` et du partial comptable.
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=admin.dashboard` confirme la route cible.
+
+### 2026-05-27 - Suppression bande blanche au-dessus de la sidebar superadmin
+
+Prompt utilisateur :
+
+```text
+dans le dashboard du superadmin il y une ligne blanche au dessus du side barre il faut supprimer ça
+```
+
+Correction appliquée :
+
+- Verrouillage du layout superadmin en supprimant les marges/paddings potentiels sur `html`, `body`, `.dashboard-shell` et `.dashboard-sidebar`.
+- La sidebar doit maintenant commencer directement en haut du viewport.
+
+Fichiers modifiés :
+
+- `resources/css/admin/dashboard.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+
+### 2026-05-27 - Correction UTF-8 globale superadmin
+
+Prompt utilisateur :
+
+```text
+on a toujours ce problème de formatage UTF8 sur toutes les pages du superadmin
+```
+
+Correction appliquée :
+
+- Réparation complète du fichier `lang/fr/admin.php`.
+- Conversion des séquences mojibake restantes (`Ã©`, `â€™`, `Â·`, etc.) en caractères UTF-8 corrects.
+- Les pages superadmin récupèrent maintenant des libellés propres pour les menus, boutons, formulaires, validations et messages.
+
+Fichiers modifiés :
+
+- `lang/fr/admin.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- Scan `Select-String` sur `Ã`, `Â`, `â`, `�` sans résultat.
+- `php -l lang/fr/admin.php` passe.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+
+### 2026-05-27 - Correction finale sidebar superadmin et bande blanche
+
+Prompt utilisateur :
+
+```text
+le probleme de la ligne blache est toujours présente sur le tableau de bord du superadmin et le probleme de formatage utf8 est toujours présente sur la side barre
+```
+
+Correction appliquée :
+
+- Correction des caractères mojibake hardcodés dans les vues superadmin et profil (`Â·`, `â€”`).
+- Le footer de sidebar affiche maintenant `EXAD ERP · v.2.0` correctement.
+- Le layout superadmin est fixé au viewport via `.dashboard-shell { position: fixed; inset: 0; }`, avec le scroll déplacé dans le shell, pour supprimer l'espace blanc parasite au-dessus de la sidebar.
+
+Fichiers modifiés :
+
+- `resources/css/admin/dashboard.css`
+- `resources/views/admin/*.blade.php`
+- `resources/views/profile/edit.blade.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- Scan `Select-String` sur les vues superadmin/profil pour `Ã`, `Â`, `â`, `�` sans résultat.
+- `php artisan optimize:clear` passe.
+- `php artisan view:cache` passe.
+
+### 2026-05-27 - Démarrage du module Ressources Humaines par le tableau de bord
+
+Prompt utilisateur :
+
+```text
+applique ton idée mais normalement tu dois d'abord commencer par le tableau de bord
+```
+
+Implémentation appliquée :
+
+- Le module `human_resources` ne renvoie plus vers la page générique “module en développement”.
+- Ajout d’un tableau de bord RH dédié avec sidebar, topbar, indicateurs et widgets.
+- Les premiers indicateurs utilisent les données existantes : collaborateurs affectés au site, utilisateurs ayant accès au module RH, connexions du mois, complétude de base des profils.
+- Ajout de panneaux pour le répertoire actuel, le responsable du site, l’activité récente et les prochaines fondations RH.
+- Ajout des libellés français/anglais nécessaires et des styles responsive/dark-mode du dashboard RH.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/human-resources-dashboard.blade.php`
+- `resources/views/main/modules/partials/human-resources-sidebar.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php artisan route:list --name=main.companies.sites.modules.show` confirme la route générique du module.
+- `php artisan view:cache` passe.
+
+### 2026-05-27 - Connexion du dashboard RH aux vraies tables et seeders
+
+Prompt utilisateur :
+
+```text
+j'ai aimé le design mais applique avec les vrais tables et les seeders
+```
+
+Implémentation appliquée :
+
+- Ajout du socle de tables RH :
+  - `human_resource_departments`
+  - `human_resource_employees`
+  - `human_resource_contracts`
+  - `human_resource_leave_requests`
+  - `human_resource_attendances`
+- Ajout des modèles Eloquent RH et des relations depuis `CompanySite`.
+- Ajout du seeder `HumanResourcesSeeder`, appelé par `DatabaseSeeder`.
+- Le dashboard RH lit maintenant les vraies données RH : employés actifs, départements, congés en attente, contrats actifs, masse salariale, présences du jour, demandes récentes.
+- Le seeder crée des départements, employés, contrats, présences et une demande de congé initiale pour les sites ayant le module RH.
+- Sur une base fraîche sans site RH, le seeder prépare un site de démonstration compatible RH.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/MainController.php`
+- `app/Models/CompanySite.php`
+- `app/Models/HumanResourceDepartment.php`
+- `app/Models/HumanResourceEmployee.php`
+- `app/Models/HumanResourceContract.php`
+- `app/Models/HumanResourceLeaveRequest.php`
+- `app/Models/HumanResourceAttendance.php`
+- `database/migrations/2026_05_27_000001_create_human_resources_tables.php`
+- `database/seeders/DatabaseSeeder.php`
+- `database/seeders/HumanResourcesSeeder.php`
+- `resources/views/main/modules/human-resources-dashboard.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan migrate --force` passe.
+- `php artisan db:seed --class=HumanResourcesSeeder --force` passe.
+- Le site RH local vérifié contient 3 départements et 4 employés RH.
+- `php artisan view:cache` passe.
+
+### 2026-05-27 - Organisation du module RH en contrôleur et dossier de vues
+
+Prompt utilisateur :
+
+```text
+le tableau de bord  doit etre scrollable mais pour les view du RH tu dois organiser mettre dans un dossier et créer un controller pour le RH
+```
+
+Implémentation appliquée :
+
+- Création du contrôleur dédié `HumanResourcesController`.
+- Déplacement de la logique du dashboard RH hors de `MainController`.
+- Ajout de la route dédiée `main.human-resources.dashboard`.
+- Organisation des vues RH dans `resources/views/main/modules/human-resources/`.
+- Déplacement de la sidebar RH dans `resources/views/main/modules/human-resources/partials/sidebar.blade.php`.
+- Mise à jour du lien d’ouverture du module RH depuis la page site.
+- Le dashboard RH utilise maintenant un scroll vertical sur la zone principale, avec sidebar conservée.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/HumanResourcesController.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/human-resources/dashboard.blade.php`
+- `resources/views/main/modules/human-resources/partials/sidebar.blade.php`
+- `resources/views/main/company-site-show.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php artisan route:list --name=human-resources` confirme la route dédiée.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+
+### 2026-05-27 - Gestion admin des présences RH, import tableur et rapports
+
+Prompt utilisateur :
+
+```text
+applique ça
+```
+
+Contexte :
+
+- L’utilisateur a validé que les présences doivent être remplies par l’admin/RH, pas par l’employé.
+- Demande ajoutée : import par fichier Excel/tableur et génération de rapports aujourd’hui/semaine/mois/année/période.
+
+Implémentation appliquée :
+
+- La page `Présences` devient une vraie page métier dédiée.
+- Ajout manuel des présences via modale.
+- Modification et suppression des présences existantes.
+- Import de présences via fichier tableur :
+  - CSV/TXT supportés.
+  - XLSX simple supporté si l’extension PHP `ZipArchive` est disponible.
+  - Colonnes acceptées : `matricule`, `date`, `arrivee`, `depart`, `statut`, `heures`, `note`.
+- Mise à jour automatique d’une présence existante si le même employé a déjà une ligne pour la même date.
+- Rapport filtrable :
+  - aujourd’hui
+  - cette semaine
+  - ce mois
+  - cette année
+  - période personnalisée
+- Le rapport affiche : présents, retards, absents, congés et total des heures travaillées.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/HumanResourcesController.php`
+- `resources/views/main/modules/human-resources/attendance.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:list --path=human_resources/attendance` affiche les 5 routes attendues.
+- `php artisan route:cache` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+
+### 2026-05-27 - Espacement global icône/titre des modales
+
+Prompt utilisateur :
+
+```text
+sur les modales toujours laisser d'espace entre le titre et l'icone merci
+```
+
+Correction appliquée :
+
+- Ajout d’un style global sur les titres des modales `subscription-modal`.
+- Les titres de modales sont maintenant en `inline-flex` avec un espacement constant entre l’icône et le texte.
+- Suppression de la règle spécifique devenue inutile pour la modale département RH.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-09 - Affichage des documents archivés en cartes avec aperçu
+
+Prompt utilisateur :
+
+```text
+dans document au lieu d'utiliser le tableaux pourquoi pas afficher des cards toujours avec paginnation t possibilité d'avoir un aperçu du fichier
+```
+
+Correction appliquée :
+
+- Remplacement du tableau des documents archivés par une grille de cartes paginées.
+- Conservation de la pagination existante à 5 documents par page.
+- Ajout d’un aperçu de fichier pour les PDF et les images.
+- Ajout d’un bouton d’ouverture du fichier dans un nouvel onglet.
+- Ajout d’un état clair quand aucun fichier n’est joint.
+- Ajout des libellés FR/EN et du style clair/sombre des cartes.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/archiving/records.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l resources/views/main/modules/archiving/records.blade.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-09 - Corrections contrôlées des documents archivés
+
+Prompt utilisateur :
+
+```text
+applique tous ce qu'on vient de dire
+```
+
+Règles appliquées :
+
+- Un document archivé peut être corrigé, mais avec traçabilité.
+- Les métadonnées modifiables sont : titre, type, catégorie, service propriétaire, dates, confidentialité, statut et description.
+- Le classeur et la boîte ne se modifient pas depuis la fiche document : une correction d’emplacement doit passer par un mouvement d’archive.
+- Si aucun fichier n’est encore joint, l’utilisateur peut joindre le fichier officiel.
+- Si un fichier existe déjà, le remplacement est possible uniquement avec un motif obligatoire.
+- L’ancien fichier n’est pas supprimé : il est conservé dans l’historique de remplacement.
+- Formats acceptés : PDF, Word, Excel, CSV, TXT, JPG et PNG, avec une limite de 20 Mo.
+- Ajout du statut “Archivé par erreur” pour neutraliser un document archivé par erreur sans suppression directe.
+- Les actions créent des notifications et des traces Archivage.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/ArchivingController.php`
+- `app/Models/ArchiveRecord.php`
+- `app/Support/AccountingActivityFeed.php`
+- `resources/views/main/modules/archiving/records.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `database/migrations/2026_06_09_000004_create_archive_record_file_revisions.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l` passe sur le contrôleur, le modèle, le support de notifications, la migration et les fichiers de langue.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan migrate` a créé `archive_record_file_revisions`.
+- `php artisan route:list --path=archiving/records` affiche 5 routes.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-09 - Refonte visuelle des cartes Documents archivés
+
+Prompt utilisateur :
+
+```text
+les cards sont grand et non professionnel ni moderne je vais un truc qui reflete vraiment les archives
+```
+
+Correction appliquée :
+
+- Refonte des cartes de documents archivés avec une présentation plus compacte et documentaire.
+- Ajout d’une tranche latérale visuelle de type fiche d’archive.
+- Mise en avant de la référence du document dans un badge discret.
+- Réduction de la hauteur des cartes et suppression des gros blocs de métadonnées.
+- Affichage du chemin physique dans une bande dédiée.
+- Actions converties en boutons icônes avec `title` et `aria-label`.
+- Ajustement du rendu mobile et du mode sombre.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/archiving/records.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l resources/views/main/modules/archiving/records.blade.php` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-09 - Espacement du bouton du modal d’aperçu Archive
+
+Prompt utilisateur :
+
+```text
+pourquoi le bouton du modal est toujours collé ?
+```
+
+Correction appliquée :
+
+- Le padding des actions de modal Archivage ne s’applique plus seulement aux modales contenant un formulaire.
+- Le modal d’aperçu de fichier reçoit maintenant le même espacement bas/droite que les autres modales.
+- Ajout d’un espacement supérieur spécifique pour séparer le bouton de la zone d’aperçu.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur `resources/css/main.css`.
+
+### 2026-06-09 - Ajout de 4 rayons dans Salle 2
+
+Prompt utilisateur :
+
+```text
+ajoute 4 rayons dans la salle 2
+```
+
+Contexte :
+
+- La salle concernée est `SAL-000002`, nommée `Salle 2`.
+- Sa capacité est de `100` unités.
+- Elle avait déjà `20` unités utilisées par un rayon existant.
+
+Action appliquée :
+
+- Ajout de 4 rayons rattachés à `Salle 2` :
+  - `Rayon Salle 2 - A`, code `S2-A`, capacité `20` unités.
+  - `Rayon Salle 2 - B`, code `S2-B`, capacité `20` unités.
+  - `Rayon Salle 2 - C`, code `S2-C`, capacité `20` unités.
+  - `Rayon Salle 2 - D`, code `S2-D`, capacité `20` unités.
+
+Règle respectée :
+
+- Capacité existante utilisée : `20`.
+- Capacité ajoutée : `80`.
+- Total utilisé après ajout : `100 / 100`.
+- Aucun dépassement de capacité parent n’a été autorisé.
+
+Vérification :
+
+- Le script Laravel d’insertion a retourné les nouveaux rayons `RAY-000005` à `RAY-000008`.
+- Le fichier temporaire d’insertion a été supprimé après exécution.
+
+### 2026-06-09 - Notifications isolées par module
+
+Prompt utilisateur :
+
+```text
+stp chaque module doit avoir ses propres notifications concernant seulement le module je t'avais déjà dit ça
+```
+
+Problème constaté :
+
+- Le dropdown de notifications était filtré par module, mais le service central ne connaissait réellement que Comptabilité et Ressources Humaines.
+- Les routes Archivage et GED n’étaient pas reconnues par la détection du module courant.
+- Résultat : Archivage affichait `Aucune activité récente` alors que des activités existaient dans la traçabilité.
+
+Correction appliquée :
+
+- Ajout de la détection des routes :
+  - `main.document-management.*` vers le module GED.
+  - `main.archiving.*` vers le module Archivage.
+- Ajout des clés de notification propres à GED et Archivage.
+- Connexion du flux GED à `document_management_activities`.
+- Connexion du flux Archivage à `archive_activities`.
+- Ajout des routes et pages de consultation :
+  - liste des notifications Archivage,
+  - détail d’une notification Archivage,
+  - liste des notifications GED,
+  - détail d’une notification GED.
+- Le composant header sait maintenant ouvrir les pages de notifications propres à chaque module.
+- Le détail d’une notification marque la notification comme consultée pour l’utilisateur connecté.
+
+Règle métier confirmée :
+
+- Comptabilité affiche seulement les notifications Comptabilité.
+- RH affiche seulement les notifications RH.
+- GED affiche seulement les notifications GED.
+- Archivage affiche seulement les notifications Archivage.
+
+Vérification :
+
+- `php -l` passe sur les contrôleurs, le support de notifications, les routes et les fichiers de langue.
+- `php artisan view:cache` passe.
+- `php artisan route:list --path=notifications` affiche 8 routes.
+- `php artisan route:cache` passe.
+- Vérification Laravel du flux :
+  - Comptabilité : 10 notifications.
+  - RH : 10 notifications.
+  - GED : 10 notifications.
+  - Archivage : 6 notifications.
+
+### 2026-06-09 - Modification et suppression contrôlées des classeurs Archivage
+
+Prompt utilisateur :
+
+```text
+applique la regles de modificaation et suppression dansclasseurs aussi
+```
+
+Correction appliquée :
+
+- Ajout des routes `PUT` et `DELETE` pour les classeurs d’archive.
+- Ajout des actions `updateContainer` et `destroyContainer`.
+- Ajout des boutons modifier/supprimer dans le tableau des classeurs.
+- La modale Classeurs passe maintenant en mode création ou modification.
+- En modification, la boîte physique parent du classeur est verrouillée :
+  - on peut corriger le titre, la catégorie, le service, la période, la confidentialité, la capacité, le statut et la description ;
+  - on ne peut pas changer la boîte parent depuis cette modale ;
+  - le déplacement physique doit passer par la page Mouvements.
+- La suppression est bloquée si le classeur contient déjà des documents.
+- La capacité d’un classeur ne peut pas être réduite sous le nombre de documents déjà classés.
+- Les activités `container_updated` et `container_deleted` sont rattachées aux notifications Archivage.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/ArchivingController.php`
+- `app/Support/AccountingActivityFeed.php`
+- `resources/views/main/modules/archiving/containers.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l` passe sur le contrôleur Archivage, les routes, le support de notifications et les langues.
+- `php artisan view:cache` passe.
+- `php artisan route:list --path=archiving/containers` affiche les 4 routes attendues.
+- `php artisan route:cache` passe.
+
+### 2026-06-09 - Regroupement des vues Comptabilité et Facturation
+
+Prompt utilisateur :
+
+```text
+j'aime pas la manière dont tu as structuré les vues pour le module facturation et comptabilité, les vues cette mudule doivent etre dans un meme dossier comme tu l'as fais dans les autres modules
+```
+
+Correction appliquée :
+
+- Création du dossier `resources/views/main/modules/accounting`.
+- Déplacement de toutes les vues `accounting-*.blade.php` vers ce dossier.
+- Les vues sont maintenant organisées comme les autres modules :
+  - `resources/views/main/modules/accounting/dashboard.blade.php`
+  - `resources/views/main/modules/accounting/clients.blade.php`
+  - `resources/views/main/modules/accounting/proforma-invoices.blade.php`
+  - `resources/views/main/modules/accounting/sales-invoices.blade.php`
+  - `resources/views/main/modules/accounting/reports.blade.php`
+  - etc.
+- Mise à jour de toutes les références Laravel :
+  - ancien format : `main.modules.accounting-dashboard`
+  - nouveau format : `main.modules.accounting.dashboard`
+- Les partials partagés restent dans `resources/views/main/modules/partials`, car ils sont utilisés par plusieurs modules.
+
+Vérification :
+
+- Aucun fichier `accounting*.blade.php` ne reste à la racine de `resources/views/main/modules`.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+
+### 2026-06-09 - Archivage : séparation réelle des emplacements physiques
+
+Prompt utilisateur :
+
+```text
+pas comme ça stp chaque emplecement dois avoir sa propre table, par exemple, table salle, armoire, rayon jusqu'à document ce que tu viens de faire n'a aucun sens
+```
+
+Correction appliquée :
+
+- Refactorisation de la structure physique Archivage avec des tables dédiées :
+  - `archive_rooms`
+  - `archive_racks`
+  - `archive_cabinets`
+  - `archive_shelves`
+  - `archive_compartments`
+  - `archive_boxes`
+- Ajout de `archive_box_id` sur les classeurs et documents archivés.
+- Ajout de `from_archive_box_id` et `to_archive_box_id` sur les mouvements.
+- La page Emplacements affiche maintenant chaque niveau physique dans sa propre section paginée.
+- Les classeurs, documents et mouvements utilisent maintenant le chemin physique complet Salle / Rayon / Armoire / Étagère / Casier / Boîte.
+- Le seeder Archivage crée une vraie hiérarchie physique et corrige les libellés UTF-8 de démonstration.
+- L’ancienne table générique `archive_locations` reste seulement comme compatibilité historique, mais la nouvelle gestion physique utilise les tables séparées.
+
+Fichiers principaux modifiés :
+
+- `app/Http/Controllers/ArchivingController.php`
+- `app/Models/ArchiveRoom.php`
+- `app/Models/ArchiveRack.php`
+- `app/Models/ArchiveCabinet.php`
+- `app/Models/ArchiveShelf.php`
+- `app/Models/ArchiveCompartment.php`
+- `app/Models/ArchiveBox.php`
+- `app/Models/ArchiveContainer.php`
+- `app/Models/ArchiveRecord.php`
+- `app/Models/ArchiveMovement.php`
+- `database/migrations/2026_06_09_000002_create_structured_archive_location_tables.php`
+- `database/migrations/2026_06_09_000003_add_archive_boxes_to_movements.php`
+- `database/seeders/ArchivingSeeder.php`
+- `resources/views/main/modules/archiving/locations.blade.php`
+- `resources/views/main/modules/archiving/containers.blade.php`
+- `resources/views/main/modules/archiving/records.blade.php`
+- `resources/views/main/modules/archiving/movements.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+
+Vérification :
+
+- `php -l app/Http/Controllers/ArchivingController.php` passe.
+- `php -l app/Models/ArchiveMovement.php` passe.
+- `php -l database/seeders/ArchivingSeeder.php` passe.
+- `php -l database/migrations/2026_06_09_000003_add_archive_boxes_to_movements.php` passe.
+- `php artisan migrate --force` passe.
+- `php artisan db:seed --class=ArchivingSeeder` passe.
+- `php artisan view:cache` passe.
+- Les pages Archivage `locations`, `containers`, `records` et `movements` répondent en HTTP 200.
+
+### 2026-06-09 - Archivage : affichage des emplacements en onglets
+
+Prompt utilisateur :
+
+```text
+j'aime pas cette affichage des plusieurs tableaux d'emplacement, crée des onglets pour l'affichage des emplacements
+```
+
+Correction appliquée :
+
+- Remplacement de l’empilement des tableaux Emplacements par des onglets :
+  - Salles
+  - Rayons
+  - Armoires
+  - Étagères
+  - Casiers
+  - Boîtes
+- Un seul tableau est visible à la fois, avec le compteur de lignes dans chaque onglet.
+- La pagination conserve l’onglet actif via le paramètre `tab`.
+- Ajout d’un style dédié aux onglets Archivage, compatible dark mode.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/archiving/locations.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers modifiés.
+- La page `archiving/locations` répond en HTTP 200.
+- La page `archiving/locations?tab=box` répond en HTTP 200.
+
+### 2026-06-09 - Archivage : harmonisation des modales
+
+Prompt utilisateur :
+
+```text
+je t'avais dis d'utiliser les memes style de modale sur tout les modales de l'application
+```
+
+Correction appliquée :
+
+- Les modales Archivage utilisent maintenant le socle standard `subscription-modal`.
+- Harmonisation des modales :
+  - Nouvel emplacement
+  - Nouveau classeur
+  - Nouveau document archivé
+  - Nouveau mouvement
+  - Nouvelle règle de conservation
+- Ajout de classes dédiées `archive-location-modal`, `archive-container-modal`, `archive-record-modal`, `archive-movement-modal`, `archive-retention-modal`.
+- Ajustement des largeurs, du header, des labels, des champs, du textarea et des actions pour reprendre le style commun Facturation/RH/GED.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/archiving/locations.blade.php`
+- `resources/views/main/modules/archiving/containers.blade.php`
+- `resources/views/main/modules/archiving/records.blade.php`
+- `resources/views/main/modules/archiving/movements.blade.php`
+- `resources/views/main/modules/archiving/retention.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers modifiés.
+- Les pages Archivage `locations`, `containers`, `records` et `movements` répondent en HTTP 200.
+
+### 2026-06-09 - Archivage : correction d'accès au tableau de bord
+
+Prompt utilisateur :
+
+```text
+le tableau de bord est inaccessible
+```
+
+Correction appliquée :
+
+- Correction du dashboard Archivage qui utilisait encore l’ancienne variable `$locations` issue de la table générique `archive_locations`.
+- La répartition des emplacements physiques est maintenant calculée depuis les nouvelles tables séparées :
+  - salles
+  - rayons
+  - armoires
+  - étagères
+  - casiers
+  - boîtes
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/ArchivingController.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/ArchivingController.php` passe.
+- `php artisan view:cache` passe.
+- Le tableau de bord Archivage répond en HTTP 200.
+
+### 2026-06-09 - Archivage : espacement des boutons de modale
+
+Prompt utilisateur :
+
+```text
+le boutton sont collé au parent arrange ça
+```
+
+Correction appliquée :
+
+- Ajout d’un padding inférieur et latéral sur les actions des modales Archivage.
+- Les boutons `Annuler` et `Créer/Enregistrer` ne sont plus collés au bord de la modale.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `git diff --check` passe sur `resources/css/main.css`.
+- `php artisan view:cache` passe.
+
+### 2026-06-09 - Archivage : contrôle hiérarchique des capacités
+
+Prompt utilisateur :
+
+```text
+tu dois ajouter cette regles et j'espère que mes tableaux sont toujours paginés
+```
+
+Correction appliquée :
+
+- Ajout d’une règle métier sur les capacités des emplacements physiques.
+- Si un parent possède une capacité définie, la somme des capacités de ses enfants ne peut plus la dépasser :
+  - rayons dans une salle
+  - armoires dans un rayon
+  - étagères dans une armoire
+  - casiers et boîtes directes dans une étagère
+  - boîtes dans un casier
+- Exemple bloqué : salle de 100 unités avec création d’un rayon de 200 unités.
+- Ajout des messages FR/EN expliquant la capacité demandée et la capacité restante.
+- Confirmation que les onglets Emplacements restent paginés à 5 lignes par page.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/ArchivingController.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/ArchivingController.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- La page Emplacements Archivage répond en HTTP 200.
+- Les requêtes `rooms`, `racks`, `cabinets`, `shelves`, `compartments` et `boxes` utilisent toujours `paginate(5, ...)`.
+
+### 2026-06-09 - Archivage : modification et suppression des emplacements
+
+Prompt utilisateur :
+
+```text
+pourquoi il n'y a pas la possibilité de supprimer ou de modifier, ajoute ces regles :
+les emplacements qui ont des enfants ne peuvent pas etre supprimés, on ne peut pas changer les parents d'un emplacement
+```
+
+Correction appliquée :
+
+- Ajout des routes `PUT` et `DELETE` pour les emplacements Archivage.
+- Ajout des boutons modifier et supprimer dans les onglets :
+  - Salles
+  - Rayons
+  - Armoires
+  - Étagères
+  - Casiers
+  - Boîtes
+- La modale Emplacement bascule maintenant entre création et modification.
+- En modification, le type et le parent sont verrouillés : seul le nom, le code, la capacité, le statut et la description sont modifiables.
+- Suppression bloquée si l’emplacement contient des enfants :
+  - salle avec rayons
+  - rayon avec armoires
+  - armoire avec étagères
+  - étagère avec casiers ou boîtes directes
+  - casier avec boîtes
+  - boîte avec classeurs ou documents
+- La modification de capacité contrôle aussi les capacités déjà affectées aux enfants.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/ArchivingController.php`
+- `resources/views/main/modules/archiving/locations.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/ArchivingController.php` passe.
+- `php -l routes/web.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan route:cache` passe.
+- `php artisan view:cache` passe.
+- La page Emplacements Archivage répond en HTTP 200.
+- `route:list --path=archiving/locations` affiche bien les routes `GET`, `POST`, `PUT`, `DELETE`.
+
+### 2026-06-09 - Recherche des tableaux RH, GED et Archivage
+
+Prompt utilisateur :
+
+```text
+je me suis rendu compte que l'input de recherche ne fonctionne pas sur le module RH, ged et archive
+```
+
+Correction appliquée :
+
+- Correction du comportement global de recherche dans `resources/js/main.js`.
+- Les tableaux avec `companySearch` sans paramètre serveur filtrent maintenant le tableau affiché côté client.
+- Les recherches serveur utilisent maintenant le nom réel de l’input (`search`, `q`, etc.) au lieu de forcer systématiquement `search`.
+- Les formulaires de recherche autonomes avec `name="q"` déclenchent maintenant automatiquement une recherche après saisie.
+- Les paramètres de pagination `page` et `*_page` sont réinitialisés lors d’une nouvelle recherche pour éviter de rester bloqué sur une page sans résultat.
+- Ce correctif couvre les pages RH, GED et Archivage sans changer la pagination existante.
+
+Fichiers modifiés :
+
+- `resources/js/main.js`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur `resources/js/main.js`.
+- Les pages RH employés, GED courriers entrants, Archivage emplacements avec `q=finance` et Archivage documents avec `q=facture` répondent en HTTP 200.
+
+### 2026-06-09 - Recherche AJAX sans actualisation complète
+
+Prompt utilisateur :
+
+```text
+tu refais la meme betise d'actualiser la page quand je fais la recherche pourquoi tu oublie toujours je t'avais dis d'utiliser ajax pour les recherches
+```
+
+Correction appliquée :
+
+- Suppression de la navigation complète sur les formulaires de recherche autonomes.
+- Ajout d’un `fetch` AJAX pour les recherches avec `form.search-box input[type="search"][name]`.
+- Remplacement uniquement de la zone `.dashboard-content` à partir du HTML reçu.
+- Mise à jour de l’URL via `history.replaceState` ou `history.pushState`, sans rechargement de page.
+- Interception AJAX de la pagination liée aux résultats de recherche.
+- Réinitialisation des paginations `page` et `*_page` lors d’une nouvelle saisie.
+
+Fichiers modifiés :
+
+- `resources/js/main.js`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur `resources/js/main.js`.
+- Les recherches AJAX sur Archivage emplacements, Archivage documents et GED dossiers répondent en HTTP 200.
+
+### 2026-06-09 - Recherche AJAX : conservation du focus
+
+Prompt utilisateur :
+
+```text
+pourquoi lorsque je fais la recherche tu enleves le focus sur le formulaire pourquoi tu reprends les memes erreurs
+```
+
+Correction appliquée :
+
+- Conservation du focus lors des recherches AJAX autonomes.
+- Avant remplacement de `.dashboard-content`, le script mémorise :
+  - le nom du champ actif
+  - la valeur saisie
+  - la position du curseur
+- Après remplacement AJAX, le champ de recherche est retrouvé, refocalisé avec `preventScroll`, et la position du curseur est restaurée.
+
+Fichiers modifiés :
+
+- `resources/js/main.js`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `node --check resources/js/main.js` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur `resources/js/main.js`.
+- La recherche AJAX Archivage emplacements répond en HTTP 200.
+
+### 2026-06-09 - Professionnalisation du tableau de bord Archivage
+
+Prompt utilisateur :
+
+```text
+le tableau de bord est basique et non stylisé et non professionnelle pourquoi ?
+```
+
+Correction appliquée :
+
+- Refonte du tableau de bord Archivage pour l’aligner avec les standards GED/RH/Comptabilité.
+- Ajout d’un en-tête de module avec icône, lien retour et structure visuelle cohérente.
+- Remplacement de l’affichage brut par :
+  - cartes KPI stylisées ;
+  - plan physique des archives ;
+  - bloc occupation/capacité ;
+  - indicateurs de risques ;
+  - dernières archives ;
+  - échéances de conservation ;
+  - activité récente.
+- Enrichissement des données du contrôleur Archivage : capacité, occupation, emplacements prioritaires, statuts, risques et activités récentes.
+- Ajout du style responsive et dark mode pour le dashboard Archivage.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/ArchivingController.php`
+- `resources/views/main/modules/archiving/dashboard.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/ArchivingController.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan view:cache` passe.
+- La page `/main/companies/4/sites/1/modules/archiving` répond en `200 OK`.
+
+### 2026-06-09 - Correction pagination page Emplacements Archivage
+
+Prompt utilisateur :
+
+```text
+il y a un probleme avec la page emplacement
+```
+
+Correction appliquée :
+
+- Le rendu cassé venait de la pagination Laravel par défaut en mode Tailwind alors que Tailwind n’est pas chargé dans l’application.
+- Configuration globale de Laravel pour utiliser la pagination Bootstrap 5 via `Paginator::useBootstrapFive()`.
+- Ajout d’un style compact pour `.subscriptions-pagination`, compatible avec :
+  - les paginations Bootstrap serveur ;
+  - les paginations personnalisées déjà utilisées dans Comptabilité/GED/RH.
+- Ajout de la variante dark mode et du comportement responsive.
+
+Fichiers modifiés :
+
+- `app/Providers/AppServiceProvider.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Providers/AppServiceProvider.php` passe.
+- `php artisan view:cache` passe.
+- La page `/main/companies/4/sites/1/modules/archiving/locations` répond en `200 OK`.
+
+### 2026-06-09 - Restructuration hiérarchique des emplacements Archivage
+
+Prompt utilisateur :
+
+```text
+je n'arrive pas à comprendre comment tu as structuré les choses...
+```
+
+Correction appliquée :
+
+- La page Emplacements n’affiche plus une liste plate désordonnée.
+- Les emplacements sont maintenant construits comme un arbre physique :
+  - Salle
+  - Zone / Rayon
+  - Armoire
+  - Étagère
+  - Casier
+  - Boîte
+- Le tableau affiche le chemin physique complet pour comprendre à quelle salle, zone, armoire ou étagère appartient chaque emplacement.
+- Ajout d’une bande de rappel de la hiérarchie physique.
+- Ajout d’une indentation visuelle dans la colonne Emplacement.
+- Le formulaire de création filtre le parent selon le type choisi :
+  - une Zone doit être dans une Salle ;
+  - une Armoire doit être dans une Zone ;
+  - une Étagère doit être dans une Armoire ;
+  - un Casier doit être dans une Étagère ;
+  - une Boîte doit être dans une Étagère ou un Casier.
+- Validation serveur ajoutée pour empêcher les rattachements incohérents.
+- Seeder Archivage corrigé avec des données de démonstration cohérentes et en UTF-8 propre.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/ArchivingController.php`
+- `resources/views/main/modules/archiving/locations.blade.php`
+- `resources/css/main.css`
+- `database/seeders/ArchivingSeeder.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/ArchivingController.php` passe.
+- `php -l database/seeders/ArchivingSeeder.php` passe.
+- `php artisan db:seed --class=ArchivingSeeder` passe.
+- `php artisan view:cache` passe.
+- La page `/main/companies/4/sites/1/modules/archiving/locations` répond en `200 OK`.
+
+### 2026-06-09 - Paramètres GED
+
+Prompt utilisateur :
+
+```text
+parfait nous allons maintenant travailler sur parametre GED, n'oublie pas meme ideologie comme on l'as fais avec les autres modules
+```
+
+Implémentation appliquée :
+
+- Ajout de la page Paramètres GED avec la même logique que Comptabilité/RH :
+  - identité visuelle PDF,
+  - aperçu de rapport,
+  - accès aux menus par utilisateur simple,
+  - pagination des utilisateurs à configurer.
+- Ajout des routes `main.document-management.settings` et `main.document-management.settings.update`.
+- Ajout de `DocumentManagementModuleNavigation` pour centraliser les clés de menus GED.
+- Extension du middleware d’accès menu afin de gérer aussi les restrictions GED.
+- Mise à jour de la sidebar GED :
+  - lien Paramètres correct,
+  - affichage réservé aux Admin/Superadmin,
+  - menus filtrés selon les droits de l’utilisateur,
+  - Rapports GED conservé comme menu principal séparé.
+- Les paramètres PDF GED sont maintenant fournis au rapport PDF GED.
+- Ajout des traductions FR/EN liées aux paramètres GED.
+
+Fichiers modifiés :
+
+- `app/Support/DocumentManagementModuleNavigation.php`
+- `app/Http/Middleware/EnsureAccountingMenuAccess.php`
+- `app/Http/Controllers/DocumentManagementController.php`
+- `resources/views/main/modules/document-management/settings.blade.php`
+- `resources/views/main/modules/document-management/partials/sidebar.blade.php`
+- `routes/web.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l` passe sur les nouveaux fichiers et fichiers modifiés principaux.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan route:list --name=main.document-management.settings` affiche les 2 routes GED.
+- `git diff --check` ne signale aucune erreur bloquante.
+
+### 2026-06-09 - Réduction légère de la taille des textes
+
+Prompt utilisateur :
+
+```text
+peux-tu reguire legerement la taille des textes de toutes l'application
+```
+
+Correction appliquée :
+
+- Réduction légère de la base typographique globale à `15px`.
+- Application de la règle sur :
+  - l’interface principale,
+  - la console admin/superadmin,
+  - la page de connexion.
+- Le choix d’agir sur `html` permet de réduire proprement les tailles en `rem` sans modifier chaque composant individuellement.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `resources/css/admin/dashboard.css`
+- `resources/css/auth/login.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers CSS concernés.
+
+### 2026-06-09 - Premier socle du module Archivage physique
+
+Prompts utilisateur :
+
+```text
+nous allons maintenant travailler sur le module Archivage...
+j'ai besoin que tu tiennes en compte des emplacements des documents comme dans une vrai salle d'archive.
+il faut meme tenir compte des farde n'oublie rien
+on prendra classeur alors
+applique maintenant
+```
+
+Implémentation appliquée :
+
+- Création du module Archivage avec une logique physique complète :
+  - Salle
+  - Zone / Rayon
+  - Armoire
+  - Étagère
+  - Casier
+  - Boîte
+  - Classeur
+  - Document archivé
+- Ajout des tables :
+  - `archive_locations`
+  - `archive_containers`
+  - `archive_records`
+  - `archive_movements`
+  - `archive_retention_rules`
+  - `archive_activities`
+- Ajout des modèles Eloquent correspondants et des relations dans `CompanySite`.
+- Ajout de `ArchivingController` avec les pages :
+  - Tableau de bord Archivage
+  - Emplacements
+  - Classeurs
+  - Documents archivés
+  - Mouvements
+  - Conservation
+  - Traçabilité
+  - Rapports Archivage
+  - Paramètres Archivage
+- Ajout de `ArchivingModuleNavigation` et branchement dans le middleware d’accès menu.
+- Ajout de la sidebar Archivage.
+- Ajout des routes `main.archiving.*`.
+- Le lien Archivage sur la fiche site ouvre maintenant directement le dashboard Archivage.
+- Ajout d’un rapport PDF Archivage.
+- Ajout du seeder `ArchivingSeeder` :
+  - salle d’archives,
+  - zones,
+  - armoires,
+  - étagères,
+  - boîtes,
+  - classeurs,
+  - documents archivés,
+  - règles de conservation.
+- Ajout des traductions FR/EN du module Archivage.
+
+Fichiers principaux modifiés ou ajoutés :
+
+- `app/Http/Controllers/ArchivingController.php`
+- `app/Support/ArchivingModuleNavigation.php`
+- `app/Models/ArchiveLocation.php`
+- `app/Models/ArchiveContainer.php`
+- `app/Models/ArchiveRecord.php`
+- `app/Models/ArchiveMovement.php`
+- `app/Models/ArchiveRetentionRule.php`
+- `app/Models/ArchiveActivity.php`
+- `database/migrations/2026_06_09_000001_create_archiving_tables.php`
+- `database/seeders/ArchivingSeeder.php`
+- `resources/views/main/modules/archiving/*`
+- `routes/web.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+
+Vérification :
+
+- `php -l` passe sur les nouveaux modèles, le contrôleur, la migration, le seeder et les fichiers de langue.
+- `php artisan migrate --force` passe.
+- `php artisan db:seed --class=ArchivingSeeder` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan route:list --name=main.archiving` affiche 16 routes.
+- La page `/main/companies/4/sites/1/modules/archiving` répond en HTTP 200.
+
+### 2026-06-09 - Suppression Recherche avancée et création des rapports GED
+
+Prompt utilisateur :
+
+```text
+je ne penses pas que c'est utile, supprime ce sous-menu et travail sur rapport
+```
+
+Implémentation appliquée :
+
+- Suppression du sous-menu `Recherche avancée` dans la sidebar GED.
+- Création d’une vraie page `Rapports GED`.
+- Ajout de la route `main.document-management.reports`.
+- Le menu `Rapports GED` pointe maintenant vers sa page dédiée.
+- La page rapport utilise les vraies données GED :
+  - documents enregistrés sur la période
+  - documents ouverts
+  - documents urgents
+  - actions tracées
+  - répartition par type
+  - répartition par statut
+  - répartition par dossier
+  - demandes de validation
+  - activité récente
+- Les filtres de période restent réservés à la page rapport, conformément à la règle : les tableaux opérationnels restent simples.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/DocumentManagementController.php`
+- `resources/views/main/modules/document-management/partials/sidebar.blade.php`
+- `resources/views/main/modules/document-management/reports.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app\Http\Controllers\DocumentManagementController.php` passe.
+- `php -l routes\web.php` passe.
+- `php -l lang\fr\main.php` passe.
+- `php -l lang\en\main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan route:list --name=main.document-management.reports` confirme la route.
+
+### 2026-06-09 - Remise de Rapports GED dans le menu Classement
+
+Prompt utilisateur :
+
+```text
+je t'avai demandé de supprimer seulement reche avancé. et en suite travailler sur la page rapport toi tu as supprimé les deux
+```
+
+Correction appliquée :
+
+- Correction de l’emplacement du sous-menu `Rapports GED`.
+- `Recherche avancée` reste supprimé.
+- `Rapports GED` est remis dans le groupe `Classement`, juste après `Dossiers`, avec sa vraie route dédiée.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/document-management/partials/sidebar.blade.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- Scan de la sidebar GED : `Recherche avancée` absent, `Rapports GED` présent.
+
+### 2026-06-09 - Rapports GED en menu principal et impression PDF
+
+Prompt utilisateur :
+
+```text
+rapport ged doit etre un menu à part et non un sous-menu.
+regarde comment tu as fais avec les autres modules avec possiblité d'imprimer en pdf
+```
+
+Correction appliquée :
+
+- `Rapports GED` est maintenant une entrée principale de la sidebar GED, avec un séparateur `Rapport`.
+- Le menu `Rapports GED` n’est plus dans le groupe `Classement`.
+- Ajout de la route PDF `main.document-management.reports.pdf`.
+- Ajout du bouton `Imprimer en PDF` sur la page Rapports GED.
+- Factorisation des données de rapport GED pour que l’écran et le PDF utilisent les mêmes chiffres.
+- Création du template PDF GED avec le même esprit que les rapports RH/Comptabilité :
+  - en-tête entreprise/site
+  - titre du rapport
+  - période analysée
+  - indicateurs
+  - tableaux de synthèse
+  - pied de page avec branding et date de génération
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/DocumentManagementController.php`
+- `resources/views/main/modules/document-management/partials/sidebar.blade.php`
+- `resources/views/main/modules/document-management/reports.blade.php`
+- `resources/views/main/modules/document-management/pdf/reports.blade.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app\Http\Controllers\DocumentManagementController.php` passe.
+- `php -l routes\web.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- Les routes `reports` et `reports/pdf` du module GED sont confirmées.
+
+### 2026-06-09 - Stylisation des tableaux Rapports GED
+
+Prompt utilisateur :
+
+```text
+les tableaux sur rapport ged sont très basique il faut bien styliser
+```
+
+Correction appliquée :
+
+- Amélioration visuelle des tableaux de la page Rapports GED.
+- Ajout de cartes de rapport plus structurées avec icônes d’en-tête.
+- Ajout d’icônes contextuelles par type de document.
+- Ajout de badges pour les statuts GED et les validations.
+- Ajout de barres de progression pour visualiser les volumes relatifs.
+- Ajout de compteurs numériques stylisés pour les documents ouverts, validés et urgents.
+- Amélioration des cellules dossier, catégorie, date et activité récente.
+- Correction des compteurs d’en-tête pour afficher le nombre réel de lignes du tableau.
+- Ajout du style dark mode correspondant.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/DocumentManagementController.php`
+- `resources/views/main/modules/document-management/reports.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app\Http\Controllers\DocumentManagementController.php` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+- Les composants stylisés sont présents dans la vue et le CSS.
+
+### 2026-06-09 - Tri des colonnes sur Traçabilité et Dossiers GED
+
+Prompt utilisateur :
+
+```text
+tri des colonnes stp sur mes tableaux traçabilité et dossiers rien n'est fait
+```
+
+Correction appliquée :
+
+- Activation du tri sur le tableau Traçabilité GED.
+- Activation du tri sur le tableau Dossiers GED.
+- Ajout de `id="companyTable"` sur les deux tableaux pour les connecter au script commun.
+- Remplacement des en-têtes texte par des boutons `table-sort` avec icône de tri.
+- Ajout de valeurs de tri propres pour :
+  - dates de traçabilité
+  - nombre de documents dans les dossiers
+  - dernière activité des dossiers
+- Aucun bloc de filtrage n’a été ajouté.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/document-management/traceability.blade.php`
+- `resources/views/main/modules/document-management/folders.blade.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-09 - Pagination visible sur la page Dossiers GED
+
+Prompt utilisateur :
+
+```text
+les filtrages sur mes tableaux tu ne fais plus;
+la pagination sur la page dosssiers ?
+```
+
+Correction appliquée :
+
+- Confirmation de la règle de présentation : garder la recherche simple sur les tableaux, sans ajouter de blocs de filtrage.
+- La page Dossiers GED reste paginée à 5 lignes par page côté serveur.
+- La barre de pagination s’affiche maintenant dès qu’il y a des dossiers, même quand le total tient sur une seule page.
+- Le compteur continue d’afficher le nombre de lignes visibles et le total.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/document-management/folders.blade.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-09 - Correction UTF-8 des dossiers GED
+
+Prompt utilisateur :
+
+```text
+il y a un problème de formatage utf-8
+```
+
+Correction appliquée :
+
+- Correction du seeder `DocumentManagementIncomingFiveSeeder` avec des libellés UTF-8 propres.
+- Remplacement des textes corrompus comme `Bureau dâ€™ordre` et `Direction gÃ©nÃ©rale` par :
+  - `Bureau d’ordre`
+  - `Direction générale`
+  - `Décisions`
+- Nettoyage des données déjà enregistrées dans la base :
+  - fusion des dossiers GED dupliqués et corrompus vers les dossiers canoniques
+  - réaffectation des documents vers les bons dossiers
+  - suppression des dossiers dupliqués corrompus
+  - correction des textes des courriers et activités GED concernés
+- Les dossiers GED affichables sont maintenant :
+  - `Bureau d’ordre` avec 4 documents
+  - `Direction générale` avec 3 documents
+  - `Contrats et conventions` avec 2 documents
+
+Fichiers modifiés :
+
+- `database/seeders/DocumentManagementIncomingFiveSeeder.php`
+- `docs/prompts/project-history.md`
+
+Tables nettoyées :
+
+- `document_management_folders`
+- `document_management_records`
+- `document_management_activities`
+
+Vérification :
+
+- `php -l database\seeders\DocumentManagementIncomingFiveSeeder.php` passe.
+- `php artisan view:cache` passe.
+- La recherche des anciennes chaînes corrompues dans le seeder ne retourne plus de résultat.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-05 - État vide des validations en cours GED
+
+Prompt utilisateur :
+
+```text
+arrange moi ça
+```
+
+Correction appliquée :
+
+- La section `Validations en cours` n’affiche plus un grand tableau vide lorsqu’aucun document n’est en circuit.
+- Ajout d’un état vide compact avec icône, message principal et texte d’aide.
+- Ajout du rendu dark mode pour cet état vide.
+- Ajout des traductions FR/EN du texte d’aide.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/document-management/validation-circuits.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+### 2026-06-09 - Ajustement visuel du bloc Validations en cours GED
+
+Prompt utilisateur :
+
+```text
+arrange moi ça stp
+```
+
+Correction appliquée :
+
+- Ajout d’un padding dédié à la carte `Validations en cours`.
+- Transformation du compteur `0 lignes` en pastille alignée proprement.
+- Conservation du rendu tableau plein format quand des validations existent.
+- L’état vide reste compact, lisible et cohérent avec le design GED.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-09 - Traitement de l’onglet Validations en cours GED
+
+Prompt utilisateur :
+
+```text
+traitement l'onglet Valifations en cours
+```
+
+Implémentation appliquée :
+
+- L’onglet `Validations en cours` affiche maintenant uniquement les validations ouvertes (`En attente`, `En cours`).
+- Ajout du bouton `Lancer une validation` pour envoyer un document GED dans un circuit actif.
+- Ajout de la modale de lancement avec sélection du document, du circuit et commentaire.
+- Ajout des actions de traitement :
+  - approuver l’étape courante ;
+  - rejeter la validation ;
+  - passer automatiquement à l’étape suivante ;
+  - clôturer la validation en `Approuvé` quand la dernière étape est validée.
+- Mise à jour automatique du statut du document :
+  - `En revue` au lancement ;
+  - `Validé` après approbation finale.
+- Journalisation des actions dans les activités GED.
+- Restriction du traitement au validateur attendu, ou aux administrateurs/superadministrateurs.
+- Ajout des routes POST dédiées aux validations.
+- Ajout des libellés FR/EN et styles de boutons/colonnes.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/DocumentManagementController.php`
+- `resources/views/main/modules/document-management/validation-circuits.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/DocumentManagementController.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan route:cache` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=document-management.validation-requests` affiche les 3 routes de traitement.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-09 - Création d’un circuit GED sans validation lancée
+
+Prompt utilisateur :
+
+```text
+crée moi un circuit de validation sans le valider
+```
+
+Action appliquée :
+
+- Création du circuit GED `VAL-000001` nommé `Validation documentaire standard` sur le site `EXAD Kinshasa`.
+- Circuit actif, applicable à tous les types de documents GED.
+- Étapes créées :
+  - `Vérification responsable`, validateur `user3`, délai 2 jours.
+  - `Approbation finale`, validateur `admin`, délai 3 jours.
+- Aucune demande de validation n’a été lancée sur ce circuit.
+
+Vérification :
+
+- Le circuit contient 2 étapes.
+- `validation_requests_count` vaut `0`.
+
+### 2026-06-09 - Onglets Circuits / Validations en cours GED
+
+Prompt utilisateur :
+
+```text
+lorsque j'appui rien n'est affiché
+```
+
+Correction appliquée :
+
+- Les liens `Circuits` et `Validations en cours` fonctionnent maintenant comme de vrais onglets.
+- Le clic sur `Validations en cours` masque la recherche et le tableau des circuits.
+- Le panneau des validations s’affiche immédiatement, même lorsqu’il est vide.
+- L’URL conserve l’ancre du panneau actif pour rouvrir directement le bon onglet.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/document-management/validation-circuits.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-09 - Page Traçabilité GED
+
+Prompt utilisateur :
+
+```text
+nous allons maintenant travailler sur traçabilité
+```
+
+Implémentation appliquée :
+
+- Ajout d’une vraie page `Traçabilité` dans le module GED.
+- Connexion du menu `Traçabilité` dans la sidebar GED.
+- Ajout de la route `main.document-management.traceability`.
+- Lecture des activités GED déjà journalisées dans `document_management_activities`.
+- Affichage des métriques :
+  - événements enregistrés ;
+  - événements du jour ;
+  - actions de validation ;
+  - acteurs actifs.
+- Ajout de filtres :
+  - recherche texte ;
+  - action ;
+  - acteur ;
+  - type de document ;
+  - date de début ;
+  - date de fin.
+- Ajout d’un tableau paginé avec :
+  - date et heure ;
+  - document concerné ;
+  - action lisible ;
+  - acteur ;
+  - changement de statut.
+- Ajout des styles light/dark et traductions FR/EN.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/DocumentManagementController.php`
+- `resources/views/main/modules/document-management/partials/sidebar.blade.php`
+- `resources/views/main/modules/document-management/traceability.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/DocumentManagementController.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan route:cache` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=document-management.traceability` affiche la route.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-09 - Allègement de la page Traçabilité GED
+
+Prompt utilisateur :
+
+```text
+enleve ça.
+les elements sur mes tableaux c'est toujours 5 elements par page merci
+```
+
+Correction appliquée :
+
+- Suppression des cartes de métriques en haut de la page Traçabilité.
+- Suppression du bloc de filtres visible sous les métriques.
+- Conservation du tableau principal de traçabilité.
+- Pagination de la page Traçabilité passée à 5 éléments par page.
+- Suppression des styles CSS devenus inutiles.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/DocumentManagementController.php`
+- `resources/views/main/modules/document-management/traceability.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/DocumentManagementController.php` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-09 - Recherche sur la page Traçabilité GED
+
+Prompt utilisateur :
+
+```text
+ajoute l'input de recherche
+```
+
+Correction appliquée :
+
+- Ajout d’un input de recherche simple sur la page Traçabilité.
+- Recherche serveur sur action, commentaire, statut, référence, sujet, expéditeur, destinataire, nom et email de l’acteur.
+- Conservation de la pagination à 5 éléments par page.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/DocumentManagementController.php`
+- `resources/views/main/modules/document-management/traceability.blade.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/DocumentManagementController.php` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-09 - Page Dossiers GED
+
+Prompt utilisateur :
+
+```text
+applique ton idée
+```
+
+Implémentation appliquée :
+
+- Ajout d’une vraie page `Dossiers` dans le module GED.
+- Connexion du menu `Dossiers` dans la sidebar GED.
+- Ajout des routes :
+  - liste des dossiers ;
+  - création ;
+  - détail ;
+  - modification ;
+  - suppression.
+- Ajout du CRUD des dossiers avec les champs existants :
+  - nom ;
+  - catégorie ;
+  - statut ;
+  - description.
+- Génération automatique des références `DOS-000001`.
+- Recherche serveur par référence, nom, catégorie et description.
+- Pagination à 5 éléments par page.
+- Suppression bloquée si le dossier contient déjà des documents.
+- Ajout d’une page détail affichant les documents rattachés au dossier, paginés à 5.
+- Ajout des styles light/dark et traductions FR/EN.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/DocumentManagementController.php`
+- `resources/views/main/modules/document-management/partials/sidebar.blade.php`
+- `resources/views/main/modules/document-management/folders.blade.php`
+- `resources/views/main/modules/document-management/folder-show.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/DocumentManagementController.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan route:cache` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=document-management.folders` affiche les 5 routes.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-05 - Page Courriers entrants GED
+
+Prompt utilisateur :
+
+```text
+applique ton idée
+```
+
+Implémentation appliquée :
+
+- Création de la page professionnelle des courriers entrants du module GED.
+- Ajout des routes dédiées :
+  - liste des courriers entrants
+  - création
+  - modification
+  - suppression
+- Connexion de la page aux vraies tables GED :
+  - `document_management_records`
+  - `document_management_folders`
+  - `document_management_activities`
+- Ajout d'une liste paginée à 5 lignes, avec recherche locale, tri, filtres serveur et compteur.
+- Ajout des filtres :
+  - recherche par référence, expéditeur, objet ou catégorie
+  - statut
+  - priorité
+  - dossier
+  - responsable assigné
+  - période de réception
+- Ajout des actions :
+  - nouveau courrier entrant
+  - modifier un courrier entrant
+  - supprimer un courrier entrant
+  - joindre une pièce jointe PDF, Word, Excel ou image
+- Ajout de la journalisation GED lors de la création ou modification d'un courrier.
+- Le menu GED “Courriers entrants” pointe désormais vers sa vraie page.
+- Ajout des libellés FR/EN et des styles GED complémentaires, y compris dark mode.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/DocumentManagementController.php`
+- `resources/views/main/modules/document-management/partials/sidebar.blade.php`
+- `resources/views/main/modules/document-management/incoming.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/DocumentManagementController.php` passe.
+- `php -l routes/web.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan route:list --name=main.document-management.incoming` affiche les 4 routes.
+- `Invoke-WebRequest http://127.0.0.1:8000/main/companies/4/sites/1/modules/document_management/incoming` retourne `200 OK`.
+
+### 2026-06-05 - Allègement de la page Courriers entrants GED
+
+Prompt utilisateur :
+
+```text
+enleve ce filtre on il surcharge la page
+```
+
+Correction appliquée :
+
+- Retrait de la grande carte de filtres de la page Courriers entrants.
+- Conservation de la recherche rapide du tableau, du compteur, du tri et de la pagination pour garder une page plus légère.
+
+Fichier modifié :
+
+- `resources/views/main/modules/document-management/incoming.blade.php`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- La page `/main/companies/4/sites/1/modules/document_management/incoming` retourne `200 OK`.
+
+### 2026-06-05 - Simplification du tableau Courriers entrants GED
+
+Prompt utilisateur :
+
+```text
+mets moi les informations importante pour ne pas surchargé le tableau
+```
+
+Correction appliquée :
+
+- Réduction du tableau Courriers entrants de 10 colonnes à 5 colonnes.
+- Regroupement des informations utiles :
+  - objet, expéditeur, date de réception, dossier, catégorie et pièce jointe dans la colonne `Courrier`
+  - assignation, échéance et priorité dans la colonne `Suivi`
+- Conservation des colonnes essentielles :
+  - référence
+  - courrier
+  - suivi
+  - statut
+  - actions
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/document-management/incoming.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+
+Vérification :
+
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- La page `/main/companies/4/sites/1/modules/document_management/incoming` retourne `200 OK`.
+
+### 2026-06-05 - Données entrantes et page Courriers sortants GED
+
+Prompt utilisateur :
+
+```text
+avant d'appliquer ajoute moi d'abord 5 couriers entrants etebnsuite tu travailles sur la pages courriers sortants
+```
+
+Implémentation appliquée :
+
+- Ajout d'un seeder dédié `DocumentManagementIncomingFiveSeeder` pour créer 5 courriers entrants supplémentaires.
+- Exécution du seeder pour insérer les courriers dans les données réelles du module GED.
+- Création de la page Courriers sortants avec :
+  - routes liste/création/modification/suppression
+  - menu GED relié à la vraie page
+  - tableau compact paginé à 5 lignes
+  - recherche rapide, compteur, tri et pagination
+  - modale de création/modification
+  - pièce jointe
+  - statut, priorité, responsable interne, service demandeur, destinataire et mode d'envoi
+  - journalisation des actions GED
+- Le tableau sortant reste léger avec 5 colonnes :
+  - référence
+  - courrier
+  - envoi
+  - statut
+  - actions
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/DocumentManagementController.php`
+- `resources/views/main/modules/document-management/partials/sidebar.blade.php`
+- `resources/views/main/modules/document-management/outgoing.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `database/seeders/DocumentManagementIncomingFiveSeeder.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/DocumentManagementController.php` passe.
+- `php -l database/seeders/DocumentManagementIncomingFiveSeeder.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- La page `/main/companies/4/sites/1/modules/document_management/incoming` retourne `200 OK`.
+- La page `/main/companies/4/sites/1/modules/document_management/outgoing` retourne `200 OK`.
+- Le site 1 contient maintenant 6 courriers entrants : 1 existant + 5 ajoutés.
+
+### 2026-06-05 - Page Documents internes GED
+
+Prompt utilisateur :
+
+```text
+applique ton idée
+```
+
+Implémentation appliquée :
+
+- Création de la page Documents internes du module GED.
+- Ajout des routes dédiées :
+  - liste
+  - création
+  - modification
+  - suppression
+- Connexion du menu GED `Documents internes` à la vraie page.
+- Utilisation de `document_management_records` avec `record_type = internal`.
+- Tableau compact paginé à 5 lignes :
+  - référence
+  - document
+  - suivi
+  - statut
+  - actions
+- Ajout d'une modale de création/modification avec :
+  - titre
+  - type de document
+  - auteur/service
+  - responsable du document
+  - dossier
+  - version
+  - date du document
+  - date de publication
+  - prochaine révision
+  - priorité
+  - statut
+  - pièce jointe
+  - résumé
+- Mise en place du cycle de vie :
+  - Brouillon
+  - En traitement
+  - Validé
+  - Publié
+  - Obsolète
+  - Archivé
+- Journalisation des créations, modifications et changements de statut.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/DocumentManagementController.php`
+- `resources/views/main/modules/document-management/partials/sidebar.blade.php`
+- `resources/views/main/modules/document-management/internal.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/DocumentManagementController.php` passe.
+- `php -l routes/web.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan route:list --path=document_management/internal` affiche les 4 routes.
+- La page `/main/companies/4/sites/1/modules/document_management/internal` retourne `200 OK`.
+
+### 2026-06-05 - Page Assignations GED
+
+Prompt utilisateur :
+
+```text
+applique ton idée
+```
+
+Implémentation appliquée :
+
+- Création de la page Assignations du module GED.
+- Ajout des routes dédiées :
+  - liste des assignations
+  - mise à jour d'une assignation
+- Connexion du menu GED `Assignations` à la vraie page.
+- La page liste les éléments GED à suivre depuis `document_management_records` :
+  - courriers entrants
+  - courriers sortants
+  - documents internes
+- Tableau compact paginé à 5 lignes :
+  - référence
+  - document
+  - assignation
+  - statut
+  - actions
+- Ajout d'une modale de mise à jour d'assignation :
+  - responsable
+  - échéance
+  - priorité
+  - statut
+  - instruction/commentaire
+- Ajout d'une action pour ouvrir la page du document concerné.
+- Journalisation des changements d'assignation ou de statut.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/DocumentManagementController.php`
+- `resources/views/main/modules/document-management/partials/sidebar.blade.php`
+- `resources/views/main/modules/document-management/assignments.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/DocumentManagementController.php` passe.
+- `php -l routes/web.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan route:list --path=document_management` affiche les routes Assignations.
+- La page `/main/companies/4/sites/1/modules/document_management/assignments` retourne `200 OK`.
+
+### 2026-06-05 - Page Circuits de validation GED
+
+Prompt utilisateur :
+
+```text
+applique ton idée
+```
+
+Implémentation appliquée :
+
+- Création d'une vraie fondation de workflow GED avec nouvelles tables :
+  - `document_management_validation_circuits`
+  - `document_management_validation_steps`
+  - `document_management_validation_requests`
+  - `document_management_validation_actions`
+- Ajout des modèles Eloquent :
+  - `DocumentManagementValidationCircuit`
+  - `DocumentManagementValidationStep`
+  - `DocumentManagementValidationRequest`
+  - `DocumentManagementValidationAction`
+- Ajout des relations avec `CompanySite` et `DocumentManagementRecord`.
+- Création de la page Circuits de validation.
+- Ajout des routes dédiées :
+  - liste des circuits
+  - création
+  - modification
+  - suppression
+- Connexion du menu GED `Circuits de validation` à la vraie page.
+- La page contient deux sections :
+  - `Circuits`
+  - `Validations en cours`
+- Tableau des circuits paginé à 5 lignes :
+  - référence
+  - circuit
+  - étapes
+  - statut
+  - actions
+- Modale de création/modification d'un circuit :
+  - nom
+  - type de document concerné
+  - service propriétaire
+  - statut
+  - description
+  - jusqu'à 3 étapes de validation
+  - rôle, validateur et délai par étape
+- Suppression bloquée lorsqu'un circuit contient déjà des validations.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/DocumentManagementController.php`
+- `app/Models/CompanySite.php`
+- `app/Models/DocumentManagementRecord.php`
+- `app/Models/DocumentManagementValidationCircuit.php`
+- `app/Models/DocumentManagementValidationStep.php`
+- `app/Models/DocumentManagementValidationRequest.php`
+- `app/Models/DocumentManagementValidationAction.php`
+- `database/migrations/2026_06_05_000002_create_document_management_validation_tables.php`
+- `resources/views/main/modules/document-management/partials/sidebar.blade.php`
+- `resources/views/main/modules/document-management/validation-circuits.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/DocumentManagementController.php` passe.
+- `php -l` passe sur les nouveaux modèles et la migration.
+- `php -l routes/web.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan migrate --force` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan route:list --path=document_management/validation-circuits` affiche les 4 routes.
+- La page `/main/companies/4/sites/1/modules/document_management/validation-circuits` retourne `200 OK`.
+
+### 2026-06-05 - Retrait des indicateurs Courriers entrants GED
+
+Prompt utilisateur :
+
+```text
+enleve meme ça
+```
+
+Correction appliquée :
+
+- Retrait des cartes KPI de la page Courriers entrants.
+- La page affiche maintenant directement le titre, l'action principale, la recherche rapide, le tableau et la pagination.
+
+Fichier modifié :
+
+- `resources/views/main/modules/document-management/incoming.blade.php`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- La page `/main/companies/4/sites/1/modules/document_management/incoming` retourne `200 OK`.
+
+### 2026-06-05 - Correction accès dashboard GED
+
+Prompt utilisateur :
+
+```text
+Erreur 500 sur /modules/document_management : Call to undefined method DocumentManagementController::canAccessCompanySite()
+```
+
+Correction appliquée :
+
+- Ajout des helpers d’accès manquants dans `DocumentManagementController` :
+  - `canAccessCompanySite`
+  - `canManageCompanyRecord`
+  - `redirectMainArea`
+  - `firstAssignedSite`
+- Le contrôleur GED peut maintenant vérifier l’accès au site comme les modules Comptabilité/RH.
+- L’URL du dashboard GED ne déclenche plus l’erreur 500.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/DocumentManagementController.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/DocumentManagementController.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `Invoke-WebRequest http://127.0.0.1:8000/main/companies/4/sites/1/modules/document_management` retourne `200 OK`.
+
+### 2026-06-05 - Socle professionnel du module GED
+
+Prompt utilisateur :
+
+```text
+applique
+```
+
+Contexte :
+
+- L’utilisateur souhaite une GED très professionnelle, orientée bureau d’ordre, courrier, documents, circuits de traitement et traçabilité.
+
+Implémentation appliquée :
+
+- Création du contrôleur dédié `DocumentManagementController`.
+- Ajout de la route dédiée `main.document-management.dashboard`.
+- La carte `GED` de la page site ouvre maintenant directement le tableau de bord GED.
+- Création des tables GED :
+  - `document_management_folders`
+  - `document_management_records`
+  - `document_management_activities`
+- Création des modèles :
+  - `DocumentManagementFolder`
+  - `DocumentManagementRecord`
+  - `DocumentManagementActivity`
+- Ajout des relations GED dans `CompanySite`.
+- Ajout du seeder `DocumentManagementSeeder`, appelé par `DatabaseSeeder`.
+- Le seeder crée un site GED de démonstration si aucun site n’a encore le module GED, puis ajoute :
+  - dossiers GED,
+  - courriers entrants,
+  - courriers sortants,
+  - documents internes,
+  - activités de traçabilité.
+- Création du tableau de bord GED professionnel avec :
+  - KPI courriers entrants,
+  - documents en traitement,
+  - documents en retard,
+  - dossiers actifs,
+  - bureau d’ordre,
+  - priorités et échéances,
+  - dossiers,
+  - assignations,
+  - activité récente.
+- Création d’une sidebar GED structurée :
+  - Bureau d’ordre,
+  - Traitement,
+  - Classement,
+  - Paramètres GED.
+- Ajout des styles dédiés GED, compatibles dark mode.
+- Ajout des traductions FR/EN nécessaires.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/DocumentManagementController.php`
+- `app/Models/CompanySite.php`
+- `app/Models/DocumentManagementFolder.php`
+- `app/Models/DocumentManagementRecord.php`
+- `app/Models/DocumentManagementActivity.php`
+- `database/migrations/2026_06_05_000001_create_document_management_tables.php`
+- `database/seeders/DatabaseSeeder.php`
+- `database/seeders/DocumentManagementSeeder.php`
+- `resources/views/main/company-site-show.blade.php`
+- `resources/views/main/modules/document-management/dashboard.blade.php`
+- `resources/views/main/modules/document-management/partials/sidebar.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/DocumentManagementController.php` passe.
+- `php -l app/Models/DocumentManagementFolder.php` passe.
+- `php -l app/Models/DocumentManagementRecord.php` passe.
+- `php -l app/Models/DocumentManagementActivity.php` passe.
+- `php -l database/migrations/2026_06_05_000001_create_document_management_tables.php` passe.
+- `php -l database/seeders/DocumentManagementSeeder.php` passe.
+- `php artisan migrate --force` passe.
+- `php artisan db:seed --class=DocumentManagementSeeder --force` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan route:list --name=main.document-management.dashboard` affiche la route GED.
+
+### 2026-06-05 - Réorganisation des modules de site et ajout GMAO
+
+Prompt utilisateur :
+
+```text
+lorsque nous sommes dans site pour choisir le module à se connecter réorganise moi les modules, comme suite :
+1) Comptabilité
+2) RH
+3) Ged
+4) Archivage
+5) GMAO (Gestion de Maintenance Assistée par Ordinateur)
+```
+
+Correction appliquée :
+
+- Réorganisation de l’ordre officiel des modules :
+  - Comptabilité
+  - Ressources Humaines
+  - GED
+  - Archivage
+  - GMAO
+- Ajout du module `gmao` dans `CompanySite`.
+- Ajout des libellés et descriptions FR/EN du module GMAO.
+- Mise à jour de la page détail site pour afficher les modules dans cet ordre.
+- Mise à jour de la modale de création/modification de site pour proposer GMAO avec son icône.
+- Mise à jour de la page utilisateurs pour garder le même ordre dans les permissions de modules.
+- Ajout d’un style visuel dédié aux cartes GMAO.
+- La grille des modules est maintenant responsive avec 5 cartes.
+
+Fichiers modifiés :
+
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/company-site-show.blade.php`
+- `resources/views/main/partials/site-form-modal.blade.php`
+- `resources/views/main/users.blade.php`
+- `resources/views/main/company-sites.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Models/CompanySite.php` passe.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+
+### 2026-06-05 - Page paramètres du module RH
+
+Prompt utilisateur :
+
+```text
+Nous allons maintenant travailler sur la page parametres du module RH, base toi du parametres module Comptabilité et facturation
+```
+
+Implémentation appliquée :
+
+- Création d’une vraie page `Paramètres RH` dédiée, basée sur le design des paramètres Comptabilité/Facturation.
+- Ajout des routes :
+  - `main.human-resources.settings`
+  - `main.human-resources.settings.update`
+- Ajout de la gestion des couleurs PDF utilisées par les rapports RH.
+- Ajout de la gestion des accès aux menus RH pour les utilisateurs simples.
+- Les utilisateurs affichés sont filtrés sur ceux qui ont accès au module RH.
+- Ajout d’une navigation RH dédiée avec clés préfixées `hr-*` pour éviter tout conflit avec les permissions comptables.
+- Branchement du middleware existant pour appliquer réellement les accès RH et rediriger l’utilisateur si un menu lui est retiré.
+- Mise à jour du lien `Paramètres RH` dans la sidebar.
+
+Fichiers modifiés :
+
+- `app/Support/HumanResourcesModuleNavigation.php`
+- `app/Http/Middleware/EnsureAccountingMenuAccess.php`
+- `app/Http/Controllers/HumanResourcesController.php`
+- `routes/web.php`
+- `resources/views/main/modules/human-resources/settings.blade.php`
+- `resources/views/main/modules/human-resources/partials/sidebar.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Support/HumanResourcesModuleNavigation.php` passe.
+- `php -l app/Http/Middleware/EnsureAccountingMenuAccess.php` passe.
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan route:list --name=main.human-resources.settings` affiche les 2 routes attendues.
+
+### 2026-06-05 - Amélioration des widgets du rapport RH
+
+Prompt utilisateur :
+
+```text
+sur rapports RH j'aime pas trop ce design
+```
+
+Correction appliquée :
+
+- Correction de la structure des widgets de présence dans la page Rapports RH.
+- Les cartes affichent maintenant une icône alignée, une valeur lisible et un libellé propre.
+- Harmonisation du style avec les widgets de la page Présences RH.
+- Amélioration de l’espacement, de la hiérarchie visuelle et du rendu en mode sombre.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/human-resources/reports.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+
+### 2026-06-05 - Restauration du scroll comptabilité/facturation
+
+Prompt utilisateur :
+
+```text
+je n'arrive plus à scroller sur les toutes les pages du module comptabilité et facturation
+```
+
+Correction appliquée :
+
+- Correction du shell comptabilité/facturation qui héritait du `position: fixed` du layout dashboard.
+- `.accounting-shell` reprend maintenant un positionnement relatif, une largeur complète et une hauteur naturelle.
+- Le scroll global des pages comptabilité/facturation est restauré, tout en conservant la sidebar sticky et son scroll interne.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+
+### 2026-06-04 - CRUD de la page Congés RH
+
+Prompt utilisateur :
+
+```text
+applique
+```
+
+Implémentation appliquée :
+
+- Création de la page dédiée `resources/views/main/modules/human-resources/leave.blade.php`.
+- Ajout des actions CRUD pour les demandes de congé :
+  - création
+  - modification
+  - suppression
+- Les demandes utilisent uniquement les employés RH enregistrés dans le module, sans afficher les utilisateurs de connexion.
+- Ajout des types de congés et statuts :
+  - congé annuel
+  - maladie
+  - personnel
+  - maternité
+  - autre
+  - en attente, approuvé, rejeté, annulé
+- Calcul automatique du nombre de jours entre la date de début et la date de fin.
+- Blocage des chevauchements pour les demandes en attente ou approuvées d’un même employé.
+- Conservation du style des tableaux et modales déjà appliqué sur les pages RH/comptabilité.
+- Ajout des badges de statut pour les congés.
+- Ajout de `created_by` sur les demandes de congé pour tracer l’utilisateur qui crée la demande.
+- Ajout des notifications RH pour les nouvelles demandes de congé, filtrées dans le module RH.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/HumanResourcesController.php`
+- `app/Models/HumanResourceLeaveRequest.php`
+- `app/Support/AccountingActivityFeed.php`
+- `database/migrations/2026_06_04_000002_add_created_by_to_human_resource_leave_requests.php`
+- `resources/views/main/modules/human-resources/leave.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php -l app/Models/HumanResourceLeaveRequest.php` passe.
+- `php -l app/Support/AccountingActivityFeed.php` passe.
+- `php -l database/migrations/2026_06_04_000002_add_created_by_to_human_resource_leave_requests.php` passe.
+- `php -l routes/web.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan migrate --force` passe pour la migration `created_by` des congés.
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=main.human-resources.leave` affiche les 4 routes Congés.
+- `php artisan route:cache` passe.
+
+### 2026-06-04 - Notifications dédiées au module RH
+
+Prompt utilisateur :
+
+```text
+les nofifs du RH doivent aussi etre pareil
+```
+
+Correction appliquée :
+
+- Ajout d’une page RH dédiée pour toutes les notifications.
+- Ajout d’une page RH dédiée pour le détail d’une notification.
+- Le dropdown de notifications détecte maintenant le module courant :
+  - Comptabilité ouvre les routes de notifications comptabilité.
+  - Ressources Humaines ouvre les routes de notifications RH.
+- Le bouton “Voir toutes les notifications” est maintenant disponible dans le module RH.
+- Les notifications RH restent filtrées sur les clés RH :
+  - employés
+  - contrats
+  - congés
+- Le clic sur une notification RH marque la notification comme consultée.
+- Le détail RH affiche le bouton d’ouverture du module concerné quand la notification correspond à une page RH disponible.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/HumanResourcesController.php`
+- `resources/views/main/modules/partials/accounting-notifications.blade.php`
+- `resources/views/main/modules/human-resources/notifications.blade.php`
+- `resources/views/main/modules/human-resources/notification-show.blade.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php -l routes/web.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=main.human-resources.notifications` affiche les 2 routes RH.
+- `php artisan route:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-04 - Enrichissement complet du module RH
+
+Prompt utilisateur :
+
+```text
+il faut appliquer tout ça
+```
+
+Implémentation appliquée :
+
+- Ajout d’un socle extensible pour les pages RH complémentaires via `human_resource_profile_records`.
+- Création du modèle `HumanResourceProfileRecord`.
+- Activation de nouvelles pages RH avec CRUD générique :
+  - Documents RH
+  - Avances sur salaire
+  - Primes et retenues
+  - Planning / horaires
+  - Évaluations
+  - Formations
+  - Sanctions disciplinaires
+  - Recrutement
+  - Paramètres RH
+- Ajout des routes dynamiques RH pour :
+  - affichage
+  - création
+  - modification
+  - suppression
+- Ajout d’une vue partagée `resource.blade.php` avec :
+  - tableau paginé
+  - recherche côté interface
+  - modale de création/modification
+  - suppression confirmée
+  - champs conditionnels par page : employé, montant, devise, score, dates, catégorie, statut, notes
+- Ajout des nouveaux liens dans la sidebar RH avec regroupement :
+  - Personnel
+  - Administration RH
+  - Développement RH
+  - Gouvernance RH
+- Ajout des traductions FR/EN pour toutes les nouvelles pages.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/HumanResourcesController.php`
+- `app/Models/HumanResourceProfileRecord.php`
+- `database/migrations/2026_06_04_000004_create_human_resource_profile_records.php`
+- `resources/views/main/modules/human-resources/resource.blade.php`
+- `resources/views/main/modules/human-resources/partials/sidebar.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Models/HumanResourceProfileRecord.php` passe.
+- `php -l database/migrations/2026_06_04_000004_create_human_resource_profile_records.php` passe.
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php -l routes/web.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan migrate --force` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:list --path=human_resources` affiche les routes dynamiques des nouvelles pages.
+- `php artisan route:cache` passe.
+
+### 2026-06-04 - Tableau de bord RH avec données réelles
+
+Prompt utilisateur :
+
+```text
+mets à jour le tableau de bord RH avec les vraies infos
+```
+
+Correction appliquée :
+
+- Le tableau de bord RH utilise uniquement les employés RH enregistrés dans le module (`user_id` nul).
+- Les KPI sont désormais calculés depuis les vraies tables :
+  - employés actifs
+  - présence du jour
+  - congés en attente
+  - paie mensuelle validée/payée ou contrats actifs en fallback
+- Remplacement du panneau historique de connexion par les paies récentes du mois.
+- Remplacement du panneau responsable par les derniers dossiers RH complémentaires.
+- Ajout des données issues de `human_resource_profile_records` :
+  - documents
+  - avances
+  - formations
+  - autres dossiers RH
+- Conservation des listes réelles :
+  - employés
+  - départements
+  - demandes de congé
+- Nettoyage de la vue dashboard pour supprimer les caractères mal encodés visibles dans les séparateurs.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/HumanResourcesController.php`
+- `resources/views/main/modules/human-resources/dashboard.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-04 - Page Paie du module RH
+
+Prompt utilisateur :
+
+```text
+travaillons maintenant sur la page paie
+```
+
+Implémentation appliquée :
+
+- Remplacement de la page Paie générique par une vraie page métier dédiée.
+- Création du modèle `HumanResourcePayrollEntry`.
+- Création de la table `human_resource_payroll_entries`.
+- Ajout du CRUD Paie :
+  - création
+  - modification
+  - suppression
+- Chaque ligne de paie est liée à un employé RH enregistré dans le module.
+- La ligne de paie peut être liée automatiquement au contrat actif de l’employé.
+- Les valeurs par défaut de la modale reprennent le salaire et la devise du contrat actif quand il existe.
+- Calcul automatique du salaire net :
+  - salaire brut
+  - primes
+  - retenues
+  - salaire net
+- Blocage d’une deuxième ligne de paie pour le même employé sur la même période.
+- Ajout des statuts de paie :
+  - brouillon
+  - validé
+  - payé
+  - annulé
+- Ajout des badges de statut Paie.
+- Ajout des notifications RH pour les nouvelles lignes de paie.
+- Les détails de notification RH peuvent ouvrir la page Paie quand la notification concerne la paie.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/HumanResourcesController.php`
+- `app/Models/HumanResourceEmployee.php`
+- `app/Models/HumanResourcePayrollEntry.php`
+- `app/Support/AccountingActivityFeed.php`
+- `database/migrations/2026_06_04_000003_create_human_resource_payroll_entries.php`
+- `resources/views/main/modules/human-resources/payroll.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Models/HumanResourcePayrollEntry.php` passe.
+- `php -l app/Models/HumanResourceEmployee.php` passe.
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php -l app/Support/AccountingActivityFeed.php` passe.
+- `php -l routes/web.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan migrate --force` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=main.human-resources.payroll` affiche les 4 routes Paie.
+- `php artisan route:cache` passe.
+
+### 2026-06-04 - Page Rapports RH
+
+Prompt utilisateur :
+
+```text
+noous allons maintenant travailler sur raooorts RH
+```
+
+Implémentation appliquée :
+
+- Remplacement de la page générique Rapports RH par une page dédiée.
+- Ajout des filtres de période :
+  - aujourd’hui
+  - semaine
+  - mois
+  - année
+  - période personnalisée
+- Agrégation des vraies tables RH :
+  - employés
+  - départements
+  - présences
+  - contrats
+  - congés
+  - paie
+- Ajout des indicateurs de synthèse :
+  - employés et employés actifs
+  - lignes de présence et heures travaillées
+  - demandes de congés et demandes en attente
+  - lignes de paie et total net par devise
+- Ajout d’une répartition des présences :
+  - présents
+  - en retard
+  - absents
+  - à distance
+  - en congé
+- Ajout des tableaux de synthèse :
+  - synthèse par département
+  - synthèse de la paie
+  - synthèse des congés
+- Ajout d’un export PDF dédié aux rapports RH, avec le même format visuel que les PDF RH/comptabilité existants.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/HumanResourcesController.php`
+- `resources/views/main/modules/human-resources/reports.blade.php`
+- `resources/views/main/modules/human-resources/pdf/reports.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php -l routes/web.php` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+- `php artisan view:cache` passe.
+- `php artisan route:list --name=main.human-resources.reports` affiche les 2 routes Rapports RH.
+- `php artisan route:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-04 - Présences limitées aux employés RH enregistrés
+
+Prompt utilisateur :
+
+```text
+pareil ici prendre que les employés qu'on a enregistré
+```
+
+Correction appliquée :
+
+- Le formulaire `Nouvelle présence` propose uniquement les fiches employés RH sans compte utilisateur lié.
+- Les listes de présence et le rapport PDF de présence utilisent également uniquement ces employés enregistrés.
+- L'import Excel de présence cherche les matricules uniquement parmi les employés RH enregistrés.
+- La validation empêche de créer ou modifier une présence pour une fiche liée à un utilisateur de connexion.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/HumanResourcesController.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur le contrôleur concerné.
+
+### 2026-06-04 - CRUD de la page Contrats RH
+
+Prompt utilisateur :
+
+```text
+applique
+```
+
+Contexte :
+
+- L'utilisateur a validé la proposition de transformer la page Contrats RH en gestion complète.
+
+Correction appliquée :
+
+- Remplacement de la liste générique des contrats par une page dédiée `contracts.blade.php`.
+- Ajout des routes CRUD :
+  - création,
+  - modification,
+  - suppression.
+- Ajout de la modale de contrat avec le style des modales Facturation/RH :
+  - employé RH enregistré uniquement,
+  - référence automatique si vide,
+  - type de contrat : CDI, CDD, Consultant, Stage,
+  - statut,
+  - dates début/fin/période d'essai,
+  - salaire mensuel,
+  - devise,
+  - notes.
+- Ajout d'une règle métier : un employé ne peut pas avoir deux contrats actifs en même temps.
+- Les contrats ne peuvent cibler que les employés RH enregistrés sans compte utilisateur lié.
+- Ajout de badges colorés pour les statuts de contrat.
+- Ajout des libellés FR/EN nécessaires.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/HumanResourcesController.php`
+- `routes/web.php`
+- `resources/views/main/modules/human-resources/contracts.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php -l routes/web.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:list --path=human_resources/contracts` affiche les 4 routes Contrats.
+- `php artisan route:cache` passe.
+- `git diff --check` ne signale pas d'erreur bloquante sur les fichiers concernés.
+
+### 2026-06-04 - Sélecteur de devise sur les contrats RH
+
+Prompt utilisateur :
+
+```text
+par défut USD mais proposer aussi les autres devices
+```
+
+Correction appliquée :
+
+- Le champ `Devise` du formulaire Contrat RH est maintenant une liste déroulante.
+- `USD` est proposé et sélectionné par défaut.
+- Les autres devises actives configurées sur le site sont également proposées.
+- La validation du contrat accepte uniquement les devises disponibles dans cette liste.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/HumanResourcesController.php`
+- `resources/views/main/modules/human-resources/contracts.blade.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-04 - Notifications filtrées par module
+
+Prompt utilisateur :
+
+```text
+les notifications du RH ne concerbe que le RH, pareil pour les autres modules
+```
+
+Correction appliquée :
+
+- Le flux de notifications du header est maintenant filtré selon le module courant.
+- Le module Comptabilité affiche uniquement les notifications comptables.
+- Le module Ressources Humaines affiche uniquement les notifications RH.
+- Les autres modules ne reçoivent pas les notifications Comptabilité par défaut.
+- Le compteur de notifications non consultées est calculé sur le même périmètre que le module affiché.
+- Le lien `Voir toutes les notifications` reste affiché uniquement pour le module Comptabilité, tant qu'une page dédiée aux notifications RH n'existe pas.
+- Ajout des premières notifications RH synchronisées :
+  - ajout d'un employé,
+  - ajout d'un contrat RH.
+- La page de liste et de détail des notifications Comptabilité est sécurisée pour ne jamais afficher une notification d'un autre module.
+
+Fichiers modifiés :
+
+- `app/Support/AccountingActivityFeed.php`
+- `app/Providers/AppServiceProvider.php`
+- `app/Http/Controllers/MainController.php`
+- `resources/views/main/modules/partials/accounting-notifications.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Support/AccountingActivityFeed.php` passe.
+- `php -l app/Providers/AppServiceProvider.php` passe.
+- `php -l app/Http/Controllers/MainController.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `git diff --check` ne signale pas d'erreur bloquante sur les fichiers concernés.
+
+### 2026-06-04 - Gestion des employés RH indépendants des utilisateurs
+
+Prompt utilisateur :
+
+```text
+ici on doit pouvoir etre en mesure d'ajouter les employés, les empoyés qu'on ajoute ici n'ont pas le droit de se connecter à la plateforme ce ne sont pas des utilisateurs, n'affiche aucun utilisateur ici
+```
+
+Correction appliquée :
+
+- La page Employés RH affiche uniquement les fiches `human_resource_employees` sans compte utilisateur lié (`user_id` nul).
+- Ajout des routes de création, modification et suppression des employés RH.
+- Ajout d'une vue dédiée `employees.blade.php` avec tableau paginé, recherche, actions, modale d'ajout/modification et suppression confirmée.
+- La création force `user_id = null`, donc un employé ajouté ici ne peut pas se connecter à la plateforme.
+- Les fiches liées à des utilisateurs sont protégées contre modification/suppression depuis cette page.
+- Ajout des libellés FR/EN nécessaires au formulaire Employés.
+- Le seeder RH ne propage plus les fiches liées aux utilisateurs dans les données RH de démonstration utilisées ensuite.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/HumanResourcesController.php`
+- `routes/web.php`
+- `resources/views/main/modules/human-resources/employees.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `database/seeders/HumanResourcesSeeder.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php -l routes/web.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php -l database/seeders/HumanResourcesSeeder.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:list --path=human_resources/employees` affiche les 4 routes Employés.
+- `php artisan route:cache` passe.
+- `git diff --check` ne signale pas d'erreur bloquante sur les fichiers concernés.
+
+### 2026-06-04 - Alignement du modal Employés RH sur les modales Facturation
+
+Prompt utilisateur :
+
+```text
+tu dois utiliser le meme style de modal qu'on a fait avec le module facturation
+```
+
+Correction appliquée :
+
+- Le modal Employés RH reprend la largeur standard des modales Facturation.
+- Les champs sont organisés en sections internes avec titres et icônes, comme les modales clients/fournisseurs :
+  - identité,
+  - informations professionnelles,
+  - coordonnées.
+- Ajout des libellés FR/EN des sections.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/human-resources/employees.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `git diff --check` ne signale pas d'erreur bloquante sur les fichiers concernés.
+
+### 2026-06-04 - Largeur légère des modales RH
+
+Prompt utilisateur :
+
+```text
+les modales doivent etre un tout petit peu large
+```
+
+Correction appliquée :
+
+- Les modales du module Ressources Humaines passent à une largeur maximale de `620px`.
+- La règle est ciblée sur le body RH pour ne pas modifier les modales des autres modules.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur le fichier CSS concerné.
+
+### 2026-06-04 - Pagination RH alignée sur la comptabilité
+
+Prompt utilisateur :
+
+```text
+Pourquoi les tableaux ne sont pas paginé comme nous l'avons fais avec le module comptabilité
+```
+
+Correction appliquée :
+
+- Les tableaux RH étaient paginés à `10` lignes, donc la pagination n'apparaissait pas avec 6 employés.
+- Alignement sur le module comptabilité avec `5` lignes par page.
+- Centralisation de la taille de pagination RH dans `HumanResourcesController::TABLE_ROWS_PER_PAGE`.
+- Listes concernées :
+  - employés,
+  - départements,
+  - présences,
+  - contrats,
+  - congés,
+  - paie.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/HumanResourcesController.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur le contrôleur concerné.
+
+### 2026-06-04 - Responsable de département basé sur les employés RH
+
+Prompt utilisateur :
+
+```text
+le responsable doit etre les empoyés et non les utilisateurs
+```
+
+Correction appliquée :
+
+- Ajout du champ `manager_employee_id` sur `human_resource_departments`.
+- La relation `HumanResourceDepartment::manager()` pointe maintenant vers `HumanResourceEmployee`.
+- Le formulaire Département propose les employés RH actifs du site, et plus les utilisateurs de connexion.
+- L'affichage du tableau Département montre le nom complet de l'employé responsable.
+- La validation vérifie que le responsable choisi est bien une fiche employé RH du site, sans compte utilisateur lié.
+- Le seeder RH renseigne désormais le responsable via les employés RH de démonstration.
+
+Fichiers modifiés :
+
+- `database/migrations/2026_06_04_000001_add_manager_employee_to_human_resource_departments.php`
+- `app/Models/HumanResourceDepartment.php`
+- `app/Http/Controllers/HumanResourcesController.php`
+- `resources/views/main/modules/human-resources/departments.blade.php`
+- `database/seeders/HumanResourcesSeeder.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan migrate --force` passe.
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php -l app/Models/HumanResourceDepartment.php` passe.
+- `php -l database/migrations/2026_06_04_000001_add_manager_employee_to_human_resource_departments.php` passe.
+- `php -l database/seeders/HumanResourcesSeeder.php` passe.
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-04 - Badges de statuts RH colorés
+
+Prompt utilisateur :
+
+```text
+actif doit etre dans un bagde en vert
+```
+
+Correction appliquée :
+
+- Ajout des styles de badges RH :
+  - `Actif` et `Présent` en vert,
+  - congé/distance en indigo,
+  - retard en jaune,
+  - suspendu/terminé/absent/inactif en rouge.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur le fichier CSS concerné.
+
+### 2026-05-27 - Export PDF du rapport de présences RH
+
+Prompt utilisateur :
+
+```text
+le rapport doit se générer en pdf comme on le faisais sur les modules comptabilités
+```
+
+Correction appliquée :
+
+- Ajout d'une route dédiée `main.human-resources.attendance.report.pdf`.
+- Ajout de `printAttendanceReport()` dans `HumanResourcesController`, avec génération DomPDF en paysage et conservation des filtres de période.
+- Factorisation du calcul des indicateurs de présence pour partager les mêmes chiffres entre l'écran et le PDF.
+- Ajout d'un bouton `Exporter en PDF` sur la page Présences RH.
+- Création d'une vue PDF `resources/views/main/modules/human-resources/pdf/attendance-report.blade.php`.
+- Ajout des libellés FR/EN nécessaires au rapport.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/HumanResourcesController.php`
+- `routes/web.php`
+- `resources/views/main/modules/human-resources/attendance.blade.php`
+- `resources/views/main/modules/human-resources/pdf/attendance-report.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php -l routes/web.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:clear` puis `php artisan route:list --path=human_resources/attendance` affichent la route PDF.
+- `php artisan route:cache` passe.
+- `git diff --check` ne signale pas d'erreur bloquante sur les fichiers concernés.
+
+### 2026-05-27 - Alignement du PDF Présences RH sur le design Comptabilité
+
+Prompt utilisateur :
+
+```text
+pour le fichier pdf stp garde le meme forma comme on l'a fait avec le module comptabilité les entetes les pieds de page respect les design stp.
+Dans exporter en PDF enleve le soulignement
+```
+
+Correction appliquée :
+
+- Le PDF de présence RH reprend maintenant le même gabarit que les rapports comptables :
+  - en-tête société/site,
+  - titre à droite,
+  - règle colorée,
+  - métriques en tableau,
+  - tableau de détails,
+  - pied de page fixe avec branding et date de génération.
+- Le PDF utilise les couleurs PDF configurées sur le site.
+- Les boutons/liens `.primary-action` et `.secondary-action` n'affichent plus de soulignement.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/human-resources/pdf/attendance-report.blade.php`
+- `resources/css/admin/dashboard.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-05-27 - Espacement icône titre modale département RH
+
+Prompt utilisateur :
+
+```text
+espace légerement  l'icone avec Nouveau département
+```
+
+Correction appliquée :
+
+- Ajout d’un espacement dédié entre l’icône et le titre de la modale département RH.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-05-27 - Correction effective espacement titre modale département RH
+
+Prompt utilisateur :
+
+```text
+tu n'as pas séparé le titre avec l'icone sur le modal département
+```
+
+Correction appliquée :
+
+- Le titre de la modale département RH est maintenant forcé en `inline-flex`.
+- L’icône et le texte sont alignés verticalement avec un espacement réel entre les deux.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-05-27 - Centrage des avatars dans le dashboard RH
+
+Prompt utilisateur :
+
+```text
+On a le meme problème de centralisation des icones des utilisateurs
+```
+
+Correction appliquée :
+
+- Renforcement du style des avatars dans les lignes employés RH.
+- Les avatars RH utilisent maintenant une taille carrée fixe, un centrage `inline-flex`, `line-height: 1` et une image en `object-fit: cover`.
+- La correction garde le comportement des photos de profil tout en centrant correctement l’initiale dans le cercle.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
+
+### 2026-05-27 - CRUD des départements RH
+
+Prompt utilisateur :
+
+```text
+dans département donne la possiblité d'ajouter, modifier et supprimer les départements
+```
+
+Implémentation appliquée :
+
+- Ajout des routes `POST`, `PUT` et `DELETE` pour les départements RH.
+- Ajout des méthodes `storeDepartment`, `updateDepartment`, `destroyDepartment` dans `HumanResourcesController`.
+- Validation serveur des champs :
+  - code unique par site
+  - nom obligatoire
+  - responsable limité aux utilisateurs affectés au site
+  - statut actif/inactif
+- Création d’une vue dédiée `departments.blade.php` avec :
+  - bouton “Nouveau département”
+  - modal création/modification
+  - boutons modifier/supprimer dans le tableau
+  - confirmation de suppression
+  - pagination et recherche selon le style existant.
+- Ajout des libellés FR/EN nécessaires.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/HumanResourcesController.php`
+- `resources/views/main/modules/human-resources/departments.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php artisan route:list --path=human_resources/departments` affiche les 4 routes attendues.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+
+### 2026-05-27 - Texte blanc dans les avatars RH
+
+Prompt utilisateur :
+
+```text
+texte blanc des icones doivent etres blanches
+```
+
+Correction appliquée :
+
+- La couleur blanche est forcée sur les initiales des avatars du dashboard RH.
+- Le style évite que le sélecteur général des textes de ligne RH assombrisse l’initiale.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur `resources/css/main.css`.
+
+### 2026-05-27 - Activation des menus du module RH
+
+Prompt utilisateur :
+
+```text
+active les autres menus
+```
+
+Implémentation appliquée :
+
+- Activation des menus RH de la sidebar :
+  - Employés
+  - Départements
+  - Présences
+  - Contrats
+  - Congés
+  - Paie
+  - Rapports RH
+- Ajout des routes dédiées dans `routes/web.php`.
+- Ajout des méthodes correspondantes dans `HumanResourcesController`.
+- Création de la vue générique `resources/views/main/modules/human-resources/index.blade.php` pour afficher les listes RH.
+- Les pages sont connectées aux vraies tables RH et affichent des tableaux paginés quand nécessaire.
+- Ajout des libellés FR/EN et styles de tableau RH.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/HumanResourcesController.php`
+- `resources/views/main/modules/human-resources/partials/sidebar.blade.php`
+- `resources/views/main/modules/human-resources/index.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/HumanResourcesController.php` passe.
+- `php artisan route:list --path=human_resources` affiche 8 routes RH.
+- `php artisan route:cache` passe.
+- `php artisan view:cache` passe.
+- `php -l lang/fr/main.php` et `php -l lang/en/main.php` passent.
+
+### 2026-05-27 - Alignement du tableau Employés RH sur les tableaux existants
+
+Prompt utilisateur :
+
+```text
+Pour les employés regardes les styles de mes tableaux précédents applique ça ici
+```
+
+Correction appliquée :
+
+- La vue de liste RH utilise maintenant la même structure que les tableaux existants :
+  - `accounting-list-page`
+  - `page-heading`
+  - `table-tools`
+  - recherche `companySearch`
+  - compteur `visibleCount`
+  - `company-card`
+  - `company-table`
+  - boutons de tri `table-sort`
+  - ligne “aucun résultat”
+  - pagination `subscriptions-pagination`
+- Le rendu Employés RH est désormais cohérent avec les tableaux Comptabilité/Facturation.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/human-resources/index.blade.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan view:cache` passe.
+- `git diff --check` passe sur les fichiers concernés.
