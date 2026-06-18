@@ -41,7 +41,7 @@ class Company extends Model
         }
 
         return Storage::disk('public')->exists($this->logo)
-            ? Storage::disk('public')->url($this->logo)
+            ? public_storage_url($this->logo)
             : null;
     }
 

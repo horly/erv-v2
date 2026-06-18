@@ -136,7 +136,7 @@ CSS;
         }
 
         if (Storage::disk('public')->exists($path)) {
-            return Storage::disk('public')->url($path);
+            return public_storage_url($path);
         }
 
         return asset($path);

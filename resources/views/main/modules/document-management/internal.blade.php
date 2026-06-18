@@ -106,7 +106,7 @@
                                             <span>{{ $record->category }} @if ($record->decision) &middot; {{ __('main.ged_version') }} {{ $record->decision }} @endif</span>
                                             <small>{{ $record->sender ?: $site->name }} &middot; {{ $record->folder?->name ?? __('main.ged_without_folder') }}</small>
                                             @if ($record->file_path)
-                                                <a class="ged-file-link" href="{{ asset('storage/'.$record->file_path) }}" target="_blank" rel="noopener">
+                                                <a class="ged-file-link" href="{{ public_storage_url($record->file_path) }}" target="_blank" rel="noopener">
                                                     <i class="bi bi-paperclip" aria-hidden="true"></i>
                                                     {{ __('main.ged_attachment') }}
                                                 </a>

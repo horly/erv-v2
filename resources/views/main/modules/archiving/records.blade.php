@@ -61,7 +61,7 @@
                     @forelse ($records as $record)
                         @php
                             $recordBox = $record->box ?? $record->container?->box;
-                            $fileUrl = $record->file_path ? asset('storage/'.$record->file_path) : null;
+                            $fileUrl = $record->file_path ? public_storage_url($record->file_path) : null;
                             $extension = strtolower(pathinfo($record->file_path ?? '', PATHINFO_EXTENSION));
                             $previewType = in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true) ? 'image' : ($extension === 'pdf' ? 'pdf' : 'file');
                         @endphp

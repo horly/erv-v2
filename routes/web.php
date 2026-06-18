@@ -7,7 +7,12 @@ use App\Http\Controllers\HumanResourcesController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\MainController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicStorageController;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/public-storage/{path}', [PublicStorageController::class, 'show'])
+    ->where('path', '.*')
+    ->name('public.storage');
 
 Route::controller(MainController::class)->group(function (): void {
     Route::get('/', 'root');

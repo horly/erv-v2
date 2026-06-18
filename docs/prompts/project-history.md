@@ -11848,6 +11848,181 @@ Vérification :
 - `php artisan view:cache` passe.
 - `git diff --check` passe sur les fichiers concernés.
 
+### 2026-06-18 - Refonte de la page Mouvements Archivage
+
+Prompt utilisateur :
+
+```text
+peux-tu améliorer la page mouvement , ajoute 2 documents et 6 mouvements après
+```
+
+Implémentation appliquée :
+
+- Remplacement du tableau des mouvements par un journal de mouvements sous forme de cartes professionnelles.
+- Chaque mouvement affiche maintenant clairement :
+  - le document ou classeur concerné ;
+  - la référence du mouvement ;
+  - l'emplacement source ;
+  - l'emplacement de destination ;
+  - la date, l'acteur, la raison et les notes.
+- Conservation de la pagination existante à 5 éléments par page.
+- Ajout des styles responsive et dark mode pour la nouvelle présentation.
+- Ajout de 2 documents d'archive de démonstration :
+  - `ARC-900101`
+  - `ARC-900102`
+- Ajout de 6 mouvements d'archive de démonstration :
+  - `MVT-900101`
+  - `MVT-900102`
+  - `MVT-900103`
+  - `MVT-900104`
+  - `MVT-900105`
+  - `MVT-900106`
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/archiving/movements.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l resources/views/main/modules/archiving/movements.blade.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- Les 2 documents et les 6 mouvements sont présents dans la base locale.
+
+### 2026-06-18 - Amélioration de la page Conservation Archivage
+
+Prompt utilisateur :
+
+```text
+améliore la page conservation
+```
+
+Implémentation appliquée :
+
+- Refonte de la page Conservation avec une présentation plus professionnelle.
+- Ajout de vrais indicateurs en haut de page :
+  - nombre total de règles ;
+  - règles actives ;
+  - documents arrivant à échéance dans les 90 jours ;
+  - documents déjà expirés.
+- Remplacement du tableau brut des règles par des cartes compactes et lisibles.
+- Ajout d’un panneau de surveillance avec la prochaine échéance et les documents proches de l’expiration.
+- Conservation de la pagination à 5 éléments par page pour les règles.
+- Amélioration du modal de création de règle avec placeholder, espacement et style cohérents.
+- Ajout des styles responsive et dark mode.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/ArchivingController.php`
+- `resources/views/main/modules/archiving/retention.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/ArchivingController.php` passe.
+- `php -l resources/views/main/modules/archiving/retention.blade.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+
+### 2026-06-18 - Alignement de la page Traçabilité Archivage sur les tableaux standards
+
+Prompt utilisateur :
+
+```text
+nous allons maintenant travailler sur traçabilité, garde le meme style de mes tableaux please
+```
+
+Implémentation appliquée :
+
+- Refonte de la page Traçabilité Archivage avec le style standard des tableaux de l’application.
+- Ajout d’une recherche locale sans rechargement de page via `companySearch`.
+- Ajout du compteur dynamique `visibleCount`.
+- Colonnes triables :
+  - Date ;
+  - Action ;
+  - Utilisateur ;
+  - Changement ;
+  - Commentaire.
+- Ajout d’une pagination cohérente avec les autres listes.
+- Ajout des libellés propres pour les actions Archivage afin d’éviter l’affichage de clés techniques.
+- Amélioration de l’affichage des changements de statut et des commentaires longs.
+- Ajout des styles dark mode ciblés.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/ArchivingController.php`
+- `resources/views/main/modules/archiving/traceability.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/ArchivingController.php` passe.
+- `php -l resources/views/main/modules/archiving/traceability.blade.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+
+### 2026-06-18 - Amélioration de la page Rapports Archivage
+
+Prompt utilisateur :
+
+```text
+améliore la page Rapports Archivage
+```
+
+Implémentation appliquée :
+
+- Refonte de la page Rapports Archivage avec une présentation plus professionnelle.
+- Alignement visuel sur les rapports GED/RH déjà améliorés :
+  - métriques en cartes ;
+  - panneaux de rapport ;
+  - tableaux structurés ;
+  - en-têtes avec icônes ;
+  - barres de progression ;
+  - badges de statut.
+- Amélioration des sections :
+  - répartition par type ;
+  - répartition par statut ;
+  - répartition par emplacement physique ;
+  - répartition par classeur.
+- Ajout d’une note de génération du rapport.
+- Remplacement du bouton PDF par un bouton d’impression PDF cohérent et sans soulignement.
+- Ajout des clés de statut dans les données de rapport pour styliser les badges.
+- Ajout des styles dark mode dédiés.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/ArchivingController.php`
+- `resources/views/main/modules/archiving/reports.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/ArchivingController.php` passe.
+- `php -l resources/views/main/modules/archiving/reports.blade.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+
 ### 2026-06-09 - Affichage des documents archivés en cartes avec aperçu
 
 Prompt utilisateur :
@@ -11976,6 +12151,53 @@ Vérification :
 
 - `php artisan view:cache` passe.
 - `git diff --check` passe sur `resources/css/main.css`.
+
+### 2026-06-18 - Correction du chargement des images publiques
+
+Prompt utilisateur :
+
+```text
+le site ne charge pas les images pourquoi ?
+```
+
+Diagnostic :
+
+- Les fichiers existent bien dans `storage/app/public`.
+- Le lien `public/storage` existe, mais le serveur répond `403 Forbidden` sur `/storage/...`.
+- Les fichiers statiques récents sous `public` ne sont pas visibles par le serveur HTTP en cours sans redémarrage.
+
+Correction appliquée :
+
+- Création d’un vrai dossier public `public/user-files`.
+- Copie des fichiers existants de `storage/app/public` vers `public/user-files`.
+- Configuration du disque Laravel `public` pour stocker les prochains uploads dans `public/user-files`.
+- Ajout du helper `public_storage_url()` qui génère les URLs `/user-files/...`.
+- Mise à jour des URLs des logos, avatars, fichiers GED et fichiers Archivage.
+- Ajout d’un contrôleur de secours `PublicStorageController` pour servir les anciens chemins si nécessaire après redémarrage.
+
+Fichiers modifiés :
+
+- `config/filesystems.php`
+- `app/Support/helpers.php`
+- `app/Support/AppBranding.php`
+- `app/Models/Company.php`
+- `app/Models/User.php`
+- `routes/web.php`
+- `app/Http/Controllers/PublicStorageController.php`
+- `resources/views/main/modules/archiving/records.blade.php`
+- `resources/views/main/modules/document-management/incoming.blade.php`
+- `resources/views/main/modules/document-management/outgoing.blade.php`
+- `resources/views/main/modules/document-management/internal.blade.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `public_storage_url()` et `app_brand_logo_url()` génèrent maintenant `/user-files/...`.
+- `php artisan optimize:clear` passe.
+- `php artisan route:cache` passe.
+- `php artisan view:cache` passe.
+- `php -l` passe sur les fichiers PHP modifiés.
+- `git diff --check` passe sur les fichiers concernés.
 
 ### 2026-06-09 - Ajout de 4 rayons dans Salle 2
 

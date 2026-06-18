@@ -117,7 +117,7 @@ class User extends Authenticatable
         }
 
         return Storage::disk('public')->exists($this->profile_photo_path)
-            ? Storage::disk('public')->url($this->profile_photo_path)
+            ? public_storage_url($this->profile_photo_path)
             : null;
     }
 

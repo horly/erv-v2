@@ -1,3 +1,144 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light" class="accounting-module-root"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ __('main.archive_traceability') }} | {{ app_brand_name() }}</title><link rel="icon" href="{{ app_brand_favicon_url() }}"><link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet"><link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet"><style>{!! file_get_contents(resource_path('css/admin/dashboard.css')) !!}</style><style>{!! file_get_contents(resource_path('css/main.css')) !!}</style></head>
-<body class="accounting-module-body archiving-module-body"><div class="dashboard-shell main-shell accounting-shell archiving-shell" data-theme="light">@include('main.modules.archiving.partials.sidebar', ['activeArchivingPage' => 'traceability'])<main class="dashboard-main"><header class="dashboard-topbar"><div><h1>{{ __('main.archive_traceability') }}</h1><p>{{ $company->name }} / {{ $site->name }}</p></div>@include('main.modules.partials.accounting-header-actions')</header><section class="dashboard-content accounting-list-page archiving-page"><a class="back-link" href="{{ route('main.archiving.dashboard', [$company, $site]) }}"><i class="bi bi-arrow-left"></i>{{ __('main.archive_dashboard') }}</a><section class="page-heading"><div><h1>{{ __('main.archive_traceability') }}</h1><p>{{ __('main.archive_traceability_subtitle') }}</p></div></section><section class="table-tools"><span></span><span><strong>{{ $activities->count() }}</strong> / <strong>{{ $activities->total() }}</strong> {{ __('main.rows') }}</span></section><article class="company-card"><div class="company-table-wrap"><table class="company-table" data-sortable-table><thead><tr><th>{{ __('main.date') }}</th><th>{{ __('main.action') }}</th><th>{{ __('main.actor') }}</th><th>{{ __('main.change') }}</th><th>{{ __('main.comment') }}</th></tr></thead><tbody>@forelse ($activities as $activity)<tr><td>{{ $activity->created_at?->format('d/m/Y H:i') }}</td><td><strong>{{ __('main.archive_action_'.$activity->action) }}</strong></td><td>{{ $activity->actor?->name ?? '-' }}<br><small>{{ $activity->actor?->email }}</small></td><td>{{ $activity->from_status ?: '-' }} → {{ $activity->to_status ?: '-' }}</td><td>{{ $activity->comment ?: '-' }}</td></tr>@empty<tr><td colspan="5" class="text-center text-muted">{{ __('main.archive_no_activity') }}</td></tr>@endforelse</tbody></table></div></article>@if ($activities->hasPages())<section class="subscriptions-pagination">{{ $activities->links() }}</section>@endif</section></main></div><script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script><script>{!! file_get_contents(resource_path('js/main.js')) !!}</script></body></html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light" class="accounting-module-root">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ __('main.archive_traceability') }} | {{ app_brand_name() }}</title>
+    <link rel="icon" href="{{ app_brand_favicon_url() }}">
+    <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ asset('vendor/bootstrap-icons/font/bootstrap-icons.min.css') }}" rel="stylesheet">
+    <style>{!! file_get_contents(resource_path('css/admin/dashboard.css')) !!}</style>
+    <style>{!! file_get_contents(resource_path('css/main.css')) !!}</style>
+</head>
+<body class="accounting-module-body archiving-module-body">
+    @php
+        $totalActivities = $activities->total();
+        $fallbackActionLabel = fn ($action) => str($action)->replace('_', ' ')->title();
+        $formatStatus = fn ($status) => $status ? ($activityStatusLabels[$status] ?? str($status)->replace('_', ' ')->title()) : '-';
+    @endphp
+
+    <div class="dashboard-shell main-shell accounting-shell archiving-shell" data-theme="light">
+        @include('main.modules.archiving.partials.sidebar', ['activeArchivingPage' => 'traceability'])
+
+        <main class="dashboard-main">
+            <header class="dashboard-topbar">
+                <div>
+                    <h1>{{ __('main.archive_traceability') }}</h1>
+                    <p>{{ $company->name }} / {{ $site->name }}</p>
+                </div>
+                @include('main.modules.partials.accounting-header-actions')
+            </header>
+
+            <section class="dashboard-content accounting-list-page archiving-page archive-traceability-page">
+                <a class="back-link" href="{{ route('main.archiving.dashboard', [$company, $site]) }}">
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                    {{ __('main.archive_dashboard') }}
+                </a>
+
+                <section class="page-heading">
+                    <div>
+                        <h1>{{ __('main.archive_traceability') }}</h1>
+                        <p>{{ __('main.archive_traceability_subtitle') }}</p>
+                    </div>
+                </section>
+
+                <section class="table-tools" aria-label="{{ __('admin.search_tools') }}">
+                    <div class="search-box">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <input id="companySearch" type="search" placeholder="{{ __('main.archive_trace_search_placeholder') }}" autocomplete="off">
+                    </div>
+                    <span class="row-count">
+                        <strong id="visibleCount">{{ $activities->count() }}</strong>
+                        /
+                        <strong>{{ $totalActivities }}</strong>
+                        {{ __('main.rows') }}
+                    </span>
+                </section>
+
+                <article class="company-card">
+                    <div class="company-table-wrap">
+                        <table class="company-table archive-trace-table" id="companyTable" data-sortable-table>
+                            <thead>
+                                <tr>
+                                    <th><button class="table-sort" type="button" data-sort-index="0" data-sort-type="date">{{ __('main.date') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="1">{{ __('main.action') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="2">{{ __('main.actor') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="3">{{ __('main.change') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="4">{{ __('main.comment') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($activities as $activity)
+                                    <tr>
+                                        <td class="ged-trace-date" data-sort-value="{{ $activity->created_at?->format('Y-m-d H:i:s') }}">
+                                            <strong>{{ $activity->created_at?->format('d/m/Y') }}</strong>
+                                            <span>{{ $activity->created_at?->format('H:i') }}</span>
+                                        </td>
+                                        <td class="ged-trace-action-cell archive-trace-action-cell">
+                                            <span class="ged-trace-action-icon archive-trace-action-icon"><i class="bi bi-activity" aria-hidden="true"></i></span>
+                                            <div>
+                                                <strong>{{ $activityActionLabels[$activity->action] ?? $fallbackActionLabel($activity->action) }}</strong>
+                                                <small>{{ $activity->action }}</small>
+                                            </div>
+                                        </td>
+                                        <td class="ged-validator-cell">
+                                            <strong>{{ $activity->actor?->name ?? __('main.system') }}</strong>
+                                            <span>{{ $activity->actor?->email ?? '-' }}</span>
+                                        </td>
+                                        <td class="ged-trace-status-cell">
+                                            @if ($activity->from_status || $activity->to_status)
+                                                <span>{{ __('main.archive_trace_from') }} : <strong>{{ $formatStatus($activity->from_status) }}</strong></span>
+                                                <span>{{ __('main.archive_trace_to') }} : <strong>{{ $formatStatus($activity->to_status) }}</strong></span>
+                                            @else
+                                                <span>{{ __('main.archive_trace_no_status_change') }}</span>
+                                            @endif
+                                        </td>
+                                        <td class="archive-trace-comment">
+                                            {{ $activity->comment ?: '-' }}
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr class="empty-row">
+                                        <td colspan="5">{{ __('main.archive_no_activity') }}</td>
+                                    </tr>
+                                @endforelse
+                                <tr class="empty-row search-empty-row" hidden>
+                                    <td colspan="5">{{ __('main.archive_no_activity') }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+
+                @if ($activities->hasPages())
+                    <section class="subscriptions-pagination" aria-label="{{ __('admin.pagination') }}">
+                        <span>{{ __('admin.showing') }} <strong>{{ $activities->firstItem() ?? 0 }}</strong> {{ __('admin.to') }} <strong>{{ $activities->lastItem() ?? 0 }}</strong> {{ __('admin.on') }} <strong>{{ $totalActivities }}</strong></span>
+                        <nav class="pagination-shell" aria-label="{{ __('admin.pagination') }}">
+                            @if ($activities->onFirstPage())
+                                <span class="disabled">{{ __('admin.previous') }}</span>
+                            @else
+                                <a href="{{ $activities->previousPageUrl() }}">{{ __('admin.previous') }}</a>
+                            @endif
+                            @foreach ($activities->getUrlRange(1, $activities->lastPage()) as $page => $url)
+                                @if ($page === $activities->currentPage())
+                                    <span class="active" aria-current="page">{{ $page }}</span>
+                                @else
+                                    <a href="{{ $url }}">{{ $page }}</a>
+                                @endif
+                            @endforeach
+                            @if ($activities->hasMorePages())
+                                <a href="{{ $activities->nextPageUrl() }}">{{ __('admin.next') }}</a>
+                            @else
+                                <span class="disabled">{{ __('admin.next') }}</span>
+                            @endif
+                        </nav>
+                    </section>
+                @endif
+            </section>
+        </main>
+    </div>
+
+    <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <script>{!! file_get_contents(resource_path('js/main.js')) !!}</script>
+</body>
+</html>

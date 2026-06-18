@@ -36,3 +36,10 @@ if (! function_exists('app_brand_favicon_url')) {
         return AppBranding::faviconUrl();
     }
 }
+
+if (! function_exists('public_storage_url')) {
+    function public_storage_url(string $path): string
+    {
+        return asset('user-files/'.ltrim($path, '/'));
+    }
+}

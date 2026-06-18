@@ -544,17 +544,28 @@ class ArchivingController extends Controller
         }
 
         [$user, $moduleMeta] = $access;
+        $today = now()->toDateString();
+        $next90Days = now()->addDays(90)->toDateString();
+        $rulesQuery = $site->archiveRetentionRules();
+        $expiringQuery = $site->archiveRecords()
+            ->whereNotNull('retention_until')
+            ->where('retention_until', '<=', $next90Days)
+            ->where('status', '!=', ArchiveRecord::STATUS_DESTROYED);
+
         $rules = $site->archiveRetentionRules()
             ->orderBy('category')
             ->paginate(5)
             ->withQueryString();
-        $expiringRecords = $site->archiveRecords()
-            ->whereNotNull('retention_until')
-            ->where('retention_until', '<=', now()->addDays(90)->toDateString())
-            ->where('status', '!=', ArchiveRecord::STATUS_DESTROYED)
+        $expiringRecords = (clone $expiringQuery)
             ->orderBy('retention_until')
             ->limit(5)
             ->get();
+        $nextExpiry = $site->archiveRecords()
+            ->whereNotNull('retention_until')
+            ->where('retention_until', '>=', $today)
+            ->where('status', '!=', ArchiveRecord::STATUS_DESTROYED)
+            ->orderBy('retention_until')
+            ->first();
 
         return view('main.modules.archiving.retention', [
             'user' => $user,
@@ -564,6 +575,17 @@ class ArchivingController extends Controller
             'moduleMeta' => $moduleMeta,
             'rules' => $rules,
             'expiringRecords' => $expiringRecords,
+            'retentionStats' => [
+                'rules' => (clone $rulesQuery)->count(),
+                'activeRules' => (clone $rulesQuery)->where('status', ArchiveRetentionRule::STATUS_ACTIVE)->count(),
+                'expiringSoon' => (clone $expiringQuery)->where('retention_until', '>=', $today)->count(),
+                'expiredRecords' => $site->archiveRecords()
+                    ->whereNotNull('retention_until')
+                    ->where('retention_until', '<', $today)
+                    ->where('status', '!=', ArchiveRecord::STATUS_DESTROYED)
+                    ->count(),
+                'nextExpiry' => $nextExpiry,
+            ],
         ]);
     }
 
@@ -613,6 +635,16 @@ class ArchivingController extends Controller
             'module' => CompanySite::MODULE_ARCHIVING,
             'moduleMeta' => $moduleMeta,
             'activities' => $activities,
+            'activityActionLabels' => $this->archiveActivityActionLabels(),
+            'activityStatusLabels' => array_merge(
+                $this->locationStatusLabels(),
+                $this->containerStatusLabels(),
+                $this->recordStatusLabels(),
+                [
+                    ArchiveRetentionRule::STATUS_ACTIVE => __('main.status_active'),
+                    ArchiveRetentionRule::STATUS_INACTIVE => __('main.status_inactive'),
+                ],
+            ),
         ]);
     }
 
@@ -1447,20 +1479,27 @@ class ArchivingController extends Controller
                 ->map(fn ($rows, string $label): array => ['label' => $label, 'count' => $rows->count()])
                 ->values(),
             'statusRows' => $records->groupBy('status')
-                ->map(fn ($rows, string $status): array => ['label' => $this->recordStatusLabels()[$status] ?? $status, 'count' => $rows->count()])
+                ->map(fn ($rows, string $status): array => [
+                    'label' => $this->recordStatusLabels()[$status] ?? $status,
+                    'count' => $rows->count(),
+                    'status' => $status,
+                ])
                 ->values(),
             'locationRows' => $boxes->map(fn (ArchiveBox $box): array => [
                 'label' => $box->physical_path,
+                'name' => $box->name,
                 'type' => __('main.archive_box'),
                 'containers' => $box->containers_count,
                 'records' => $box->records_count,
                 'status' => $this->locationStatusLabels()[$box->status] ?? $box->status,
+                'status_key' => $box->status,
             ]),
             'containerRows' => $containers->map(fn (ArchiveContainer $container): array => [
                 'label' => $container->title,
                 'category' => $container->category ?: '-',
                 'records' => $container->records_count,
                 'status' => $this->containerStatusLabels()[$container->status] ?? $container->status,
+                'status_key' => $container->status,
             ]),
         ];
     }
@@ -1628,6 +1667,24 @@ class ArchivingController extends Controller
             ArchiveRecord::STATUS_EXPIRED => __('main.archive_status_expired'),
             ArchiveRecord::STATUS_DESTROYED => __('main.archive_status_destroyed'),
             ArchiveRecord::STATUS_MISTAKEN => __('main.archive_status_mistaken'),
+        ];
+    }
+
+    private function archiveActivityActionLabels(): array
+    {
+        return [
+            'location_created' => __('main.archive_action_location_created'),
+            'location_updated' => __('main.archive_action_location_updated'),
+            'location_deleted' => __('main.archive_action_location_deleted'),
+            'container_created' => __('main.archive_action_container_created'),
+            'container_updated' => __('main.archive_action_container_updated'),
+            'container_deleted' => __('main.archive_action_container_deleted'),
+            'record_archived' => __('main.archive_action_record_archived'),
+            'record_updated' => __('main.archive_action_record_updated'),
+            'record_file_attached' => __('main.archive_action_record_file_attached'),
+            'record_file_replaced' => __('main.archive_action_record_file_replaced'),
+            'record_moved' => __('main.archive_action_record_moved'),
+            'container_moved' => __('main.archive_action_container_moved'),
         ];
     }
 

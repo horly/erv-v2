@@ -52,39 +52,62 @@
                     <span><strong>{{ $movements->count() }}</strong> / <strong>{{ $movements->total() }}</strong> {{ __('main.rows') }}</span>
                 </section>
 
-                <article class="company-card">
-                    <div class="company-table-wrap">
-                        <table class="company-table" data-sortable-table>
-                            <thead>
-                                <tr>
-                                    <th><button class="table-sort" type="button">{{ __('main.reference') }} <i class="bi bi-arrow-down-up"></i></button></th>
-                                    <th><button class="table-sort" type="button">{{ __('main.element') }} <i class="bi bi-arrow-down-up"></i></button></th>
-                                    <th><button class="table-sort" type="button">{{ __('main.from') }} <i class="bi bi-arrow-down-up"></i></button></th>
-                                    <th><button class="table-sort" type="button">{{ __('main.to') }} <i class="bi bi-arrow-down-up"></i></button></th>
-                                    <th><button class="table-sort" type="button">{{ __('main.date') }} <i class="bi bi-arrow-down-up"></i></button></th>
-                                    <th><button class="table-sort" type="button">{{ __('main.actor') }} <i class="bi bi-arrow-down-up"></i></button></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse ($movements as $movement)
-                                    <tr>
-                                        <td>{{ $movement->reference }}</td>
-                                        <td>
-                                            <strong>{{ $movement->record?->title ?? $movement->container?->title ?? '-' }}</strong>
-                                            <br><small>{{ $movement->reason ?: '-' }}</small>
-                                        </td>
-                                        <td>{{ $movement->fromBox?->physical_path ?? '-' }}</td>
-                                        <td>{{ $movement->toBox?->physical_path ?? '-' }}</td>
-                                        <td>{{ $movement->moved_at?->format('d/m/Y H:i') ?? '-' }}</td>
-                                        <td>{{ $movement->actor?->name ?? '-' }}</td>
-                                    </tr>
-                                @empty
-                                    <tr><td colspan="6" class="text-center text-muted">{{ __('main.archive_no_movements') }}</td></tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </article>
+                <section class="archive-movement-list" aria-label="{{ __('main.archive_movements') }}">
+                    @forelse ($movements as $movement)
+                        @php
+                            $isRecordMovement = $movement->record !== null;
+                            $target = $movement->record ?? $movement->container;
+                            $targetReference = $movement->record?->reference ?? $movement->container?->reference ?? '-';
+                            $targetTitle = $movement->record?->title ?? $movement->container?->title ?? '-';
+                            $targetType = $isRecordMovement ? __('main.archive_record') : __('main.archive_container');
+                        @endphp
+
+                        <article class="archive-movement-card">
+                            <header>
+                                <span class="archive-movement-icon {{ $isRecordMovement ? 'is-record' : 'is-container' }}">
+                                    <i class="bi {{ $isRecordMovement ? 'bi-file-earmark-text' : 'bi-folder2-open' }}" aria-hidden="true"></i>
+                                </span>
+                                <div>
+                                    <span class="archive-movement-reference">{{ $movement->reference }}</span>
+                                    <h2>{{ $targetTitle }}</h2>
+                                    <p>{{ $targetType }} &middot; {{ $targetReference }}</p>
+                                </div>
+                                <time datetime="{{ $movement->moved_at?->toIso8601String() }}">
+                                    {{ $movement->moved_at?->format('d/m/Y') ?? '-' }}
+                                    <span>{{ $movement->moved_at?->format('H:i') ?? '' }}</span>
+                                </time>
+                            </header>
+
+                            <div class="archive-movement-route">
+                                <div>
+                                    <span>{{ __('main.from') }}</span>
+                                    <strong>{{ $movement->fromBox?->name ?? __('main.archive_movement_no_source') }}</strong>
+                                    <small>{{ $movement->fromBox?->physical_path ?? '-' }}</small>
+                                </div>
+                                <span class="archive-movement-arrow"><i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+                                <div>
+                                    <span>{{ __('main.to') }}</span>
+                                    <strong>{{ $movement->toBox?->name ?? '-' }}</strong>
+                                    <small>{{ $movement->toBox?->physical_path ?? '-' }}</small>
+                                </div>
+                            </div>
+
+                            <footer>
+                                <span><i class="bi bi-card-text" aria-hidden="true"></i>{{ $movement->reason ?: __('main.not_defined') }}</span>
+                                <span><i class="bi bi-person" aria-hidden="true"></i>{{ $movement->actor?->name ?? '-' }}</span>
+                                @if ($movement->notes)
+                                    <p>{{ $movement->notes }}</p>
+                                @endif
+                            </footer>
+                        </article>
+                    @empty
+                        <article class="archive-movement-empty">
+                            <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+                            <strong>{{ __('main.archive_no_movements') }}</strong>
+                            <span>{{ __('main.archive_no_movements_text') }}</span>
+                        </article>
+                    @endforelse
+                </section>
 
                 @if ($movements->hasPages())
                     <section class="subscriptions-pagination">
