@@ -94,8 +94,93 @@
         }
     };
 
+    const compactPaginationShells = () => {
+        document.querySelectorAll('.pagination-shell').forEach((pagination) => {
+            if (pagination.dataset.compacted === 'true') {
+                return;
+            }
+
+            const children = Array.from(pagination.children);
+            const pageItems = children
+                .map((element) => {
+                    const label = element.textContent.trim();
+
+                    if (!/^\d+$/.test(label)) {
+                        return null;
+                    }
+
+                    return {
+                        page: Number.parseInt(label, 10),
+                        element,
+                        active: element.classList.contains('active') || element.getAttribute('aria-current') === 'page',
+                    };
+                })
+                .filter(Boolean);
+
+            if (pageItems.length <= 7) {
+                return;
+            }
+
+            const firstPage = 1;
+            const lastPage = Math.max(...pageItems.map((item) => item.page));
+            const currentPage = pageItems.find((item) => item.active)?.page ?? firstPage;
+            const pageMap = new Map(pageItems.map((item) => [item.page, item.element]));
+            const nonPageControls = children.filter((element) => !/^\d+$/.test(element.textContent.trim()));
+            const previousControl = nonPageControls[0] ?? null;
+            const nextControl = nonPageControls.length > 1 ? nonPageControls[nonPageControls.length - 1] : null;
+            const visiblePages = new Set([firstPage, lastPage]);
+
+            if (currentPage <= 4) {
+                for (let page = 1; page <= Math.min(5, lastPage); page += 1) {
+                    visiblePages.add(page);
+                }
+            } else if (currentPage >= lastPage - 3) {
+                for (let page = Math.max(1, lastPage - 4); page <= lastPage; page += 1) {
+                    visiblePages.add(page);
+                }
+            } else {
+                visiblePages.add(currentPage - 1);
+                visiblePages.add(currentPage);
+                visiblePages.add(currentPage + 1);
+            }
+
+            const compacted = [];
+            const sortedPages = [...visiblePages].sort((left, right) => left - right);
+
+            if (previousControl) {
+                compacted.push(previousControl);
+            }
+
+            sortedPages.forEach((page, index) => {
+                const previousPage = sortedPages[index - 1];
+
+                if (index > 0 && page - previousPage > 1) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.className = 'pagination-ellipsis disabled';
+                    ellipsis.textContent = '...';
+                    ellipsis.setAttribute('aria-hidden', 'true');
+                    compacted.push(ellipsis);
+                }
+
+                const pageElement = pageMap.get(page);
+
+                if (pageElement) {
+                    compacted.push(pageElement);
+                }
+            });
+
+            if (nextControl) {
+                compacted.push(nextControl);
+            }
+
+            pagination.replaceChildren(...compacted);
+            pagination.dataset.compacted = 'true';
+        });
+    };
+
     ensureFullscreenButton();
     applyTheme(localStorage.getItem(storageKey) || root.dataset.theme || 'light');
+    compactPaginationShells();
 
     const getSidebarCollapsed = () => sidebarCompactQuery.matches || localStorage.getItem(sidebarStorageKey) === 'true';
 
