@@ -7,6 +7,7 @@
         \App\Models\CompanySite::MODULE_HUMAN_RESOURCES => 'main.human-resources.notifications.show',
         \App\Models\CompanySite::MODULE_DOCUMENT_MANAGEMENT => 'main.document-management.notifications.show',
         \App\Models\CompanySite::MODULE_ARCHIVING => 'main.archiving.notifications.show',
+        \App\Models\CompanySite::MODULE_GMAO => 'main.gmao.notifications.show',
         default => null,
     };
     $notificationIndexRoute = match ($notificationModuleGroup ?? null) {
@@ -14,6 +15,7 @@
         \App\Models\CompanySite::MODULE_HUMAN_RESOURCES => 'main.human-resources.notifications',
         \App\Models\CompanySite::MODULE_DOCUMENT_MANAGEMENT => 'main.document-management.notifications',
         \App\Models\CompanySite::MODULE_ARCHIVING => 'main.archiving.notifications',
+        \App\Models\CompanySite::MODULE_GMAO => 'main.gmao.notifications',
         default => null,
     };
 @endphp

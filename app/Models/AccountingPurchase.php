@@ -15,6 +15,7 @@ class AccountingPurchase extends Model
     use HasFactory;
 
     public const REFERENCE_PREFIX = 'ACH';
+    public const USER_YEAR_REFERENCE = true;
     public const STATUS_DRAFT = 'draft';
     public const STATUS_VALIDATED = 'validated';
     public const STATUS_PARTIALLY_PAID = 'partially_paid';

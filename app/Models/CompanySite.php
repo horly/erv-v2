@@ -379,6 +379,61 @@ class CompanySite extends Model
         return $this->hasMany(ArchiveActivity::class);
     }
 
+    public function gmaoLocations(): HasMany
+    {
+        return $this->hasMany(GmaoLocation::class);
+    }
+
+    public function gmaoEquipment(): HasMany
+    {
+        return $this->hasMany(GmaoEquipment::class);
+    }
+
+    public function gmaoEquipmentCategories(): HasMany
+    {
+        return $this->hasMany(GmaoEquipmentCategory::class);
+    }
+
+    public function gmaoTechnicians(): HasMany
+    {
+        return $this->hasMany(GmaoTechnician::class);
+    }
+
+    public function gmaoWorkRequests(): HasMany
+    {
+        return $this->hasMany(GmaoWorkRequest::class);
+    }
+
+    public function gmaoWorkOrders(): HasMany
+    {
+        return $this->hasMany(GmaoWorkOrder::class);
+    }
+
+    public function gmaoSpareParts(): HasMany
+    {
+        return $this->hasMany(GmaoSparePart::class);
+    }
+
+    public function gmaoPreventivePlans(): HasMany
+    {
+        return $this->hasMany(GmaoPreventivePlan::class);
+    }
+
+    public function gmaoMaintenanceRoutes(): HasMany
+    {
+        return $this->hasMany(GmaoMaintenanceRoute::class);
+    }
+
+    public function gmaoInterventionReports(): HasMany
+    {
+        return $this->hasMany(GmaoInterventionReport::class);
+    }
+
+    public function gmaoActivities(): HasMany
+    {
+        return $this->hasMany(GmaoActivity::class);
+    }
+
     public static function types(): array
     {
         return [

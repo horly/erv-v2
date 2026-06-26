@@ -102,6 +102,11 @@
                                                         <i class="bi bi-receipt" aria-hidden="true"></i>
                                                     </a>
                                                 @endif
+                                                @if ($orderPermissions['can_create'])
+                                                    <a class="table-button table-button-history" href="{{ route('main.accounting.customer-orders.create', [$company, $site, 'duplicate' => $order->id]) }}" aria-label="{{ __('main.duplicate_document') }}" title="{{ __('main.duplicate_document') }}">
+                                                        <i class="bi bi-files" aria-hidden="true"></i>
+                                                    </a>
+                                                @endif
                                                 @if ($orderPermissions['can_update'])
                                                     <a class="table-button table-button-edit" href="{{ route('main.accounting.customer-orders.edit', [$company, $site, $order]) }}" aria-label="{{ __('admin.edit') }}">
                                                         <i class="bi bi-pencil" aria-hidden="true"></i>

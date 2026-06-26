@@ -101,6 +101,11 @@
                                                 <a class="table-button table-button-print" href="{{ route('main.accounting.proforma-invoices.print', [$company, $site, $proforma]) }}" target="_blank" rel="noopener" aria-label="{{ __('main.print_pdf') }}" title="{{ __('main.print_pdf') }}">
                                                     <i class="bi bi-printer" aria-hidden="true"></i>
                                                 </a>
+                                                @if ($proformaPermissions['can_create'])
+                                                    <a class="table-button table-button-history" href="{{ route('main.accounting.proforma-invoices.create', [$company, $site, 'duplicate' => $proforma->id]) }}" aria-label="{{ __('main.duplicate_document') }}" title="{{ __('main.duplicate_document') }}">
+                                                        <i class="bi bi-files" aria-hidden="true"></i>
+                                                    </a>
+                                                @endif
                                                 @if ($proformaPermissions['can_create'] && $proforma->status === \App\Models\AccountingProformaInvoice::STATUS_ACCEPTED)
                                                     <form method="POST" action="{{ route('main.accounting.proforma-invoices.convert-to-order', [$company, $site, $proforma]) }}">
                                                         @csrf

@@ -81,5 +81,6 @@ class DatabaseSeeder extends Seeder
         $this->call(HumanResourcesSeeder::class);
         $this->call(DocumentManagementSeeder::class);
         $this->call(ArchivingSeeder::class);
+        $this->call(GmaoSeeder::class);
     }
 }

@@ -14,6 +14,7 @@ class AccountingSalesInvoice extends Model
     use HasFactory;
 
     public const REFERENCE_PREFIX = 'FAC';
+    public const USER_YEAR_REFERENCE = true;
     public const STATUS_DRAFT = 'draft';
     public const STATUS_ISSUED = 'issued';
     public const STATUS_PARTIALLY_PAID = 'partially_paid';

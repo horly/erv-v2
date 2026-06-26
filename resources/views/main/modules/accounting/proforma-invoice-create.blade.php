@@ -19,6 +19,7 @@
         $currentLocale = app()->getLocale();
         $moduleRoute = route('main.companies.sites.modules.show', [$company, $site, $module]);
         $indexRoute = route('main.accounting.proforma-invoices', [$company, $site]);
+        $source ??= null;
         $formAction = $isEditingProforma
             ? route('main.accounting.proforma-invoices.update', [$company, $site, $proforma])
             : route('main.accounting.proforma-invoices.store', [$company, $site]);
@@ -30,16 +31,17 @@
             : now()->format('Y-m-d');
         $defaultCurrency = $isEditingProforma
             ? $proforma->currency
-            : ($site->currency ?: 'CDF');
+            : ($source['currency'] ?? ($site->currency ?: 'CDF'));
         $defaultStatus = $isEditingProforma
             ? $proforma->status
             : \App\Models\AccountingProformaInvoice::STATUS_DRAFT;
         $defaultPaymentTerms = $isEditingProforma
             ? ($proforma->payment_terms ?: \App\Models\AccountingProformaInvoice::PAYMENT_TO_DISCUSS)
-            : \App\Models\AccountingProformaInvoice::PAYMENT_TO_DISCUSS;
+            : ($source['payment_terms'] ?? \App\Models\AccountingProformaInvoice::PAYMENT_TO_DISCUSS);
         $defaultTaxRate = $isEditingProforma
             ? number_format((float) $proforma->tax_rate, 2, '.', '')
-            : number_format((float) $proformaDefaultTaxRate, 2, '.', '');
+            : number_format((float) ($source['tax_rate'] ?? $proformaDefaultTaxRate), 2, '.', '');
+        $defaultClientId = $isEditingProforma ? $proforma->client_id : ($source['client_id'] ?? '');
         $linePayload = fn ($line) => [
             'line_type' => $line->line_type,
             'item_id' => $line->item_id,
@@ -53,7 +55,7 @@
         ];
         $defaultLines = $isEditingProforma
             ? $proforma->lines->map($linePayload)->values()->all()
-            : [[
+            : ($source['lines'] ?? [[
                 'line_type' => \App\Models\AccountingProformaInvoiceLine::TYPE_FREE,
                 'item_id' => '',
                 'service_id' => '',
@@ -63,7 +65,7 @@
                 'unit_price' => '0',
                 'discount_type' => \App\Models\AccountingProformaInvoiceLine::DISCOUNT_FIXED,
                 'discount_amount' => '0',
-            ]];
+            ]]);
         $oldLines = old('lines', $defaultLines ?: [[
             'line_type' => \App\Models\AccountingProformaInvoiceLine::TYPE_FREE,
             'item_id' => '',
@@ -113,14 +115,14 @@
                                 <select id="proformaClient" name="client_id" class="form-select @error('client_id') is-invalid @enderror" data-proforma-field data-proforma-client data-default-value="{{ $isEditingProforma ? $proforma->client_id : '' }}" data-search-placeholder="{{ __('main.search') }}" data-search-empty="{{ __('admin.no_results') }}">
                                     <option value="">{{ __('main.choose_customer') }}</option>
                                     @foreach ($clients as $id => $label)
-                                        <option value="{{ $id }}" @selected(old('client_id', $isEditingProforma ? $proforma->client_id : null) == $id)>{{ $label }}</option>
+                                        <option value="{{ $id }}" @selected(old('client_id', $defaultClientId) == $id)>{{ $label }}</option>
                                     @endforeach
                                 </select>
                                 @error('client_id')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6">
                                 <label for="proformaTitle" class="form-label">{{ __('main.proforma_title') }}</label>
-                                <input id="proformaTitle" name="title" type="text" class="form-control @error('title') is-invalid @enderror" value="{{ old('title', $isEditingProforma ? $proforma->title : '') }}" placeholder="{{ __('main.proforma_title_placeholder') }}" data-proforma-field data-default-value="{{ $isEditingProforma ? $proforma->title : '' }}">
+                                <input id="proformaTitle" name="title" type="text" class="form-control @error('title') is-invalid @enderror" value="{{ old('title', $isEditingProforma ? $proforma->title : ($source['title'] ?? '')) }}" placeholder="{{ __('main.proforma_title_placeholder') }}" data-proforma-field data-default-value="{{ $isEditingProforma ? $proforma->title : ($source['title'] ?? '') }}">
                                 @error('title')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-3">
@@ -218,12 +220,12 @@
                                         </div>
                                         <div class="col-md-6">
                                             <label for="proformaNotes" class="form-label">{{ __('main.notes') }}</label>
-                                            <textarea id="proformaNotes" name="notes" rows="3" class="form-control @error('notes') is-invalid @enderror" placeholder="{{ __('main.notes') }}" data-proforma-field data-default-value="{{ $isEditingProforma ? $proforma->notes : '' }}">{{ old('notes', $isEditingProforma ? $proforma->notes : '') }}</textarea>
+                                            <textarea id="proformaNotes" name="notes" rows="3" class="form-control @error('notes') is-invalid @enderror" placeholder="{{ __('main.notes') }}" data-proforma-field data-default-value="{{ $isEditingProforma ? $proforma->notes : ($source['notes'] ?? '') }}">{{ old('notes', $isEditingProforma ? $proforma->notes : ($source['notes'] ?? '')) }}</textarea>
                                             @error('notes')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                                         </div>
                                         <div class="col-md-6">
                                             <label for="proformaTerms" class="form-label">{{ __('main.terms') }}</label>
-                                            <textarea id="proformaTerms" name="terms" rows="3" class="form-control @error('terms') is-invalid @enderror" placeholder="{{ __('main.terms') }}" data-proforma-field data-default-value="{{ $isEditingProforma ? $proforma->terms : '' }}">{{ old('terms', $isEditingProforma ? $proforma->terms : '') }}</textarea>
+                                            <textarea id="proformaTerms" name="terms" rows="3" class="form-control @error('terms') is-invalid @enderror" placeholder="{{ __('main.terms') }}" data-proforma-field data-default-value="{{ $isEditingProforma ? $proforma->terms : ($source['terms'] ?? '') }}">{{ old('terms', $isEditingProforma ? $proforma->terms : ($source['terms'] ?? '')) }}</textarea>
                                             @error('terms')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                                         </div>
                                     </div>

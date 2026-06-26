@@ -8,6 +8,7 @@ use App\Models\CompanySite;
 use App\Support\AccountingModuleNavigation;
 use App\Support\ArchivingModuleNavigation;
 use App\Support\DocumentManagementModuleNavigation;
+use App\Support\GmaoModuleNavigation;
 use App\Support\HumanResourcesModuleNavigation;
 use Closure;
 use Illuminate\Http\Request;
@@ -44,6 +45,21 @@ class EnsureAccountingMenuAccess
                 'hr-settings',
                 'human_resources_visible_menu_keys',
                 'can_manage_human_resources_settings',
+            );
+        }
+
+        $menuKey = GmaoModuleNavigation::keyForRequest($request);
+
+        if ($menuKey !== null) {
+            return $this->handleModuleMenu(
+                $request,
+                $next,
+                $menuKey,
+                GmaoModuleNavigation::keys(),
+                fn (string $key, Company $company, CompanySite $site): ?string => GmaoModuleNavigation::urlForKey($key, $company, $site),
+                'gmao-settings',
+                'gmao_visible_menu_keys',
+                'can_manage_gmao_settings',
             );
         }
 

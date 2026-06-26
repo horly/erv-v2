@@ -11848,6 +11848,343 @@ Vérification :
 - `php artisan view:cache` passe.
 - `git diff --check` passe sur les fichiers concernés.
 
+### 2026-06-18 - Activation et réorganisation des menus GMAO
+
+Prompt utilisateur :
+
+```text
+actives les menus et proposes moi quelque chose
+```
+
+Implémentation appliquée :
+
+- Réorganisation de la sidebar GMAO en groupes métiers :
+  - Patrimoine technique : Équipements, Emplacements.
+  - Opérations de maintenance : Demandes, Ordres de travail, Préventif.
+  - Ressources & magasin : Techniciens, Pièces détachées.
+  - Pilotage GMAO : Traçabilité, Rapports, Paramètres.
+- Les paramètres restent visibles uniquement pour les profils autorisés.
+- Ajout des libellés FR/EN nécessaires.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/gmao/partials/sidebar.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l resources/views/main/modules/gmao/partials/sidebar.blade.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+
+Correction complémentaire :
+
+- Correction du chargement JavaScript des vues GMAO : remplacement de `asset('js/main.js')`, qui pointait vers un fichier public absent, par l’injection directe de `resources/js/main.js`.
+- Les sous-menus GMAO peuvent maintenant utiliser le script global qui gère l’ouverture/fermeture de la sidebar.
+
+Fichiers complémentaires modifiés :
+
+- `resources/views/main/modules/gmao/dashboard.blade.php`
+- `resources/views/main/modules/gmao/resource.blade.php`
+- `resources/views/main/modules/gmao/reports.blade.php`
+- `resources/views/main/modules/gmao/settings.blade.php`
+- `resources/views/main/modules/gmao/traceability.blade.php`
+- `resources/views/main/modules/gmao/notifications.blade.php`
+- `resources/views/main/modules/gmao/notification-show.blade.php`
+
+Vérification complémentaire :
+
+- Plus aucune vue GMAO ne référence `asset('js/main.js')`.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+
+### 2026-06-18 - Amélioration de la page Équipements GMAO
+
+Prompt utilisateur :
+
+```text
+améliore la page équipement et comment on fais pour enregistrer les équipements
+```
+
+Implémentation appliquée :
+
+- Ajout d’une synthèse métier sur la page Équipements :
+  - actifs suivis ;
+  - équipements opérationnels ;
+  - équipements critiques ;
+  - équipements en panne.
+- Ajout du bouton `Nouvel équipement`.
+- Ajout d’une modal d’enregistrement/modification avec :
+  - référence automatique si vide ;
+  - nom ;
+  - catégorie ;
+  - criticité ;
+  - statut ;
+  - emplacement ;
+  - numéro de série ;
+  - marque ;
+  - modèle ;
+  - date de mise en service ;
+  - date de fin de garantie ;
+  - notes.
+- Ajout des actions modifier/supprimer sur les lignes du tableau.
+- Ajout des routes `store`, `update` et `destroy` pour les équipements.
+
+Correction complémentaire :
+
+- Retrait des widgets de synthèse de la page Équipements GMAO : les widgets restent réservés au tableau de bord.
+- Ajout des validations métier :
+  - référence unique par site ;
+  - emplacement appartenant au site ;
+  - statut et criticité contrôlés.
+- Les équipements liés à des demandes, ordres de travail ou plans préventifs ne peuvent pas être supprimés.
+- Ajout des activités GMAO lors de la création, modification et suppression.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/GmaoController.php`
+- `resources/views/main/modules/gmao/resource.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/GmaoController.php` passe.
+- `php -l resources/views/main/modules/gmao/resource.blade.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan route:list --name=main.gmao.equipment` affiche les routes GET/POST/PUT/DELETE.
+
+Correction d’erreur :
+
+- Correction de l’erreur `Attempt to read property "id" on array` sur la page Équipements.
+- La vue utilise maintenant la collection originale des modèles Eloquent pour les actions modifier/supprimer, au lieu des lignes transformées en tableaux pour l’affichage.
+
+Vérification correction :
+
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `GET http://127.0.0.1:8001/main/companies/4/sites/1/modules/gmao/equipment` retourne `200 OK`.
+
+### 2026-06-18 - Amélioration du graphique du tableau de bord GMAO
+
+Prompt utilisateur :
+
+```text
+améliore aussi cette partie pour le chart, toujours utiliser apex chart
+```
+
+Implémentation appliquée :
+
+- Remplacement des anciennes jauges CSS du bloc “Tour de contrôle” par un graphique radial ApexCharts.
+- Ajout d’une légende compacte affichant disponibilité, clôture OT et préventif à jour.
+- Harmonisation du rendu avec le mode sombre et les écrans mobiles.
+- Ajout du libellé FR/EN “Indice maintenance” pour le total central du graphique.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/gmao/dashboard.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l resources/views/main/modules/gmao/dashboard.blade.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+
+Correction complémentaire :
+
+- Suppression des labels ApexCharts au centre du radial pour éviter le chevauchement visuel.
+- Ajout d’un centre HTML/CSS maîtrisé avec le score “Indice maintenance”.
+- Élargissement de la zone des indicateurs pour éviter que les textes se mélangent au graphique.
+- Restructuration des indicateurs à droite en format vertical compact pour empêcher leur masquage dans la carte.
+- Réduction contrôlée de la largeur/hauteur du graphique ApexCharts afin que le panneau “Tour de contrôle” reste entièrement lisible.
+
+Vérification complémentaire :
+
+- `php -l resources/views/main/modules/gmao/dashboard.blade.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- Le navigateur intégré reste bloqué par le sandbox Windows (`spawn setup refresh`).
+
+### 2026-06-18 - Amélioration du tableau de bord GMAO
+
+Prompt utilisateur :
+
+```text
+améliore le tableau de bord GMAO
+```
+
+Implémentation appliquée :
+
+- Enrichissement des agrégats du dashboard GMAO :
+  - taux de disponibilité ;
+  - taux de clôture des ordres de travail ;
+  - conformité du préventif ;
+  - risques critiques ;
+  - interventions actives ;
+  - demandes urgentes ;
+  - charge par technicien ;
+  - couverture des équipements par emplacement.
+- Refonte de la vue `resources/views/main/modules/gmao/dashboard.blade.php` en cockpit maintenance :
+  - tour de contrôle ;
+  - jauges circulaires ;
+  - accès rapides ;
+  - cartes de risques ;
+  - panneaux opérationnels plus denses.
+- Ajout des styles responsive et dark mode pour les nouveaux composants GMAO.
+- Ajout des libellés FR/EN nécessaires.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/GmaoController.php`
+- `resources/views/main/modules/gmao/dashboard.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/GmaoController.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- Rendu serveur du dashboard GMAO validé avec les données réelles.
+- `git diff --check` passe avec seulement l’avertissement CRLF existant sur `lang/fr/main.php`.
+
+Correction de présentation :
+
+- Dans le select `Catégorie` de la modale `Nouvel équipement`, seules les catégories actives sont affichées.
+- Le libellé des options est simplifié au format `Référence - Nom`.
+- Les catégories inactives ne sont plus affichées dans le select d’équipement.
+- Le badge `Inactif` des tableaux GMAO est maintenant affiché en rouge.
+
+### 2026-06-18 - Refonte des widgets KPI du tableau de bord GMAO
+
+Prompt utilisateur :
+
+```text
+les widgets ne sont pas cool
+```
+
+Correction appliquée :
+
+- Remplacement des cartes KPI génériques par des widgets GMAO dédiés :
+  - cartes plus compactes ;
+  - icônes mieux cadrées ;
+  - valeur, libellé et contexte mieux hiérarchisés ;
+  - barre de progression visuelle ;
+  - couleurs propres par type d’indicateur.
+- Ajout du pourcentage `progress` dans les métriques du contrôleur.
+- Ajout du style responsive et dark mode pour les nouveaux widgets.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/GmaoController.php`
+- `resources/views/main/modules/gmao/dashboard.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/GmaoController.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- Rendu serveur du dashboard confirmé avec le bloc `gmao-kpi-strip`.
+
+### 2026-06-18 - Première livraison du module GMAO
+
+Prompt utilisateur :
+
+```text
+applique tout ça
+```
+
+Implémentation appliquée :
+
+- Création de la base métier GMAO :
+  - emplacements techniques ;
+  - équipements ;
+  - techniciens ;
+  - demandes d’intervention ;
+  - ordres de travail ;
+  - pièces détachées ;
+  - pièces consommées par ordre de travail ;
+  - plans de maintenance préventive ;
+  - rapports d’intervention ;
+  - activités / notifications GMAO.
+- Ajout des modèles Eloquent `Gmao*` et des relations dans `CompanySite`.
+- Ajout du contrôleur `GmaoController` avec :
+  - tableau de bord ;
+  - équipements ;
+  - emplacements ;
+  - demandes ;
+  - ordres de travail ;
+  - préventif ;
+  - techniciens ;
+  - pièces détachées ;
+  - traçabilité ;
+  - rapports ;
+  - export PDF ;
+  - notifications ;
+  - paramètres.
+- Ajout de la navigation `GmaoModuleNavigation` et intégration au middleware d’accès menu.
+- Ajout des routes `main.gmao.*` et redirection du module GMAO depuis la page de choix des modules.
+- Création des vues dans `resources/views/main/modules/gmao`.
+- Ajout des notifications propres au module GMAO dans le composant de cloche.
+- Création du seeder `GmaoSeeder` avec des données professionnelles de démonstration.
+- Ajout des libellés FR/EN et des styles GMAO.
+
+Fichiers principaux ajoutés/modifiés :
+
+- `database/migrations/2026_06_18_000001_create_gmao_tables.php`
+- `database/seeders/GmaoSeeder.php`
+- `database/seeders/DatabaseSeeder.php`
+- `app/Http/Controllers/GmaoController.php`
+- `app/Support/GmaoModuleNavigation.php`
+- `app/Models/GmaoLocation.php`
+- `app/Models/GmaoEquipment.php`
+- `app/Models/GmaoTechnician.php`
+- `app/Models/GmaoWorkRequest.php`
+- `app/Models/GmaoWorkOrder.php`
+- `app/Models/GmaoSparePart.php`
+- `app/Models/GmaoWorkOrderPart.php`
+- `app/Models/GmaoPreventivePlan.php`
+- `app/Models/GmaoInterventionReport.php`
+- `app/Models/GmaoActivity.php`
+- `app/Models/CompanySite.php`
+- `routes/web.php`
+- `resources/views/main/modules/gmao/*`
+- `resources/views/main/modules/partials/accounting-notifications.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+
+Vérification :
+
+- `php artisan migrate --force` passe.
+- `php artisan db:seed --class=GmaoSeeder` passe.
+- `php artisan route:list --name=main.gmao` affiche 14 routes GMAO.
+- Compteurs vérifiés : 4 équipements, 3 ordres de travail, 6 activités.
+- `php artisan route:cache` passe.
+- `php artisan view:cache` passe.
+- `php -l` passe sur le contrôleur, les modèles, la migration, le seeder et les fichiers de langue.
+- `git diff --check` passe avec seulement un avertissement CRLF existant sur `lang/fr/main.php`.
+
 ### 2026-06-18 - Refonte de la page Mouvements Archivage
 
 Prompt utilisateur :
@@ -15120,3 +15457,391 @@ Vérification :
 
 - `php artisan view:cache` passe.
 - `git diff --check` passe sur les fichiers concernés.
+
+### 2026-06-18 - Référentiel des catégories d’équipements GMAO
+
+Prompt utilisateur :
+
+```text
+pourquoi pas créer une vrai table catégorie d'equipeement pour régrouper. Ecoute je souhaite que ce mdule soit très professionnel ar c'est pour un grand client que je fais (télécom et banque
+```
+
+Correction appliquée :
+
+- Création d’une vraie table `gmao_equipment_categories` pour remplacer la saisie libre de catégorie sur les équipements.
+- Ajout de la relation `gmao_equipment.gmao_equipment_category_id`.
+- Migration automatique des anciennes valeurs texte `category` vers des catégories rattachées au site.
+- Conservation temporaire de la colonne texte `category` comme miroir lisible pour ne pas casser les recherches et rapports existants.
+- Ajout du modèle `GmaoEquipmentCategory` et de la relation `CompanySite::gmaoEquipmentCategories()`.
+- Le formulaire Équipement utilise maintenant une liste déroulante de catégories actives.
+- Le seeder GMAO ajoute un référentiel plus professionnel orienté télécom/banque :
+  - Energie ;
+  - Réseau et transmission ;
+  - Climatisation et froid ;
+  - Sécurité et contrôle d’accès ;
+  - Automates bancaires et terminaux.
+- Les catégories migrées sans équipement sont désactivées afin de ne pas polluer le référentiel actif.
+
+Fichiers modifiés :
+
+- `database/migrations/2026_06_18_000002_create_gmao_equipment_categories_table.php`
+- `app/Models/GmaoEquipmentCategory.php`
+- `app/Models/GmaoEquipment.php`
+- `app/Models/CompanySite.php`
+- `app/Http/Controllers/GmaoController.php`
+- `resources/views/main/modules/gmao/resource.blade.php`
+- `database/seeders/GmaoSeeder.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php artisan migrate` passe.
+- `php artisan db:seed --class=GmaoSeeder` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- La page Équipements GMAO répond en `200 OK`.
+
+### 2026-06-18 - CRUD utilisateur des catégories d’équipements GMAO
+
+Prompt utilisateur :
+
+```text
+tu dois permettre à l'utilisateur lui meme de créer ls catégories d'équipements. Les fonctionnalités se trouve sur ce cahier de charge. Travail ce module sur base de ce cahier de charge
+```
+
+Correction appliquée :
+
+- Ajout d’une page dédiée `Catégories d’équipements` dans le groupe `Patrimoine technique`.
+- Ajout des routes CRUD :
+  - liste paginée ;
+  - création ;
+  - modification ;
+  - suppression.
+- Création de la vue `resources/views/main/modules/gmao/equipment-categories.blade.php`.
+- La page reprend le style standard des tableaux du projet :
+  - recherche ;
+  - compteur de lignes ;
+  - tableau triable ;
+  - pagination à 5 lignes ;
+  - actions modifier/supprimer ;
+  - modale standard.
+- Validation serveur :
+  - référence unique par site ;
+  - code unique par site ;
+  - nom unique par site ;
+  - criticité par défaut contrôlée ;
+  - statut actif/inactif.
+- Règle métier :
+  - une catégorie contenant déjà des équipements ne peut pas être supprimée.
+- Lorsqu’une catégorie est renommée, les équipements liés gardent leur relation et le miroir texte `category` est synchronisé.
+- Les créations, modifications et suppressions de catégories alimentent la traçabilité/notifications GMAO.
+
+Limite rencontrée :
+
+- Le PDF du cahier des charges est accessible sur le disque `G:`, mais les outils d’extraction disponibles dans cette session (`pdfinfo`, `pdftotext`, `python`) ne permettent pas d’en extraire le contenu automatiquement.
+- La correction appliquée couvre donc la demande explicite confirmée dans le prompt : permettre à l’utilisateur de gérer lui-même les catégories d’équipements.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Support/GmaoModuleNavigation.php`
+- `app/Http/Controllers/GmaoController.php`
+- `resources/views/main/modules/gmao/partials/sidebar.blade.php`
+- `resources/views/main/modules/gmao/equipment-categories.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l` passe sur les fichiers PHP/Blade concernés.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan route:list --path=gmao` affiche les routes `equipment-categories`.
+- La page Catégories d’équipements GMAO répond en `200 OK`.
+
+### 2026-06-18 - GMAO : sélection des catégories existantes dans le formulaire équipement
+
+Demande :
+
+- Dans la modale `Nouvel équipement`, permettre à l’utilisateur de sélectionner les catégories d’équipements existantes.
+
+Réalisation :
+
+- Le champ `Catégorie` de la modale équipement affiche désormais les catégories actives du site.
+- Les catégories sont regroupées par famille métier pour faciliter le choix.
+- Ajout d’un lien discret `Gérer les catégories` sous le champ, vers la page de gestion des catégories GMAO.
+- Ajout d’un message explicite si aucune catégorie active n’est disponible.
+- Lorsqu’une catégorie est sélectionnée, la criticité par défaut de cette catégorie est appliquée automatiquement, tout en restant modifiable.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/GmaoController.php`
+- `resources/views/main/modules/gmao/resource.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Correction complémentaire :
+
+- Le select de catégorie affichait uniquement les catégories actives.
+- Le site contient 7 catégories, dont 5 actives et 2 inactives.
+- Le select affiche désormais toutes les catégories existantes du site.
+- Les catégories inactives restent visibles avec la mention `Inactif`, mais ne sont pas sélectionnables tant qu’elles ne sont pas réactivées dans la page `Catégories d’équipements`.
+
+Vérification complémentaire :
+
+- Comptage DB confirmé : `total=7`, `active=5`, `inactive=2`.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `git diff --check` passe avec seulement l’avertissement CRLF existant sur `lang/fr/main.php`.
+
+### 2026-06-18 - GMAO : alignement sur le cahier des charges fonctionnel et technique
+
+Demande :
+
+- Reprendre le cahier des charges GMAO et appliquer les fondations demandées pour un module professionnel orienté grand compte.
+
+Réalisation :
+
+- Ajout d’un socle métier conforme au cahier des charges :
+  - hiérarchie d’emplacements GMAO via parent/enfant ;
+  - enrichissement des équipements avec code immobilisation, fournisseur, coût d’acquisition, CAPEX/OPEX, centre de coût, compteur et durée de vie ;
+  - nouvelles tables de gammes de maintenance et tâches de maintenance ;
+  - liaison possible entre plan préventif et gamme de maintenance ;
+  - ajout des déclencheurs préventifs par fréquence ou compteur ;
+  - ajout de données de coûts et d’indisponibilité sur les ordres de travail.
+- Création de la page `Gammes de maintenance` dans le module GMAO :
+  - recherche ;
+  - tableau triable ;
+  - pagination à 5 lignes ;
+  - modale standard ;
+  - actions créer, modifier, supprimer ;
+  - suppression bloquée si la gamme est utilisée par un plan préventif.
+- Enrichissement du formulaire `Nouvel équipement` :
+  - code immobilisation ;
+  - fournisseur ;
+  - coût d’acquisition ;
+  - nature budgétaire CAPEX/OPEX ;
+  - centre de coût ;
+  - compteur technique ;
+  - durée de vie prévue.
+- Enrichissement des rapports GMAO :
+  - MTTR ;
+  - MTBF ;
+  - backlog ;
+  - synthèse CAPEX/OPEX ;
+  - coût maintenance ;
+  - tableau des gammes de maintenance.
+- Mise à jour du PDF GMAO avec les nouvelles sections.
+- Mise à jour des seeders avec des données réalistes : équipements, emplacements hiérarchisés, gammes, tâches, plans préventifs, coûts et notifications GMAO.
+
+Fichiers principaux modifiés :
+
+- `routes/web.php`
+- `app/Http/Controllers/GmaoController.php`
+- `app/Models/GmaoEquipment.php`
+- `app/Models/GmaoLocation.php`
+- `app/Models/GmaoPreventivePlan.php`
+- `app/Models/GmaoWorkOrder.php`
+- `app/Models/GmaoMaintenanceRoute.php`
+- `app/Models/GmaoMaintenanceTask.php`
+- `app/Models/CompanySite.php`
+- `app/Support/GmaoModuleNavigation.php`
+- `database/migrations/2026_06_18_000003_extend_gmao_for_specification.php`
+- `database/seeders/GmaoSeeder.php`
+- `resources/views/main/modules/gmao/maintenance-routes.blade.php`
+- `resources/views/main/modules/gmao/resource.blade.php`
+- `resources/views/main/modules/gmao/reports.blade.php`
+- `resources/views/main/modules/gmao/pdf/reports.blade.php`
+- `resources/views/main/modules/gmao/partials/sidebar.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+
+Vérification :
+
+- `php -l` passe sur les fichiers PHP principaux modifiés.
+- `php artisan migrate --force` passe.
+- `php artisan db:seed --class=GmaoSeeder` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan route:list --name=main.gmao` affiche les routes GMAO, dont `maintenance-routes`.
+- `git diff --check` passe avec seulement l’avertissement CRLF existant sur `lang/fr/main.php`.
+
+Note :
+
+- La suite complète `php artisan test` a été lancée mais a dépassé 2 minutes dans cet environnement.
+- Le serveur HTTP local n’a pas pu être maintenu en arrière-plan pour une vérification navigateur, mais les compilations routes/vues et la migration ont réussi.
+
+### 2026-06-19 - GMAO : amélioration de la page Emplacements
+
+Demande :
+
+- Améliorer la page `Emplacements` du module GMAO.
+
+Réalisation :
+
+- Remplacement de la page générique par une vue dédiée `resources/views/main/modules/gmao/locations.blade.php`.
+- Ajout d’une présentation professionnelle :
+  - plan physique hiérarchique ;
+  - tableau paginé à 5 lignes ;
+  - recherche ;
+  - tri des colonnes ;
+  - actions modifier/supprimer.
+- Ajout de la gestion CRUD des emplacements GMAO :
+  - créer ;
+  - modifier ;
+  - supprimer.
+- Ajout d’une modale standard conforme aux autres modules.
+- Ajout de types d’emplacement :
+  - bâtiment ;
+  - étage ;
+  - salle ;
+  - zone ;
+  - rack ;
+  - autre.
+- Ajout des règles métier :
+  - impossible de supprimer un emplacement qui contient des sous-emplacements ;
+  - impossible de supprimer un emplacement qui contient des équipements ;
+  - impossible de sélectionner l’emplacement lui-même ou un descendant comme parent.
+- Les créations, modifications et suppressions alimentent les notifications et la traçabilité GMAO.
+- Ajout du style dédié, compatible dark mode.
+
+Fichiers modifiés :
+
+- `routes/web.php`
+- `app/Support/GmaoModuleNavigation.php`
+- `app/Http/Controllers/GmaoController.php`
+- `resources/views/main/modules/gmao/locations.blade.php`
+- `resources/css/main.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+Vérification :
+
+- `php -l app/Http/Controllers/GmaoController.php` passe.
+- `php -l lang/fr/main.php` passe.
+- `php -l lang/en/main.php` passe.
+- `php artisan view:cache` passe.
+- `php artisan route:cache` passe.
+- `php artisan route:list --name=main.gmao.locations` affiche les routes GET, POST, PUT et DELETE.
+- `git diff --check` passe avec seulement l’avertissement CRLF existant sur `lang/fr/main.php`.
+
+### 2026-06-19 - Règle UI : widgets uniquement sur les tableaux de bord
+
+Demande :
+
+```text
+evite de m'affcher des widgets sur les pages normales; les widgets sont uniquement affiché sur le tableau de bord
+```
+
+Correction appliquée :
+
+- Suppression des cartes métriques de la page `Emplacements` GMAO.
+- Nettoyage des données `metrics` envoyées à cette page.
+- Nettoyage du CSS dédié à ces anciennes cartes.
+- Conservation des indicateurs uniquement sur le tableau de bord GMAO.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/GmaoController.php`
+- `resources/views/main/modules/gmao/locations.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+### 2026-06-19 - GMAO : suppression du plan de synthèse sur Emplacements
+
+Demande :
+
+```text
+meme ça j'en ai pas besoin
+```
+
+Correction appliquée :
+
+- Suppression du bloc `Plan des emplacements` de la page normale `Emplacements`.
+- La page commence désormais directement par la recherche, le compteur, le tableau paginé et les actions.
+- Nettoyage des données serveur et du CSS qui alimentaient ce bloc de synthèse.
+
+Règle confirmée :
+
+- Les pages opérationnelles ne doivent pas afficher de widgets, KPI ou blocs de synthèse.
+- Ces éléments restent réservés aux tableaux de bord.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/GmaoController.php`
+- `resources/views/main/modules/gmao/locations.blade.php`
+- `resources/css/main.css`
+- `docs/prompts/project-history.md`
+
+### 2026-06-19 - GMAO : hiérarchie stricte des emplacements
+
+Demande :
+
+```text
+on doit avoir ça :
+Salle
+  -> Zone
+      -> Armoire / Rack
+          -> Étagère
+              -> Position
+```
+
+Correction appliquée :
+
+- La hiérarchie officielle des emplacements GMAO est maintenant :
+  - Salle ;
+  - Zone ;
+  - Armoire / Rack ;
+  - Étagère ;
+  - Position.
+- Suppression des anciens types de création `Bâtiment`, `Étage` et `Autre` comme niveaux d’emplacement.
+- Le formulaire filtre automatiquement les parents selon le type sélectionné.
+- Validation serveur stricte :
+  - une Salle ne peut pas avoir de parent ;
+  - une Zone doit avoir une Salle comme parent ;
+  - une Armoire/Rack doit avoir une Zone comme parent ;
+  - une Étagère doit avoir une Armoire/Rack comme parent ;
+  - une Position doit avoir une Étagère comme parent.
+- Les protections existantes restent actives :
+  - impossible de choisir soi-même comme parent ;
+  - impossible de choisir un descendant comme parent.
+- Mise à jour du seeder GMAO pour refléter la hiérarchie réelle.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/GmaoController.php`
+- `resources/views/main/modules/gmao/locations.blade.php`
+- `database/migrations/2026_06_18_000001_create_gmao_tables.php`
+- `database/seeders/GmaoSeeder.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `docs/prompts/project-history.md`
+
+### 2026-06-26 - Réduction légère de l’échelle UI globale
+
+Demande :
+
+```text
+reduit legerement la taille de text et les les elements boutons et de tous le projet
+```
+
+Correction appliquée :
+
+- Réduction de la taille de base globale de `15px` à `14px` sur les interfaces principales.
+- Réduction légère du texte de base.
+- Compactage des boutons principaux, boutons d’icônes, boutons de tableau, champs de recherche et actions de modale.
+- Application sur :
+  - interface principale/modules ;
+  - console admin/superadmin ;
+  - page de connexion.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `resources/css/admin/dashboard.css`
+- `resources/css/auth/login.css`
+- `docs/prompts/project-history.md`

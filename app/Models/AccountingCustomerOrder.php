@@ -14,6 +14,7 @@ class AccountingCustomerOrder extends Model
     use HasFactory;
 
     public const REFERENCE_PREFIX = 'CMD';
+    public const USER_YEAR_REFERENCE = true;
     public const STATUS_DRAFT = 'draft';
     public const STATUS_CONFIRMED = 'confirmed';
     public const STATUS_IN_PROGRESS = 'in_progress';

@@ -302,6 +302,10 @@ class MainController extends Controller
             return redirect()->route('main.archiving.dashboard', [$company, $site]);
         }
 
+        if ($module === CompanySite::MODULE_GMAO) {
+            return redirect()->route('main.gmao.dashboard', [$company, $site]);
+        }
+
         $view = match ($module) {
             CompanySite::MODULE_ACCOUNTING => 'main.modules.accounting.dashboard',
             default => 'main.modules.under-development',
@@ -4042,7 +4046,7 @@ class MainController extends Controller
         ]);
     }
 
-    public function createAccountingProformaInvoice(Company $company, CompanySite $site): View|RedirectResponse
+    public function createAccountingProformaInvoice(Request $request, Company $company, CompanySite $site): View|RedirectResponse
     {
         $access = $this->accountingAccess($company, $site);
 
@@ -4064,6 +4068,7 @@ class MainController extends Controller
             'site' => $site->load('responsible'),
             'module' => CompanySite::MODULE_ACCOUNTING,
             'moduleMeta' => $moduleMeta,
+            'source' => $this->proformaDuplicateSourceFromRequest($request, $site),
             'clients' => $this->proformaClientOptions($site),
             'items' => $this->proformaItemOptions($site),
             'services' => $this->proformaServiceOptions($site),
@@ -4448,7 +4453,7 @@ class MainController extends Controller
         ]);
     }
 
-    public function createAccountingCustomerOrder(Company $company, CompanySite $site): View|RedirectResponse
+    public function createAccountingCustomerOrder(Request $request, Company $company, CompanySite $site): View|RedirectResponse
     {
         $access = $this->accountingAccess($company, $site);
 
@@ -4470,6 +4475,7 @@ class MainController extends Controller
             'site' => $site->load('responsible'),
             'module' => CompanySite::MODULE_ACCOUNTING,
             'moduleMeta' => $moduleMeta,
+            'source' => $this->customerOrderDuplicateSourceFromRequest($request, $site),
             'clients' => $this->proformaClientOptions($site),
             'items' => $this->customerOrderItemOptions($site),
             'services' => $this->customerOrderServiceOptions($site),
@@ -11842,6 +11848,65 @@ class MainController extends Controller
         }
     }
 
+    private function proformaDuplicateSourceFromRequest(Request $request, CompanySite $site): ?array
+    {
+        if (! $request->filled('duplicate')) {
+            return null;
+        }
+
+        $proforma = AccountingProformaInvoice::query()
+            ->with(['lines.item', 'lines.service'])
+            ->where('company_site_id', $site->id)
+            ->whereKey((int) $request->query('duplicate'))
+            ->first();
+
+        if (! $proforma) {
+            return null;
+        }
+
+        return [
+            'client_id' => $proforma->client_id,
+            'title' => $proforma->title,
+            'currency' => $proforma->currency,
+            'payment_terms' => $proforma->payment_terms,
+            'tax_rate' => $proforma->tax_rate,
+            'notes' => $proforma->notes,
+            'terms' => $proforma->terms,
+            'lines' => $proforma->lines
+                ->map(fn (AccountingProformaInvoiceLine $line): array => $this->proformaDuplicateLine($line))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function proformaDuplicateLine(AccountingProformaInvoiceLine $line): array
+    {
+        $lineType = $line->line_type;
+        $itemId = $line->item_id;
+        $serviceId = $line->service_id;
+
+        if ($lineType === AccountingProformaInvoiceLine::TYPE_ITEM && blank($itemId)) {
+            $lineType = AccountingProformaInvoiceLine::TYPE_FREE;
+        }
+
+        if ($lineType === AccountingProformaInvoiceLine::TYPE_SERVICE && blank($serviceId)) {
+            $lineType = AccountingProformaInvoiceLine::TYPE_FREE;
+        }
+
+        return [
+            'line_type' => $lineType,
+            'item_id' => $lineType === AccountingProformaInvoiceLine::TYPE_ITEM ? $itemId : null,
+            'service_id' => $lineType === AccountingProformaInvoiceLine::TYPE_SERVICE ? $serviceId : null,
+            'description' => $line->description,
+            'details' => $line->details,
+            'quantity' => number_format((float) $line->quantity, 2, '.', ''),
+            'unit_price' => number_format((float) $line->unit_price, 2, '.', ''),
+            'discount_type' => $line->discount_type ?: AccountingProformaInvoiceLine::DISCOUNT_FIXED,
+            'discount_amount' => number_format((float) $line->discount_amount, 2, '.', ''),
+            'create_stock_item' => '0',
+        ];
+    }
+
     private function customerOrderLineFromProformaLine(AccountingProformaInvoiceLine $line): array
     {
         $lineType = $line->line_type;
@@ -12134,6 +12199,30 @@ class MainController extends Controller
 
     private function salesInvoiceSourceFromRequest(Request $request, CompanySite $site): ?array
     {
+        if ($request->filled('duplicate')) {
+            $invoice = AccountingSalesInvoice::query()
+                ->with(['lines.item', 'lines.service'])
+                ->where('company_site_id', $site->id)
+                ->whereKey((int) $request->query('duplicate'))
+                ->first();
+
+            if ($invoice) {
+                return [
+                    'client_id' => $invoice->client_id,
+                    'title' => $invoice->title === AccountingSalesInvoice::TITLE_CASH_REGISTER ? null : $invoice->title,
+                    'currency' => $invoice->currency,
+                    'payment_terms' => $invoice->payment_terms,
+                    'tax_rate' => $invoice->tax_rate,
+                    'notes' => $invoice->notes,
+                    'terms' => $invoice->terms,
+                    'lines' => $invoice->lines
+                        ->map(fn (AccountingSalesInvoiceLine $line): array => $this->salesInvoiceDuplicateLine($line))
+                        ->values()
+                        ->all(),
+                ];
+            }
+        }
+
         if ($request->filled('delivery_note')) {
             $deliveryNote = AccountingDeliveryNote::query()
                 ->with(['customerOrder', 'lines.item', 'lines.service'])
@@ -12204,6 +12293,36 @@ class MainController extends Controller
         }
 
         return null;
+    }
+
+    private function salesInvoiceDuplicateLine(AccountingSalesInvoiceLine $line): array
+    {
+        $lineType = $line->line_type;
+        $itemId = $line->item_id;
+        $serviceId = $line->service_id;
+
+        if ($lineType === AccountingSalesInvoiceLine::TYPE_ITEM && blank($itemId)) {
+            $lineType = AccountingSalesInvoiceLine::TYPE_FREE;
+        }
+
+        if ($lineType === AccountingSalesInvoiceLine::TYPE_SERVICE && blank($serviceId)) {
+            $lineType = AccountingSalesInvoiceLine::TYPE_FREE;
+        }
+
+        return [
+            'line_type' => $lineType,
+            'item_id' => $lineType === AccountingSalesInvoiceLine::TYPE_ITEM ? $itemId : null,
+            'service_id' => $lineType === AccountingSalesInvoiceLine::TYPE_SERVICE ? $serviceId : null,
+            'customer_order_line_id' => null,
+            'delivery_note_line_id' => null,
+            'description' => $line->description,
+            'details' => $line->details,
+            'quantity' => number_format((float) $line->quantity, 2, '.', ''),
+            'unit_price' => number_format((float) $line->unit_price, 2, '.', ''),
+            'discount_type' => $line->discount_type ?: AccountingSalesInvoiceLine::DISCOUNT_FIXED,
+            'discount_amount' => number_format((float) $line->discount_amount, 2, '.', ''),
+            'create_stock_item' => '0',
+        ];
     }
 
     private function salesInvoiceLineFromCustomerOrderLine(AccountingCustomerOrderLine $line): array
@@ -13372,6 +13491,69 @@ class MainController extends Controller
         }
 
         return $payload;
+    }
+
+    private function customerOrderDuplicateSourceFromRequest(Request $request, CompanySite $site): ?array
+    {
+        if (! $request->filled('duplicate')) {
+            return null;
+        }
+
+        $order = AccountingCustomerOrder::query()
+            ->with(['lines.item', 'lines.service'])
+            ->where('company_site_id', $site->id)
+            ->whereKey((int) $request->query('duplicate'))
+            ->first();
+
+        if (! $order) {
+            return null;
+        }
+
+        return [
+            'client_id' => $order->client_id,
+            'title' => $order->title,
+            'expected_delivery_date' => optional($order->expected_delivery_date)->format('Y-m-d'),
+            'currency' => $order->currency,
+            'payment_terms' => $order->payment_terms,
+            'tax_rate' => $order->tax_rate,
+            'notes' => $order->notes,
+            'terms' => $order->terms,
+            'lines' => $order->lines
+                ->map(fn (AccountingCustomerOrderLine $line): array => $this->customerOrderDuplicateLine($line))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function customerOrderDuplicateLine(AccountingCustomerOrderLine $line): array
+    {
+        $lineType = $line->line_type;
+        $itemId = $line->item_id;
+        $serviceId = $line->service_id;
+
+        if ($lineType === AccountingCustomerOrderLine::TYPE_ITEM && blank($itemId)) {
+            $lineType = AccountingCustomerOrderLine::TYPE_FREE;
+        }
+
+        if ($lineType === AccountingCustomerOrderLine::TYPE_SERVICE && blank($serviceId)) {
+            $lineType = AccountingCustomerOrderLine::TYPE_FREE;
+        }
+
+        return [
+            'line_type' => $lineType,
+            'item_id' => $lineType === AccountingCustomerOrderLine::TYPE_ITEM ? $itemId : null,
+            'service_id' => $lineType === AccountingCustomerOrderLine::TYPE_SERVICE ? $serviceId : null,
+            'description' => $line->description,
+            'details' => $line->details,
+            'quantity' => number_format((float) $line->quantity, 2, '.', ''),
+            'cost_price' => number_format((float) $line->cost_price, 2, '.', ''),
+            'unit_price' => number_format((float) $line->unit_price, 2, '.', ''),
+            'margin_type' => $line->margin_type ?: AccountingCustomerOrderLine::MARGIN_FIXED,
+            'margin_value' => number_format((float) $line->margin_value, 2, '.', ''),
+            'discount_type' => $line->discount_type ?: AccountingCustomerOrderLine::DISCOUNT_FIXED,
+            'discount_amount' => number_format((float) $line->discount_amount, 2, '.', ''),
+            'create_stock_item' => '0',
+        ];
     }
 
     private function calculateCustomerOrderTotals(array $lines, float $taxRate): array

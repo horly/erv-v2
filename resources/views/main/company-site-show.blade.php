@@ -15,6 +15,7 @@
         $currentLocale = app()->getLocale();
         $typeLabel = $typeLabels[$site->type] ?? $site->type;
         $statusIsActive = $site->status === \App\Models\CompanySite::STATUS_ACTIVE;
+        $siteCurrencyLabel = $site->currency ? \App\Support\CurrencyCatalog::label($site->currency) : '-';
         $moduleIcons = [
             \App\Models\CompanySite::MODULE_ACCOUNTING => 'bi-receipt',
             \App\Models\CompanySite::MODULE_HUMAN_RESOURCES => 'bi-people',
@@ -160,6 +161,10 @@
                         <div>
                             <dt>{{ __('main.plan') }}</dt>
                             <dd>{{ $planRules['name'] }}</dd>
+                        </div>
+                        <div>
+                            <dt>{{ __('main.currency') }}</dt>
+                            <dd>{{ $siteCurrencyLabel }}</dd>
                         </div>
                     </dl>
                 </article>

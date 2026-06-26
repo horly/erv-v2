@@ -14,6 +14,7 @@ class AccountingPurchaseOrder extends Model
     use HasFactory;
 
     public const REFERENCE_PREFIX = 'BCF';
+    public const USER_YEAR_REFERENCE = true;
     public const STATUS_DRAFT = 'draft';
     public const STATUS_SENT = 'sent';
     public const STATUS_CONFIRMED = 'confirmed';

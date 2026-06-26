@@ -111,6 +111,11 @@
                                                 <a class="table-button table-button-print" href="{{ route('main.accounting.sales-invoices.print', [$company, $site, $invoice]) }}" target="_blank" rel="noopener" aria-label="{{ __('main.print_pdf') }}" title="{{ __('main.print_pdf') }}">
                                                     <i class="bi bi-printer" aria-hidden="true"></i>
                                                 </a>
+                                                @if ($invoicePermissions['can_create'])
+                                                    <a class="table-button table-button-history" href="{{ route('main.accounting.sales-invoices.create', [$company, $site, 'duplicate' => $invoice->id]) }}" aria-label="{{ __('main.duplicate_document') }}" title="{{ __('main.duplicate_document') }}">
+                                                        <i class="bi bi-files" aria-hidden="true"></i>
+                                                    </a>
+                                                @endif
                                                 @if ($invoice->payments->isNotEmpty())
                                                     <button class="table-button table-button-history" type="button" data-bs-toggle="modal" data-bs-target="#salesInvoicePaymentsHistoryModal{{ $invoice->id }}" aria-label="{{ __('main.view_payments') }}" title="{{ __('main.view_payments') }}">
                                                         <i class="bi bi-receipt-cutoff" aria-hidden="true"></i>

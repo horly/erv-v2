@@ -17,15 +17,17 @@
 <body class="accounting-module-body">
     @php
         $indexRoute = route('main.accounting.customer-orders', [$company, $site]);
+        $source ??= null;
         $formAction = $isEditingOrder
             ? route('main.accounting.customer-orders.update', [$company, $site, $order])
             : route('main.accounting.customer-orders.store', [$company, $site]);
         $defaultOrderDate = $isEditingOrder ? optional($order->order_date)->format('Y-m-d') : now()->format('Y-m-d');
-        $defaultDeliveryDate = $isEditingOrder ? optional($order->expected_delivery_date)->format('Y-m-d') : '';
-        $defaultCurrency = $isEditingOrder ? $order->currency : ($site->currency ?: 'CDF');
+        $defaultDeliveryDate = $isEditingOrder ? optional($order->expected_delivery_date)->format('Y-m-d') : ($source['expected_delivery_date'] ?? '');
+        $defaultCurrency = $isEditingOrder ? $order->currency : ($source['currency'] ?? ($site->currency ?: 'CDF'));
         $defaultStatus = $isEditingOrder ? $order->status : \App\Models\AccountingCustomerOrder::STATUS_DRAFT;
-        $defaultPaymentTerms = $isEditingOrder ? ($order->payment_terms ?: \App\Models\AccountingProformaInvoice::PAYMENT_TO_DISCUSS) : \App\Models\AccountingProformaInvoice::PAYMENT_TO_DISCUSS;
-        $defaultTaxRate = $isEditingOrder ? number_format((float) $order->tax_rate, 2, '.', '') : number_format((float) $defaultTaxRate, 2, '.', '');
+        $defaultPaymentTerms = $isEditingOrder ? ($order->payment_terms ?: \App\Models\AccountingProformaInvoice::PAYMENT_TO_DISCUSS) : ($source['payment_terms'] ?? \App\Models\AccountingProformaInvoice::PAYMENT_TO_DISCUSS);
+        $defaultTaxRate = $isEditingOrder ? number_format((float) $order->tax_rate, 2, '.', '') : number_format((float) ($source['tax_rate'] ?? $defaultTaxRate), 2, '.', '');
+        $defaultClientId = $isEditingOrder ? $order->client_id : ($source['client_id'] ?? '');
         $linePayload = fn ($line) => [
             'line_type' => $line->line_type,
             'item_id' => $line->item_id,
@@ -42,7 +44,7 @@
         ];
         $defaultLines = $isEditingOrder
             ? $order->lines->map($linePayload)->values()->all()
-            : [[
+            : ($source['lines'] ?? [[
                 'line_type' => \App\Models\AccountingCustomerOrderLine::TYPE_FREE,
                 'item_id' => '',
                 'service_id' => '',
@@ -55,7 +57,7 @@
                 'margin_value' => '0',
                 'discount_type' => \App\Models\AccountingCustomerOrderLine::DISCOUNT_FIXED,
                 'discount_amount' => '0',
-            ]];
+            ]]);
         $oldLines = old('lines', $defaultLines ?: [[
             'line_type' => \App\Models\AccountingCustomerOrderLine::TYPE_FREE,
             'item_id' => '',
@@ -99,14 +101,14 @@
                                 <select id="orderClient" name="client_id" class="form-select @error('client_id') is-invalid @enderror" data-customer-order-client data-search-placeholder="{{ __('main.search') }}" data-search-empty="{{ __('admin.no_results') }}">
                                     <option value="">{{ __('main.choose_customer') }}</option>
                                     @foreach ($clients as $id => $label)
-                                        <option value="{{ $id }}" @selected(old('client_id', $isEditingOrder ? $order->client_id : null) == $id)>{{ $label }}</option>
+                                        <option value="{{ $id }}" @selected(old('client_id', $defaultClientId) == $id)>{{ $label }}</option>
                                     @endforeach
                                 </select>
                                 @error('client_id')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-6">
                                 <label for="orderTitle" class="form-label">{{ __('main.order_title') }}</label>
-                                <input id="orderTitle" name="title" type="text" class="form-control @error('title') is-invalid @enderror" value="{{ old('title', $isEditingOrder ? $order->title : '') }}" placeholder="{{ __('main.order_title_placeholder') }}">
+                                <input id="orderTitle" name="title" type="text" class="form-control @error('title') is-invalid @enderror" value="{{ old('title', $isEditingOrder ? $order->title : ($source['title'] ?? '')) }}" placeholder="{{ __('main.order_title_placeholder') }}">
                                 @error('title')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                             </div>
                             <div class="col-md-3">
@@ -173,12 +175,12 @@
                                         </div>
                                         <div class="col-md-6">
                                             <label for="orderNotes" class="form-label">{{ __('main.notes') }}</label>
-                                            <textarea id="orderNotes" name="notes" rows="3" class="form-control @error('notes') is-invalid @enderror" placeholder="{{ __('main.notes') }}">{{ old('notes', $isEditingOrder ? $order->notes : '') }}</textarea>
+                                            <textarea id="orderNotes" name="notes" rows="3" class="form-control @error('notes') is-invalid @enderror" placeholder="{{ __('main.notes') }}">{{ old('notes', $isEditingOrder ? $order->notes : ($source['notes'] ?? '')) }}</textarea>
                                             @error('notes')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                                         </div>
                                         <div class="col-md-6">
                                             <label for="orderTerms" class="form-label">{{ __('main.terms') }}</label>
-                                            <textarea id="orderTerms" name="terms" rows="3" class="form-control @error('terms') is-invalid @enderror" placeholder="{{ __('main.terms') }}">{{ old('terms', $isEditingOrder ? $order->terms : '') }}</textarea>
+                                            <textarea id="orderTerms" name="terms" rows="3" class="form-control @error('terms') is-invalid @enderror" placeholder="{{ __('main.terms') }}">{{ old('terms', $isEditingOrder ? $order->terms : ($source['terms'] ?? '')) }}</textarea>
                                             @error('terms')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                                         </div>
                                     </div>

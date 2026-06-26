@@ -14,6 +14,7 @@ class AccountingDeliveryNote extends Model
     use HasFactory;
 
     public const REFERENCE_PREFIX = 'BL';
+    public const USER_YEAR_REFERENCE = true;
     public const STATUS_DRAFT = 'draft';
     public const STATUS_READY = 'ready';
     public const STATUS_PARTIAL = 'partial';
