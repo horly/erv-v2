@@ -48,6 +48,12 @@ body {
     overflow: hidden;
 }
 
+body.main-users-body {
+    min-height: 100vh;
+    height: auto;
+    overflow-y: auto;
+}
+
 html {
     margin: 0;
     padding: 0;
@@ -2498,4 +2504,22 @@ a.primary-action:focus {
 .breadcrumb-link:hover {
     color: var(--blue-600);
     text-decoration: underline;
+}
+
+html.main-users-root,
+html.main-users-root body.main-users-body {
+    min-height: 100vh !important;
+    height: auto !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+}
+
+html.main-users-root body.main-users-body .main-shell {
+    min-height: 100vh !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+html.main-users-root body.main-users-body .content-wrap {
+    padding-bottom: 4rem;
 }

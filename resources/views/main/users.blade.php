@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="light" class="main-users-root">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,7 +10,7 @@
     <style>{!! file_get_contents(resource_path('css/main.css')) !!}</style>
     <style>{!! file_get_contents(resource_path('css/admin/dashboard.css')) !!}</style>
 </head>
-<body>
+<body class="main-users-body">
     @php
         $currentLocale = app()->getLocale();
         $initial = strtoupper(mb_substr($user->name, 0, 1));
@@ -246,17 +246,32 @@
                         </tbody>
                     </table>
                 </div>
+
             </section>
 
             @if ($users->hasPages())
                 <section class="subscriptions-pagination" aria-label="{{ __('admin.pagination') }}">
                     <span>{{ __('admin.showing') }} <strong>{{ $users->firstItem() ?? 0 }}</strong> {{ __('admin.to') }} <strong>{{ $users->lastItem() ?? 0 }}</strong> {{ __('admin.on') }} <strong>{{ $totalUsers }}</strong></span>
                     <nav class="pagination-shell" aria-label="{{ __('admin.pagination') }}">
-                        @if ($users->onFirstPage())<span class="disabled">{{ __('admin.previous') }}</span>@else<a href="{{ $users->previousPageUrl() }}">{{ __('admin.previous') }}</a>@endif
+                        @if ($users->onFirstPage())
+                            <span class="disabled">{{ __('admin.previous') }}</span>
+                        @else
+                            <a href="{{ $users->previousPageUrl() }}">{{ __('admin.previous') }}</a>
+                        @endif
+
                         @foreach ($users->getUrlRange(1, $users->lastPage()) as $page => $url)
-                            @if ($page === $users->currentPage())<span class="active" aria-current="page">{{ $page }}</span>@else<a href="{{ $url }}">{{ $page }}</a>@endif
+                            @if ($page === $users->currentPage())
+                                <span class="active" aria-current="page">{{ $page }}</span>
+                            @else
+                                <a href="{{ $url }}">{{ $page }}</a>
+                            @endif
                         @endforeach
-                        @if ($users->hasMorePages())<a href="{{ $users->nextPageUrl() }}">{{ __('admin.next') }}</a>@else<span class="disabled">{{ __('admin.next') }}</span>@endif
+
+                        @if ($users->hasMorePages())
+                            <a href="{{ $users->nextPageUrl() }}">{{ __('admin.next') }}</a>
+                        @else
+                            <span class="disabled">{{ __('admin.next') }}</span>
+                        @endif
                     </nav>
                 </section>
             @endif
