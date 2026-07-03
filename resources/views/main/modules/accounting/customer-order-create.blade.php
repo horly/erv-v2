@@ -34,7 +34,7 @@
             'service_id' => $line->service_id,
             'description' => $line->description,
             'details' => $line->details,
-            'quantity' => number_format((float) $line->quantity, 2, '.', ''),
+            'quantity' => number_format((float) $line->quantity, 0, '.', ''),
             'cost_price' => number_format((float) $line->cost_price, 2, '.', ''),
             'unit_price' => number_format((float) $line->unit_price, 2, '.', ''),
             'margin_type' => $line->margin_type ?: \App\Models\AccountingCustomerOrderLine::MARGIN_FIXED,

@@ -5,11 +5,11 @@
     --blue-500: #3b82f6;
     --ink: #061126;
     --muted: #667085;
-    --line: #dbe5f1;
+    --line: #cdd9ea;
     --surface: #ffffff;
-    --page: #f3f6fb;
+    --page: #eef3fa;
     --field: #ffffff;
-    --table-head: #f8fafc;
+    --table-head: #f5f8fc;
     --shadow: 0 20px 44px rgba(37, 99, 235, .18);
 }
 
@@ -551,10 +551,11 @@ input {
     gap: .7rem;
     min-height: 48px;
     padding: 0 .85rem;
-    border: 1px solid var(--line);
+    border: 1px solid #c7d5e8;
     border-radius: 10px;
     background: var(--field);
     color: var(--muted);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .035);
 }
 
 .search-box input {
@@ -567,7 +568,7 @@ input {
 }
 
 .search-box input::placeholder {
-    color: #98a7bc;
+    color: #8798b0;
 }
 
 .row-count {
@@ -580,6 +581,31 @@ input {
     border-radius: 12px;
     background: var(--surface);
     overflow: hidden;
+    box-shadow: 0 14px 32px rgba(15, 23, 42, .035);
+}
+
+.form-control,
+.form-select,
+textarea.form-control {
+    border-color: #c7d5e8;
+    background-color: var(--field);
+    color: var(--ink);
+}
+
+.form-control:focus,
+.form-select:focus,
+textarea.form-control:focus {
+    border-color: #7fb0ff;
+    background-color: var(--field);
+    box-shadow: 0 0 0 .2rem rgba(37, 99, 235, .16);
+}
+
+.form-control::placeholder,
+textarea.form-control::placeholder,
+input::placeholder,
+textarea::placeholder {
+    color: #8798b0;
+    opacity: 1;
 }
 
 .company-table {
@@ -2066,6 +2092,69 @@ body[data-theme="dark"] .subscription-modal .input-group-text {
     white-space: nowrap;
 }
 
+.modal-total-strip-subtle {
+    margin-top: .85rem;
+    border-color: var(--line);
+    background: color-mix(in srgb, var(--surface) 88%, #eff6ff 12%);
+    color: var(--muted);
+}
+
+.modal-tab-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    margin: 0 0 1rem;
+    padding: .35rem;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--table-head) 84%, var(--surface) 16%);
+}
+
+.modal-tab-switcher button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    min-height: 40px;
+    padding: .55rem .85rem;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: .82rem;
+    font-weight: 800;
+    transition: background-color .2s ease, color .2s ease, box-shadow .2s ease;
+}
+
+.modal-tab-switcher button span {
+    display: inline-flex;
+    min-width: 24px;
+    height: 24px;
+    align-items: center;
+    justify-content: center;
+    padding-inline: .45rem;
+    border-radius: 999px;
+    background: rgba(37, 99, 235, .1);
+    color: var(--blue-600);
+    font-size: .74rem;
+}
+
+.modal-tab-switcher button.active {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff;
+    box-shadow: 0 10px 22px rgba(37, 99, 235, .2);
+}
+
+.modal-tab-switcher button.active span {
+    background: rgba(255, 255, 255, .22);
+    color: #fff;
+}
+
+.payment-method-tab-panel[hidden] {
+    display: none !important;
+}
+
 [data-theme="dark"] .modal-total-strip {
     border-color: rgba(96, 165, 250, .34);
     background: rgba(37, 99, 235, .13);
@@ -2074,6 +2163,35 @@ body[data-theme="dark"] .subscription-modal .input-group-text {
 
 [data-theme="dark"] .modal-total-strip strong {
     color: #93c5fd;
+}
+
+[data-theme="dark"] .modal-total-strip-subtle {
+    border-color: var(--line);
+    background: rgba(15, 23, 42, .72);
+    color: var(--muted);
+}
+
+[data-theme="dark"] .modal-tab-switcher {
+    border-color: var(--line);
+    background: rgba(15, 23, 42, .72);
+}
+
+[data-theme="dark"] .modal-tab-switcher button {
+    color: #c7d2fe;
+}
+
+[data-theme="dark"] .modal-tab-switcher button span {
+    background: rgba(96, 165, 250, .14);
+    color: #bfdbfe;
+}
+
+[data-theme="dark"] .modal-tab-switcher button.active {
+    color: #fff;
+}
+
+[data-theme="dark"] .modal-tab-switcher button.active span {
+    background: rgba(255, 255, 255, .18);
+    color: #fff;
 }
 
 .modal-data-table {
@@ -2111,48 +2229,206 @@ body[data-theme="dark"] .subscription-modal .input-group-text {
 }
 
 .modal-table-pagination {
+    justify-content: space-between;
     margin-top: 1rem;
+    padding: .7rem .8rem;
+}
+
+.modal-table-pagination > span:empty {
+    display: none;
 }
 
 .modal-table-pagination .pagination-shell {
+    display: inline-flex;
+    flex: 0 0 auto;
     flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0;
+    margin-left: auto;
 }
 
-.modal-table-pagination .pagination-shell button {
+.subscription-modal .modal-table-pagination .pagination-shell button,
+.subscription-modal .modal-table-pagination .pagination-shell .pagination-ellipsis {
+    all: unset;
+    box-sizing: border-box;
+    appearance: none;
     display: inline-flex;
-    min-width: 42px;
-    min-height: 40px;
+    width: auto;
+    min-width: 40px;
+    min-height: 38px;
     align-items: center;
     justify-content: center;
-    margin-left: -1px;
-    border: 1px solid var(--line);
-    background: var(--surface);
+    margin: 0 0 0 -1px;
+    padding: 0 .75rem;
+    border: 1px solid #c7d5e8;
+    border-radius: 0;
+    background: #fff;
     color: var(--blue-600);
     font: inherit;
-    font-weight: 700;
-    transition: background-color .2s ease, color .2s ease, border-color .2s ease;
+    font-size: .82rem;
+    font-weight: 800;
+    line-height: 1;
+    text-decoration: none;
+    box-shadow: none;
+    outline: 0;
+    transition: background-color .2s ease, color .2s ease, border-color .2s ease, transform .2s ease;
 }
 
-.modal-table-pagination .pagination-shell button:first-child {
-    min-width: 108px;
-    border-radius: 12px 0 0 12px;
+.subscription-modal .modal-table-pagination .pagination-shell button:first-child {
+    min-width: 92px;
+    margin-left: 0;
+    border-radius: 10px 0 0 10px;
 }
 
-.modal-table-pagination .pagination-shell button:last-child {
-    min-width: 108px;
-    border-radius: 0 12px 12px 0;
+.subscription-modal .modal-table-pagination .pagination-shell button:last-child {
+    min-width: 92px;
+    border-radius: 0 10px 10px 0;
 }
 
-.modal-table-pagination .pagination-shell button.active {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
+.subscription-modal .modal-table-pagination .pagination-shell button.active {
+    position: relative;
+    z-index: 1;
     border-color: #2563eb;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
     color: #fff;
+    box-shadow: 0 10px 20px rgba(37, 99, 235, .22);
 }
 
-.modal-table-pagination .pagination-shell button:disabled {
-    color: #a0aec0;
-    background: #fff;
+.subscription-modal .modal-table-pagination .pagination-shell button:not(:disabled):not(.active):hover {
+    position: relative;
+    z-index: 1;
+    border-color: #93c5fd;
+    background: #eff6ff;
+    color: var(--blue-700);
+}
+
+.subscription-modal .modal-table-pagination .pagination-shell button:disabled {
+    background: #f8fafc;
+    color: #9aa8bd;
     cursor: not-allowed;
+}
+
+.subscription-modal .modal-table-pagination .pagination-shell .pagination-ellipsis {
+    color: var(--muted);
+    cursor: default;
+}
+
+.subscription-modal .modal-table-pagination .pagination-shell .modal-page-button {
+    cursor: pointer;
+}
+
+.payment-method-modal-pagination {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 1rem !important;
+    width: 100% !important;
+    margin-top: 1rem !important;
+    padding: .75rem .85rem !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 10px !important;
+    background: #fff !important;
+}
+
+.payment-method-modal-pagination [data-payment-method-receipts-pagination-count] {
+    flex: 1 1 auto !important;
+    min-width: 170px !important;
+    color: var(--muted) !important;
+    font-size: .78rem !important;
+    font-weight: 800 !important;
+}
+
+.payment-method-modal-pagination .pagination-shell {
+    display: inline-flex !important;
+    flex: 0 0 auto !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    justify-content: flex-end !important;
+    gap: 0 !important;
+    margin-left: auto !important;
+}
+
+.payment-method-modal-pagination > button,
+.payment-method-modal-pagination > .pagination-ellipsis {
+    flex: 0 0 auto !important;
+}
+
+.payment-method-modal-pagination > button:first-of-type {
+    margin-left: auto !important;
+}
+
+.payment-method-modal-pagination > button,
+.payment-method-modal-pagination > .pagination-ellipsis,
+.payment-method-modal-pagination .pagination-shell .modal-page-button,
+.payment-method-modal-pagination .pagination-shell .pagination-ellipsis {
+    all: unset;
+    box-sizing: border-box !important;
+    display: inline-flex !important;
+    min-width: 40px !important;
+    min-height: 38px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 0 0 -1px !important;
+    padding: 0 .78rem !important;
+    border: 1px solid #c7d5e8 !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    color: var(--blue-600) !important;
+    font-size: .78rem !important;
+    font-weight: 850 !important;
+    line-height: 1 !important;
+    text-decoration: none !important;
+    cursor: pointer !important;
+}
+
+.payment-method-modal-pagination > button:first-of-type,
+.payment-method-modal-pagination .pagination-shell .modal-page-edge:first-child {
+    min-width: 96px !important;
+    margin-left: 0 !important;
+    border-radius: 10px 0 0 10px !important;
+}
+
+.payment-method-modal-pagination > button:first-of-type {
+    margin-left: auto !important;
+}
+
+.payment-method-modal-pagination > button:last-of-type,
+.payment-method-modal-pagination .pagination-shell .modal-page-edge:last-child {
+    min-width: 96px !important;
+    border-radius: 0 10px 10px 0 !important;
+}
+
+.payment-method-modal-pagination > button.active,
+.payment-method-modal-pagination .pagination-shell .modal-page-button.active {
+    position: relative !important;
+    z-index: 1 !important;
+    border-color: #2563eb !important;
+    background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+    color: #fff !important;
+    box-shadow: 0 10px 20px rgba(37, 99, 235, .2) !important;
+}
+
+.payment-method-modal-pagination > button:not(:disabled):not(.active):hover,
+.payment-method-modal-pagination .pagination-shell .modal-page-button:not(:disabled):not(.active):hover {
+    position: relative !important;
+    z-index: 1 !important;
+    border-color: #93c5fd !important;
+    background: #eff6ff !important;
+    color: var(--blue-700) !important;
+}
+
+.payment-method-modal-pagination > button:disabled,
+.payment-method-modal-pagination .pagination-shell .modal-page-button:disabled {
+    background: #f8fafc !important;
+    color: #94a3b8 !important;
+    cursor: not-allowed !important;
+}
+
+.payment-method-modal-pagination > .pagination-ellipsis,
+.payment-method-modal-pagination .pagination-shell .pagination-ellipsis {
+    color: var(--muted) !important;
+    cursor: default !important;
 }
 
 @media (max-width: 640px) {
@@ -2163,6 +2439,15 @@ body[data-theme="dark"] .subscription-modal .input-group-text {
 
     .subscription-modal .modal-table-dialog .modal-body {
         padding: 1.5rem;
+    }
+
+    .modal-tab-switcher {
+        display: flex;
+        width: 100%;
+    }
+
+    .modal-tab-switcher button {
+        flex: 1 1 0;
     }
 
     .modal-data-table {
@@ -8663,9 +8948,66 @@ body.archiving-module-body {
     border-color: var(--surface);
 }
 
-[data-theme="dark"] .modal-table-pagination .pagination-shell button:disabled {
+[data-theme="dark"] .subscription-modal .modal-table-pagination .pagination-shell button,
+[data-theme="dark"] .subscription-modal .modal-table-pagination .pagination-shell .pagination-ellipsis {
+    border-color: rgba(96, 165, 250, .24);
+    background: #111f35;
+    color: #93c5fd;
+}
+
+[data-theme="dark"] .subscription-modal .modal-table-pagination .pagination-shell button.active {
+    border-color: #60a5fa;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff;
+}
+
+[data-theme="dark"] .subscription-modal .modal-table-pagination .pagination-shell button:not(:disabled):not(.active):hover {
+    border-color: rgba(96, 165, 250, .46);
+    background: rgba(37, 99, 235, .2);
+    color: #bfdbfe;
+}
+
+[data-theme="dark"] .subscription-modal .modal-table-pagination .pagination-shell button:disabled {
     background: var(--field);
     color: var(--muted);
+}
+
+[data-theme="dark"] .payment-method-modal-pagination {
+    border-color: var(--line) !important;
+    background: rgba(15, 23, 42, .86) !important;
+}
+
+[data-theme="dark"] .payment-method-modal-pagination [data-payment-method-receipts-pagination-count] {
+    color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .payment-method-modal-pagination > button,
+[data-theme="dark"] .payment-method-modal-pagination > .pagination-ellipsis,
+[data-theme="dark"] .payment-method-modal-pagination .pagination-shell .modal-page-button,
+[data-theme="dark"] .payment-method-modal-pagination .pagination-shell .pagination-ellipsis {
+    border-color: rgba(96, 165, 250, .28) !important;
+    background: rgba(15, 23, 42, .92) !important;
+    color: #bfdbfe !important;
+}
+
+[data-theme="dark"] .payment-method-modal-pagination > button.active,
+[data-theme="dark"] .payment-method-modal-pagination .pagination-shell .modal-page-button.active {
+    border-color: #60a5fa !important;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+    color: #fff !important;
+}
+
+[data-theme="dark"] .payment-method-modal-pagination > button:not(:disabled):not(.active):hover,
+[data-theme="dark"] .payment-method-modal-pagination .pagination-shell .modal-page-button:not(:disabled):not(.active):hover {
+    border-color: #60a5fa !important;
+    background: rgba(37, 99, 235, .24) !important;
+    color: #eff6ff !important;
+}
+
+[data-theme="dark"] .payment-method-modal-pagination > button:disabled,
+[data-theme="dark"] .payment-method-modal-pagination .pagination-shell .modal-page-button:disabled {
+    background: rgba(15, 23, 42, .72) !important;
+    color: #64748b !important;
 }
 
 [data-theme="dark"] .accounting-shell .cash-session-status {

@@ -16,7 +16,7 @@
         @page { margin: 28px 38px 118px 38px; }
         body,
         body * {
-            font-family: "Courier", "Courier New", "DejaVu Sans Mono", monospace !important;
+            font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace !important;
         }
         body {
             margin: 0;
@@ -45,7 +45,7 @@
         .company-name {
             margin: 0;
             color: #172033;
-            font-size: 23px;
+            font-size: 20px;
             font-weight: bold;
             letter-spacing: .02em;
             text-transform: uppercase;
@@ -61,7 +61,7 @@
         .invoice-title {
             margin: 0;
             color: #2f70c8;
-            font-size: 36px;
+            font-size: 27px;
             font-weight: bold;
             letter-spacing: .08em;
             line-height: 1;
@@ -73,20 +73,20 @@
         .intro-table { margin-bottom: 24px; }
         .bill-to { width: 55%; }
         .invoice-meta { width: 45%; text-align: right; }
-        .muted-label, .meta-line { color: #233247; font-size: 13px; }
+        .muted-label, .meta-line { color: #233247; font-size: 11px; }
         .client-name {
             margin-top: 4px;
             color: #172033;
-            font-size: 17px;
+            font-size: 13.5px;
             font-weight: bold;
         }
-        .client-line { margin-top: 6px; color: #4d5f75; font-size: 13px; }
+        .client-line { margin-top: 6px; color: #4d5f75; font-size: 10.5px; }
         .meta-line { margin-top: 6px; }
         .letter-subject {
             margin-top: 4px;
             margin-bottom: 12px;
             color: #172033;
-            font-size: 13px;
+            font-size: 11px;
         }
         .items { margin-top: 10px; margin-bottom: 14px; }
         .items th {
@@ -211,14 +211,14 @@
                         <tr>
                             <td class="brand-logo">
                                 @if ($logoDataUri)
-                                    <img src="{{ $logoDataUri }}" alt="{{ $company->name }}">
+                                    <img src="{{ $logoDataUri }}" alt="{{ pdf_text($company->name) }}">
                                 @else
-                                    {{ $companyInitials }}
+                                    {{ pdf_text($companyInitials) }}
                                 @endif
                             </td>
                             <td class="brand-info">
-                                <h1 class="company-name">{{ $company->name }}</h1>
-                                <div class="company-subtitle">{{ $site->name }}</div>
+                                <h1 class="company-name">{{ pdf_text($company->name) }}</h1>
+                                <div class="company-subtitle">{{ pdf_text($site->name) }}</div>
                             </td>
                         </tr>
                     </table>
@@ -235,9 +235,9 @@
             <tr>
                 <td class="bill-to">
                     <div class="muted-label">{{ __('main.invoice_to') }}</div>
-                    <div class="client-name">{{ $client?->display_name ?? '-' }}</div>
+                    <div class="client-name">{{ pdf_text($client?->display_name) }}</div>
                     @if ($client?->address)
-                        <div class="client-line">{{ $client->address }}</div>
+                        <div class="client-line">{{ pdf_text($client->address) }}</div>
                     @endif
                 </td>
                 <td class="invoice-meta">
@@ -255,7 +255,7 @@
         </table>
 
         @if ($invoice->title && $invoice->title !== \App\Models\AccountingSalesInvoice::TITLE_CASH_REGISTER)
-            <div class="letter-subject"><strong>{{ __('main.invoice_subject') }} :</strong> {{ $invoice->title }}</div>
+            <div class="letter-subject"><strong>{{ __('main.invoice_subject') }} :</strong> {{ pdf_text($invoice->title) }}</div>
         @endif
 
         <table class="items">
@@ -281,9 +281,9 @@
                     <tr>
                         <td class="no">{{ $loop->iteration }}</td>
                         <td class="description">
-                            {{ $lineLabel }}
+                            {{ pdf_text($lineLabel) }}
                             @if ($line->details)
-                                <span class="line-detail">{{ $line->details }}</span>
+                                <span class="line-detail">{{ pdf_text($line->details) }}</span>
                             @endif
                         </td>
                         <td class="qty">{{ $formatAmount($line->quantity) }}</td>
@@ -303,7 +303,7 @@
                         {{ $paymentTermLabels[$invoice->payment_terms] ?? __('main.payment_terms_to_discuss') }}
                         @if ($primaryAccount)
                             <br><br>
-                            {{ __('main.bank') }} : {{ $primaryAccount->bank_name ?: '-' }}<br>
+                            {{ __('main.bank') }} : {{ pdf_text($primaryAccount->bank_name) }}<br>
                             {{ __('main.account_number') }} : {{ $primaryAccount->account_number ?: '-' }}<br>
                             {{ __('main.currency') }} : {{ $primaryAccount->currency ?: '-' }}
                         @endif
@@ -334,7 +334,7 @@
             <tr>
                 <td class="conditions">
                     <strong>{{ __('main.terms_and_conditions') }} :</strong>
-                    <div class="conditions-body">{{ $invoice->terms ?: $invoice->notes ?: __('main.default_sales_invoice_terms') }}</div>
+                    <div class="conditions-body">{{ pdf_text($invoice->terms ?: $invoice->notes ?: __('main.default_sales_invoice_terms')) }}</div>
                     @if ($pdfShowQrCode)
                         <div class="invoice-qr">
                             <img src="{{ $invoiceQrCodeDataUri }}" alt="{{ __('main.sales_invoice_qr_alt') }}">
@@ -343,9 +343,9 @@
                 </td>
                 <td class="signature">
                     <div class="signature-line"></div>
-                    <div class="signature-name">{{ $signatory->name }}</div>
+                    <div class="signature-name">{{ pdf_text($signatory->name) }}</div>
                     @if (filled($signatory->grade))
-                        <div class="signature-role">{{ $signatory->grade }}</div>
+                        <div class="signature-role">{{ pdf_text($signatory->grade) }}</div>
                     @endif
                 </td>
             </tr>
@@ -354,7 +354,7 @@
 
     <footer class="pdf-footer">
         <table class="pdf-footer-line"><tr><td class="rule-blue"></td><td class="rule-grey"></td></tr></table>
-        <div><strong>{{ $company->name }}</strong></div>
+        <div><strong>{{ pdf_text($company->name) }}</strong></div>
         @if ($company->rccm || $company->id_nat || $company->nif)
             <div>
                 @if ($company->rccm) RCCM : {{ $company->rccm }} @endif
@@ -362,16 +362,16 @@
                 @if ($company->nif) - NIF : {{ $company->nif }} @endif
             </div>
         @endif
-        @if ($company->phone_number)<div>Contact : {{ $company->phone_number }}</div>@endif
+        @if ($company->phone_number)<div>Contact : {{ pdf_text($company->phone_number) }}</div>@endif
         @if ($company->email || $company->website)
             <div>
-                @if ($company->email) Email : {{ $company->email }} @endif
-                @if ($company->website) - Web : {{ $company->website }} @endif
+                @if ($company->email) Email : {{ pdf_text($company->email) }} @endif
+                @if ($company->website) - Web : {{ pdf_text($company->website) }} @endif
             </div>
         @endif
-        @if ($company->address || $company->country)<div>Adresse : {{ $company->address ?: $company->country }}</div>@endif
+        @if ($company->address || $company->country)<div>Adresse : {{ pdf_text($company->address ?: $company->country) }}</div>@endif
         @if ($primaryAccount)
-            <div>Compte : {{ $primaryAccount->account_number ?: '-' }} - {{ $primaryAccount->currency ?: '-' }} @if ($primaryAccount->bank_name) - {{ $primaryAccount->bank_name }} @endif</div>
+            <div>Compte : {{ $primaryAccount->account_number ?: '-' }} - {{ $primaryAccount->currency ?: '-' }} @if ($primaryAccount->bank_name) - {{ pdf_text($primaryAccount->bank_name) }} @endif</div>
         @endif
         @if ($pdfShowFooterBranding)
             <div class="pdf-footer-emphasis">{{ __('main.invoice_generated_by', ['app' => app_brand_name()]) }}</div>

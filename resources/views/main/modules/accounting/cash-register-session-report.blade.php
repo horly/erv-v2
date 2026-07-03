@@ -20,7 +20,7 @@
         * { box-sizing: border-box; }
         body,
         body * {
-            font-family: "Courier", "Courier New", "DejaVu Sans Mono", monospace !important;
+            font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace !important;
         }
         body {
             margin: 0;
@@ -52,7 +52,7 @@
         .company-name {
             margin: 0;
             color: #172033;
-            font-size: 23px;
+            font-size: 20px;
             font-weight: 900;
             letter-spacing: .02em;
             text-transform: uppercase;
@@ -73,7 +73,7 @@
         .report-title {
             margin: 0;
             color: #2f70c8;
-            font-size: 36px;
+            font-size: 27px;
             font-weight: bold;
             line-height: 1;
             letter-spacing: .08em;
@@ -265,10 +265,10 @@
         <table class="report-header-table">
             <tr>
                 <td>
-                    <div class="company-name">{{ $company->name }}</div>
+                    <div class="company-name">{{ pdf_text($company->name) }}</div>
                     <div class="company-meta">
-                        {{ $site->name }}<br>
-                        {{ $site->email ?: $company->email }}
+                        {{ pdf_text($site->name) }}<br>
+                        {{ pdf_text($site->email ?: $company->email) }}
                     </div>
                 </td>
                 <td class="report-title-cell">
@@ -289,19 +289,19 @@
                 <tbody>
                     <tr>
                         <td class="label-cell">{{ __('main.opened_by') }}</td>
-                        <td class="value-cell">{{ $session->opener?->name ?? '-' }}</td>
+                        <td class="value-cell">{{ pdf_text($session->opener?->name) }}</td>
                         <td class="label-cell-wide">{{ __('main.opened_at') }}</td>
                         <td class="value-cell-wide">{{ optional($session->opened_at)->format('d/m/Y H:i') }}</td>
                     </tr>
                     <tr>
                         <td class="label-cell">{{ __('main.closed_by') }}</td>
-                        <td class="value-cell">{{ $session->closer?->name ?? '-' }}</td>
+                        <td class="value-cell">{{ pdf_text($session->closer?->name) }}</td>
                         <td class="label-cell-wide">{{ __('main.closed_at') }}</td>
                         <td class="value-cell-wide">{{ optional($session->closed_at)->format('d/m/Y H:i') }}</td>
                     </tr>
                     <tr>
                         <td class="label-cell">{{ __('main.validated_by') }}</td>
-                        <td class="value-cell">{{ $session->validator?->name ?? '-' }}</td>
+                        <td class="value-cell">{{ pdf_text($session->validator?->name) }}</td>
                         <td class="label-cell-wide">{{ __('main.cash_register_sales_count') }}</td>
                         <td class="value-cell-wide">{{ $session->salesInvoices->count() }}</td>
                     </tr>
@@ -335,8 +335,8 @@
             <tbody>
                 @forelse ($paymentSummary as $summary)
                     <tr>
-                        <td>{{ $summary->paymentMethod?->name ?? '-' }}</td>
-                        <td>{{ $summary->paymentMethod?->type ?? '-' }}</td>
+                        <td>{{ pdf_text($summary->paymentMethod?->name) }}</td>
+                        <td>{{ pdf_text($summary->paymentMethod?->type) }}</td>
                         <td class="text-end">{{ $summary->payments_count }}</td>
                         <td class="text-end">{{ number_format((float) $summary->total_amount, 2, ',', ' ') }} {{ $summary->currency }}</td>
                     </tr>
@@ -363,10 +363,10 @@
                 @forelse ($session->salesInvoices as $invoice)
                     <tr>
                         <td>{{ $invoice->reference }}</td>
-                        <td>{{ $invoice->client?->display_name ?? __('main.walk_in_customer') }}</td>
+                        <td>{{ pdf_text($invoice->client?->display_name ?? __('main.walk_in_customer')) }}</td>
                         <td>{{ optional($invoice->invoice_date)->format('d/m/Y') }}</td>
                         <td class="text-end">{{ number_format((float) $invoice->total_ttc, 2, ',', ' ') }} {{ $invoice->currency }}</td>
-                        <td><span class="status">{{ $invoiceStatusLabels[$invoice->status] ?? $invoice->status }}</span></td>
+                        <td><span class="status">{{ pdf_text($invoiceStatusLabels[$invoice->status] ?? $invoice->status) }}</span></td>
                     </tr>
                 @empty
                     <tr><td colspan="5" class="text-center">{{ __('main.no_cash_register_tickets') }}</td></tr>
@@ -378,7 +378,7 @@
 
     <footer class="pdf-footer">
         <table class="pdf-footer-line"><tr><td class="rule-blue"></td><td class="rule-grey"></td></tr></table>
-        <div><strong>{{ $company->name }}</strong></div>
+        <div><strong>{{ pdf_text($company->name) }}</strong></div>
         @if ($company->rccm || $company->id_nat || $company->nif)
             <div>
                 @if ($company->rccm) RCCM : {{ $company->rccm }} @endif
@@ -386,16 +386,16 @@
                 @if ($company->nif) - NIF : {{ $company->nif }} @endif
             </div>
         @endif
-        @if ($company->phone_number)<div>Contact : {{ $company->phone_number }}</div>@endif
+        @if ($company->phone_number)<div>Contact : {{ pdf_text($company->phone_number) }}</div>@endif
         @if ($company->email || $company->website)
             <div>
-                @if ($company->email) Email : {{ $company->email }} @endif
-                @if ($company->website) - Web : {{ $company->website }} @endif
+                @if ($company->email) Email : {{ pdf_text($company->email) }} @endif
+                @if ($company->website) - Web : {{ pdf_text($company->website) }} @endif
             </div>
         @endif
-        @if ($company->address || $company->country)<div>Adresse : {{ $company->address ?: $company->country }}</div>@endif
+        @if ($company->address || $company->country)<div>Adresse : {{ pdf_text($company->address ?: $company->country) }}</div>@endif
         @if ($primaryAccount)
-            <div>Compte : {{ $primaryAccount->account_number ?: '-' }} - {{ $primaryAccount->currency ?: '-' }} @if ($primaryAccount->bank_name) - {{ $primaryAccount->bank_name }} @endif</div>
+            <div>Compte : {{ pdf_text($primaryAccount->account_number) }} - {{ pdf_text($primaryAccount->currency) }} @if ($primaryAccount->bank_name) - {{ pdf_text($primaryAccount->bank_name) }} @endif</div>
         @endif
         @if ($pdfShowFooterBranding)
             <div class="pdf-footer-emphasis">{{ __('main.invoice_generated_by', ['app' => app_brand_name()]) }}</div>

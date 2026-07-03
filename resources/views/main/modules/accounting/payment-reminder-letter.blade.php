@@ -13,15 +13,15 @@
     <style>
         @page { margin: 28px 38px 94px; }
         * { box-sizing: border-box; }
-        body, body * { font-family: "Courier", "Courier New", "DejaVu Sans Mono", monospace !important; }
-        body { margin: 0; color: #172033; background: #fff; font-size: 11px; line-height: 1.5; }
+        body, body * { font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace !important; }
+        body { margin: 0; color: #172033; background: #fff; font-size: 11px; line-height: 1.5; font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace; }
         table { width: 100%; border-collapse: collapse; }
         .header td { padding: 0; vertical-align: top; }
         .brand-side { width: 56%; padding-top: 8px; }
         .document-side { width: 44%; text-align: right; }
         .brand-name { margin: 0; font-size: 21px; font-weight: bold; text-transform: uppercase; }
         .brand-site { margin-top: 3px; color: #52647c; font-weight: bold; text-transform: uppercase; }
-        .document-title { margin: 0 0 8px; color: #2f70c8; font-size: 29px; line-height: 1.05; font-weight: bold; text-transform: uppercase; }
+        .document-title { margin: 0 0 8px; color: #2f70c8; font-size: 24px; line-height: 1.05; font-weight: bold; text-transform: uppercase; }
         .rule { margin: 22px 0 34px; }
         .rule td:first-child { width: 84px; height: 3px; background: #40aef4; }
         .rule td:last-child { height: 3px; background: #a9b3bf; }
@@ -29,7 +29,7 @@
         .customer { width: 56%; }
         .meta { width: 44%; text-align: right; }
         .label { color: #5e718c; }
-        .customer-name { margin-top: 5px; font-size: 16px; font-weight: bold; }
+        .customer-name { margin-top: 5px; font-size: 13.5px; font-weight: bold; }
         .meta div { margin-bottom: 5px; }
         .subject {
             margin: 30px 0 17px;
@@ -67,8 +67,8 @@
     <table class="header">
         <tr>
             <td class="brand-side">
-                <div class="brand-name">{{ $company->name }}</div>
-                <div class="brand-site">{{ $site->name }}</div>
+                <div class="brand-name">{{ pdf_text($company->name) }}</div>
+                <div class="brand-site">{{ pdf_text($site->name) }}</div>
             </td>
             <td class="document-side">
                 <h1 class="document-title">{{ __('main.payment_reminder_letter') }}</h1>
@@ -83,7 +83,7 @@
         <tr>
             <td class="customer">
                 <div class="label">{{ __('main.customer') }}</div>
-                <div class="customer-name">{{ $customerName ?: '-' }}</div>
+                <div class="customer-name">{{ pdf_text($customerName) }}</div>
             </td>
             <td class="meta">
                 <div>{{ __('main.reference') }} : <strong>{{ $sourceReference ?: '-' }}</strong></div>
@@ -93,9 +93,9 @@
         </tr>
     </table>
 
-    <div class="subject">{{ __('main.subject') }} : {{ $reminder->subject }}</div>
+    <div class="subject">{{ __('main.subject') }} : {{ pdf_text($reminder->subject) }}</div>
     <p>{{ __('main.payment_reminder_letter_intro') }}</p>
-    <div class="message">{{ $reminder->message }}</div>
+    <div class="message">{{ pdf_text($reminder->message) }}</div>
 
     <table class="balance">
         <tr>
@@ -108,16 +108,16 @@
 
     <div class="signature">
         <div class="signature-line"></div>
-        <div class="signature-name">{{ $reminder->creator?->name ?: $user->name }}</div>
+        <div class="signature-name">{{ pdf_text($reminder->creator?->name ?: $user->name) }}</div>
         @if (($reminder->creator?->grade ?: $user->grade))
-            <div>{{ $reminder->creator?->grade ?: $user->grade }}</div>
+            <div>{{ pdf_text($reminder->creator?->grade ?: $user->grade) }}</div>
         @endif
     </div>
 
     <div class="footer">
         <table class="rule"><tr><td></td><td></td></tr></table>
-        <strong>{{ $company->name }}</strong><br>
-        {{ $site->name }}@if ($company->email) | {{ $company->email }}@endif<br>
+        <strong>{{ pdf_text($company->name) }}</strong><br>
+        {{ pdf_text($site->name) }}@if ($company->email) | {{ pdf_text($company->email) }}@endif<br>
         @if ($pdfShowFooterBranding)
             <em>{{ __('main.generated_by_exad_erp', ['app' => app_brand_name()]) }}</em>
         @endif

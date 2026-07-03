@@ -48,7 +48,7 @@
         </div>
         <div class="col-lg-2 col-md-3">
             <label class="form-label">{{ __('main.quantity') }} *</label>
-            <input name="lines[{{ $index }}][quantity]" type="number" min="0.01" step="0.01" class="form-control @error("lines.$index.quantity") is-invalid @enderror" value="{{ $line['quantity'] ?? '1' }}" placeholder="1" data-proforma-quantity>
+            <input name="lines[{{ $index }}][quantity]" type="number" min="1" step="1" class="form-control @error("lines.$index.quantity") is-invalid @enderror" value="{{ (int) ($line['quantity'] ?? 1) }}" placeholder="1" data-proforma-quantity>
             @error("lines.$index.quantity")<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
         </div>
         <div class="col-lg-2 col-md-3">

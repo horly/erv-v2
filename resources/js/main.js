@@ -178,9 +178,43 @@
         });
     };
 
+    const quantityInputSelector = [
+        'input[type="number"][name="quantity"]',
+        'input[type="number"][name$="[quantity]"]',
+        'input[type="number"][name$="[threshold_quantity]"]',
+        'input[type="number"][name$="[stock_quantity]"]',
+        'input[type="number"][name$="[minimum_quantity]"]',
+        'input[type="number"][name$="[current_stock]"]',
+        'input[type="number"][name$="[min_stock]"]',
+    ].join(',');
+
+    const normalizeQuantityInput = (field) => {
+        if (!field || !field.matches?.(quantityInputSelector) || field.value === '') {
+            return;
+        }
+
+        const rawValue = String(field.value).replace(',', '.');
+        const numericValue = Number(rawValue);
+
+        if (!Number.isFinite(numericValue)) {
+            field.value = '';
+            return;
+        }
+
+        field.value = String(Math.max(Number(field.min || 0), Math.floor(numericValue)));
+    };
+
+    const prepareQuantityInputs = () => {
+        document.querySelectorAll(quantityInputSelector).forEach((field) => {
+            field.step = '1';
+            normalizeQuantityInput(field);
+        });
+    };
+
     ensureFullscreenButton();
     applyTheme(localStorage.getItem(storageKey) || root.dataset.theme || 'light');
     compactPaginationShells();
+    prepareQuantityInputs();
 
     const getSidebarCollapsed = () => sidebarCompactQuery.matches || localStorage.getItem(sidebarStorageKey) === 'true';
 
@@ -1440,6 +1474,26 @@
             form.submit();
         }
     });
+
+    document.addEventListener('focusin', (event) => {
+        if (event.target.matches?.(quantityInputSelector)) {
+            event.target.step = '1';
+        }
+    });
+
+    document.addEventListener('change', (event) => {
+        normalizeQuantityInput(event.target);
+    });
+
+    document.addEventListener('input', (event) => {
+        if (event.target.matches?.(quantityInputSelector) && /[,.]/.test(event.target.value)) {
+            normalizeQuantityInput(event.target);
+        }
+    });
+
+    document.addEventListener('submit', (event) => {
+        event.target?.querySelectorAll?.(quantityInputSelector).forEach(normalizeQuantityInput);
+    }, true);
 
     function confirmDeleteAction(options) {
         if (window.Swal?.fire) {

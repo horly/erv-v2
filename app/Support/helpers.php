@@ -43,3 +43,38 @@ if (! function_exists('public_storage_url')) {
         return asset('user-files/'.ltrim($path, '/'));
     }
 }
+
+if (! function_exists('pdf_text')) {
+    function pdf_text(mixed $value, string $default = '-'): string
+    {
+        $text = trim((string) ($value ?? ''));
+
+        if ($text === '') {
+            return $default;
+        }
+
+        if (! preg_match('/(Ã|Â|â[€™€œ€“€])/', $text)) {
+            return $text;
+        }
+
+        $best = $text;
+        $bestScore = preg_match_all('/(Ã|Â|â[€™€œ€“€])/', $text);
+
+        foreach (['ISO-8859-1', 'Windows-1252'] as $encoding) {
+            $bytes = @iconv('UTF-8', $encoding.'//IGNORE', $text);
+
+            if ($bytes === false || ! mb_check_encoding($bytes, 'UTF-8')) {
+                continue;
+            }
+
+            $score = preg_match_all('/(Ã|Â|â[€™€œ€“€])/', $bytes);
+
+            if ($score < $bestScore) {
+                $best = $bytes;
+                $bestScore = $score;
+            }
+        }
+
+        return $best;
+    }
+}

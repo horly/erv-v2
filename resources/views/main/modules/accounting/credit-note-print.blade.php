@@ -14,7 +14,7 @@
     <link rel="icon" href="{{ app_brand_favicon_url() }}">
     <style>
         @page { margin: 28px 38px 118px 38px; }
-        body, body * { font-family: "Courier", "Courier New", "DejaVu Sans Mono", monospace !important; }
+        body, body * { font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace !important; }
         body { margin: 0; color: #233247; background: #ffffff; font-size: 12px; line-height: 1.35; }
         table { width: 100%; border-collapse: collapse; }
         .header td, .intro-table td, .summary-table td, .conditions-signature td { vertical-align: top; }
@@ -23,18 +23,18 @@
         .brand-logo { width: 70px; height: 70px; border-radius: 9px; background: #eef6ff; color: #2c6ecb; font-size: 24px; font-weight: bold; text-align: center; vertical-align: middle; }
         .brand-logo img { max-width: 70px; max-height: 70px; }
         .brand-info { padding-left: 16px; vertical-align: middle; }
-        .company-name { margin: 0; color: #172033; font-size: 23px; font-weight: bold; letter-spacing: .02em; text-transform: uppercase; }
+        .company-name { margin: 0; color: #172033; font-size: 20px; font-weight: bold; letter-spacing: .02em; text-transform: uppercase; }
         .company-subtitle { margin-top: 2px; color: #485a70; font-size: 12px; font-weight: bold; letter-spacing: .08em; text-transform: uppercase; }
-        .document-title { margin: 0; color: #2f70c8; font-size: 34px; font-weight: bold; letter-spacing: .08em; line-height: 1; text-transform: uppercase; }
+        .document-title { margin: 0; color: #2f70c8; font-size: 26px; font-weight: bold; letter-spacing: .08em; line-height: 1; text-transform: uppercase; }
         .rule-table { margin-top: 16px; margin-bottom: 36px; }
         .rule-blue { width: 84px; height: 3px; background: #40aef4; }
         .rule-grey { height: 3px; background: #a9b3bf; }
         .intro-table { margin-bottom: 24px; }
         .bill-to { width: 55%; }
         .document-meta { width: 45%; text-align: right; }
-        .muted-label, .meta-line { color: #233247; font-size: 13px; }
-        .client-name { margin-top: 4px; color: #172033; font-size: 17px; font-weight: bold; }
-        .client-line { margin-top: 6px; color: #4d5f75; font-size: 13px; }
+        .muted-label, .meta-line { color: #233247; font-size: 11px; }
+        .client-name { margin-top: 4px; color: #172033; font-size: 13.5px; font-weight: bold; }
+        .client-line { margin-top: 6px; color: #4d5f75; font-size: 10.5px; }
         .meta-line { margin-top: 6px; }
         .reason { margin: 10px 0 14px; color: #172033; font-size: 13px; }
         .items { margin-top: 10px; margin-bottom: 14px; }
@@ -97,14 +97,14 @@
                         <tr>
                             <td class="brand-logo">
                                 @if ($logoDataUri)
-                                    <img src="{{ $logoDataUri }}" alt="{{ $company->name }}">
+                                    <img src="{{ $logoDataUri }}" alt="{{ pdf_text($company->name) }}">
                                 @else
-                                    {{ $companyInitials }}
+                                    {{ pdf_text($companyInitials) }}
                                 @endif
                             </td>
                             <td class="brand-info">
-                                <h1 class="company-name">{{ $company->name }}</h1>
-                                <div class="company-subtitle">{{ $site->name }}</div>
+                                <h1 class="company-name">{{ pdf_text($company->name) }}</h1>
+                                <div class="company-subtitle">{{ pdf_text($site->name) }}</div>
                             </td>
                         </tr>
                     </table>
@@ -121,9 +121,9 @@
             <tr>
                 <td class="bill-to">
                     <div class="muted-label">{{ __('main.credit_to') }}</div>
-                    <div class="client-name">{{ $client?->display_name ?? '-' }}</div>
+                    <div class="client-name">{{ pdf_text($client?->display_name) }}</div>
                     @if ($client?->address)
-                        <div class="client-line">{{ $client->address }}</div>
+                        <div class="client-line">{{ pdf_text($client->address) }}</div>
                     @endif
                 </td>
                 <td class="document-meta">
@@ -136,7 +136,7 @@
         </table>
 
         @if ($creditNote->reason)
-            <div class="reason"><strong>{{ __('main.credit_note_reason') }} :</strong> {{ $creditNote->reason }}</div>
+            <div class="reason"><strong>{{ __('main.credit_note_reason') }} :</strong> {{ pdf_text($creditNote->reason) }}</div>
         @endif
 
         <table class="items">
@@ -154,9 +154,9 @@
                     <tr>
                         <td class="no">{{ $loop->iteration }}</td>
                         <td class="description">
-                            {{ $line->description }}
+                            {{ pdf_text($line->description) }}
                             @if ($line->details)
-                                <span class="line-detail">{{ $line->details }}</span>
+                                <span class="line-detail">{{ pdf_text($line->details) }}</span>
                             @endif
                         </td>
                         <td class="qty">{{ $formatAmount($line->quantity) }}</td>
@@ -198,9 +198,9 @@
                 <td class="summary-left"></td>
                 <td class="signature">
                     <div class="signature-line"></div>
-                    <div class="signature-name">{{ $signatory?->name ?? '-' }}</div>
+                    <div class="signature-name">{{ pdf_text($signatory?->name) }}</div>
                     @if ($signatory?->grade)
-                        <div class="signature-role">{{ $signatory->grade }}</div>
+                        <div class="signature-role">{{ pdf_text($signatory->grade) }}</div>
                     @endif
                 </td>
             </tr>
@@ -209,7 +209,7 @@
 
     <footer class="pdf-footer">
         <table class="pdf-footer-line"><tr><td class="rule-blue"></td><td class="rule-grey"></td></tr></table>
-        <div><strong>{{ $company->name }}</strong></div>
+        <div><strong>{{ pdf_text($company->name) }}</strong></div>
         @if ($company->rccm || $company->id_nat || $company->nif)
             <div>
                 @if ($company->rccm) RCCM : {{ $company->rccm }} @endif
@@ -222,15 +222,15 @@
         @endif
         @if ($company->email || $company->website)
             <div>
-                @if ($company->email) Email : {{ $company->email }} @endif
-                @if ($company->website) - Web : {{ $company->website }} @endif
+                @if ($company->email) Email : {{ pdf_text($company->email) }} @endif
+                @if ($company->website) - Web : {{ pdf_text($company->website) }} @endif
             </div>
         @endif
         @if ($company->address || $company->country)
-            <div>Adresse : {{ collect([$company->address, $company->country])->filter()->implode(' - ') }}</div>
+            <div>Adresse : {{ pdf_text(collect([$company->address, $company->country])->filter()->implode(' - ')) }}</div>
         @endif
         @if ($primaryAccount)
-            <div>{{ $primaryAccount->bank_name }} / {{ $primaryAccount->account_number }} - {{ $primaryAccount->currency }}</div>
+            <div>{{ pdf_text($primaryAccount->bank_name) }} / {{ $primaryAccount->account_number }} - {{ $primaryAccount->currency }}</div>
         @endif
         @if ($pdfShowFooterBranding)
             <div class="pdf-footer-emphasis">{{ __('main.invoice_generated_by', ['app' => app_brand_name()]) }}</div>

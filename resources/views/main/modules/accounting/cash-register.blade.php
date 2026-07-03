@@ -1023,7 +1023,7 @@
                                         <tr>
                                             <td>{{ $loop->iteration }}</td>
                                             <td>{{ $line->description }}</td>
-                                            <td class="text-end amount-cell">{{ number_format((float) $line->quantity, 2, ',', ' ') }}</td>
+                                            <td class="text-end amount-cell">{{ number_format((float) $line->quantity, 0, ',', ' ') }}</td>
                                             <td class="text-end amount-cell">{{ number_format((float) $line->unit_price, 2, ',', ' ') }} {{ $ticket->currency }}</td>
                                             <td class="text-end amount-cell">{{ number_format((float) $line->line_total, 2, ',', ' ') }} {{ $ticket->currency }}</td>
                                         </tr>

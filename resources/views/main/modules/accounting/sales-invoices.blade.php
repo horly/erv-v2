@@ -401,6 +401,41 @@
                 return normalize(value);
             };
 
+            const pageList = (currentPage, totalPages) => {
+                if (totalPages <= 7) {
+                    return Array.from({ length: totalPages }, (_, index) => index + 1);
+                }
+
+                const pages = new Set([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
+
+                if (currentPage <= 3) {
+                    pages.add(2);
+                    pages.add(3);
+                    pages.add(4);
+                }
+
+                if (currentPage >= totalPages - 2) {
+                    pages.add(totalPages - 3);
+                    pages.add(totalPages - 2);
+                    pages.add(totalPages - 1);
+                }
+
+                const orderedPages = Array.from(pages)
+                    .filter((pageNumber) => pageNumber >= 1 && pageNumber <= totalPages)
+                    .sort((left, right) => left - right);
+
+                return orderedPages.reduce((items, pageNumber, index) => {
+                    const previous = orderedPages[index - 1];
+
+                    if (previous && pageNumber - previous > 1) {
+                        items.push('ellipsis');
+                    }
+
+                    items.push(pageNumber);
+                    return items;
+                }, []);
+            };
+
             const initPaymentsTable = (wrapper) => {
                 if (!wrapper || wrapper.dataset.salesPaymentsTableBound === 'true') {
                     return;
@@ -493,12 +528,12 @@
                         }
 
                         paginationNav.innerHTML = `
-                            <button type="button" ${page === 1 ? 'disabled' : ''} data-sales-payments-page="${page - 1}">${previousLabel}</button>
-                            ${Array.from({ length: totalPages }, (_, index) => {
-                                const currentPage = index + 1;
-                                return `<button type="button" class="${currentPage === page ? 'active' : ''}" data-sales-payments-page="${currentPage}">${currentPage}</button>`;
-                            }).join('')}
-                            <button type="button" ${page === totalPages ? 'disabled' : ''} data-sales-payments-page="${page + 1}">${nextLabel}</button>
+                            <button type="button" class="modal-page-button modal-page-edge" ${page === 1 ? 'disabled' : ''} data-sales-payments-page="${page - 1}">${previousLabel}</button>
+                            ${pageList(page, totalPages).map((item) => item === 'ellipsis'
+                                ? '<span class="pagination-ellipsis" aria-hidden="true">...</span>'
+                                : `<button type="button" class="modal-page-button ${item === page ? 'active' : ''}" data-sales-payments-page="${item}">${item}</button>`
+                            ).join('')}
+                            <button type="button" class="modal-page-button modal-page-edge" ${page === totalPages ? 'disabled' : ''} data-sales-payments-page="${page + 1}">${nextLabel}</button>
                         `;
                     } else {
                         pagination.hidden = true;

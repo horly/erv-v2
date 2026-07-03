@@ -106,19 +106,19 @@
                                             </div>
                                             <div class="col-md-2">
                                                 <label class="form-label">{{ __('main.ordered_quantity') }}</label>
-                                                <input type="text" class="form-control text-end" value="{{ number_format((float) ($line['ordered_quantity'] ?? 0), 2, ',', ' ') }}" readonly>
+                                                <input type="text" class="form-control text-end" value="{{ number_format((float) ($line['ordered_quantity'] ?? 0), 0, ',', ' ') }}" readonly>
                                             </div>
                                             <div class="col-md-2">
                                                 <label class="form-label">{{ __('main.already_delivered') }}</label>
-                                                <input type="text" class="form-control text-end" value="{{ number_format((float) ($line['already_delivered_quantity'] ?? 0), 2, ',', ' ') }}" readonly>
+                                                <input type="text" class="form-control text-end" value="{{ number_format((float) ($line['already_delivered_quantity'] ?? 0), 0, ',', ' ') }}" readonly>
                                             </div>
                                             <div class="col-md-2">
                                                 <label class="form-label">{{ __('main.remaining_quantity') }}</label>
-                                                <input type="text" class="form-control text-end" value="{{ number_format((float) ($line['remaining_quantity'] ?? 0), 2, ',', ' ') }}" readonly>
+                                                <input type="text" class="form-control text-end" value="{{ number_format((float) ($line['remaining_quantity'] ?? 0), 0, ',', ' ') }}" readonly>
                                             </div>
                                             <div class="col-md-2">
                                                 <label class="form-label">{{ __('main.quantity_to_deliver') }} *</label>
-                                                <input name="lines[{{ $index }}][quantity]" type="number" min="0" step="0.01" class="form-control text-end @error('lines.'.$index.'.quantity') is-invalid @enderror" value="{{ $lineQuantity }}" placeholder="0" data-delivery-quantity>
+                                                <input name="lines[{{ $index }}][quantity]" type="number" min="0" step="1" class="form-control text-end @error('lines.'.$index.'.quantity') is-invalid @enderror" value="{{ (int) $lineQuantity }}" placeholder="0" data-delivery-quantity>
                                                 @error('lines.'.$index.'.quantity')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                                             </div>
                                             @if ($lineType === \App\Models\AccountingCustomerOrderLine::TYPE_ITEM)

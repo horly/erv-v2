@@ -13,15 +13,15 @@
     <style>
         @page { margin: 28px 38px 96px; }
         * { box-sizing: border-box; }
-        body, body * { font-family: "Courier", "Courier New", "DejaVu Sans Mono", monospace !important; }
-        body { margin: 0; color: #172033; background: #fff; font-size: 11px; line-height: 1.4; }
+        body, body * { font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace !important; }
+        body { margin: 0; color: #172033; background: #fff; font-size: 11px; line-height: 1.4; font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace; }
         table { width: 100%; border-collapse: collapse; }
         .header td { padding: 0; vertical-align: top; }
         .brand-side { width: 56%; }
         .document-side { width: 44%; text-align: right; }
         .brand-name { margin: 0; font-size: 21px; font-weight: bold; text-transform: uppercase; }
         .brand-site { margin-top: 3px; color: #52647c; font-weight: bold; text-transform: uppercase; }
-        .document-title { margin: 0 0 8px; color: #2f70c8; font-size: 29px; line-height: 1.05; font-weight: bold; text-transform: uppercase; }
+        .document-title { margin: 0 0 8px; color: #2f70c8; font-size: 24px; line-height: 1.05; font-weight: bold; text-transform: uppercase; }
         .rule { margin: 22px 0 30px; }
         .rule td:first-child { width: 84px; height: 3px; background: #40aef4; }
         .rule td:last-child { height: 3px; background: #a9b3bf; }
@@ -58,8 +58,8 @@
     <table class="header">
         <tr>
             <td class="brand-side">
-                <div class="brand-name">{{ $company->name }}</div>
-                <div class="brand-site">{{ $site->name }}</div>
+                <div class="brand-name">{{ pdf_text($company->name) }}</div>
+                <div class="brand-site">{{ pdf_text($site->name) }}</div>
             </td>
             <td class="document-side">
                 <h1 class="document-title">{{ __('main.bank_reconciliation_report') }}</h1>

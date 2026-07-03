@@ -103,11 +103,11 @@
                                             </div>
                                             <div class="col-lg-2">
                                                 <label class="form-label">{{ __('main.remaining_quantity') }}</label>
-                                                <input type="text" class="form-control text-end" value="{{ number_format((float) ($line['max_quantity'] ?? 0), 2, ',', ' ') }}" readonly>
+                                                <input type="text" class="form-control text-end" value="{{ number_format((float) ($line['max_quantity'] ?? 0), 0, ',', ' ') }}" readonly>
                                             </div>
                                             <div class="col-lg-2">
                                                 <label class="form-label">{{ __('main.quantity_to_credit') }}</label>
-                                                <input name="lines[{{ $index }}][quantity]" type="number" min="0" max="{{ $line['max_quantity'] ?? 0 }}" step="0.01" class="form-control text-end @error("lines.$index.quantity") is-invalid @enderror" value="{{ old("lines.$index.quantity", $line['quantity'] ?? '0') }}" placeholder="0">
+                                                <input name="lines[{{ $index }}][quantity]" type="number" min="0" max="{{ (int) ($line['max_quantity'] ?? 0) }}" step="1" class="form-control text-end @error("lines.$index.quantity") is-invalid @enderror" value="{{ (int) old("lines.$index.quantity", $line['quantity'] ?? '0') }}" placeholder="0">
                                                 @error("lines.$index.quantity")<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                                             </div>
                                             <div class="col-lg-2">

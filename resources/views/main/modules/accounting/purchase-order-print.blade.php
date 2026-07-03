@@ -17,7 +17,7 @@
         * { box-sizing: border-box; }
         body,
         body * {
-            font-family: "Courier", "Courier New", "DejaVu Sans Mono", monospace !important;
+            font-family: "DejaVu Sans Mono", "Courier New", Courier, monospace !important;
         }
         body {
             margin: 0;
@@ -65,7 +65,7 @@
         .company-name {
             margin: 0;
             color: #172033;
-            font-size: 23px;
+            font-size: 20px;
             font-weight: bold;
             letter-spacing: .02em;
             text-transform: uppercase;
@@ -81,7 +81,7 @@
         .document-title {
             margin: 0 0 8px;
             color: #2f70c8;
-            font-size: 36px;
+            font-size: 27px;
             font-weight: bold;
             letter-spacing: .08em;
             line-height: 1;
@@ -218,14 +218,14 @@
                     <tr>
                         <td class="brand-logo">
                             @if ($logoDataUri)
-                                <img src="{{ $logoDataUri }}" alt="{{ $company->name }}">
+                                <img src="{{ $logoDataUri }}" alt="{{ pdf_text($company->name) }}">
                             @else
-                                {{ $companyInitials }}
+                                {{ pdf_text($companyInitials) }}
                             @endif
                         </td>
                         <td class="brand-info">
-                            <h1 class="company-name">{{ $company->name }}</h1>
-                            <div class="company-subtitle">{{ $site->name }}</div>
+                            <h1 class="company-name">{{ pdf_text($company->name) }}</h1>
+                            <div class="company-subtitle">{{ pdf_text($site->name) }}</div>
                         </td>
                     </tr>
                 </table>
@@ -249,9 +249,9 @@
         <tr>
             <td>
                 <span class="muted">{{ __('main.ordered_from') }}</span><br>
-                <span class="strong" style="font-size: 14px;">{{ $purchaseOrder->supplier?->name ?? '-' }}</span><br>
-                @if ($purchaseOrder->supplier?->address){{ $purchaseOrder->supplier->address }}<br>@endif
-                @if ($purchaseOrder->supplier?->email){{ $purchaseOrder->supplier->email }}<br>@endif
+                <span class="strong" style="font-size: 13.5px;">{{ pdf_text($purchaseOrder->supplier?->name) }}</span><br>
+                @if ($purchaseOrder->supplier?->address){{ pdf_text($purchaseOrder->supplier->address) }}<br>@endif
+                @if ($purchaseOrder->supplier?->email){{ pdf_text($purchaseOrder->supplier->email) }}<br>@endif
                 @if ($purchaseOrder->supplier?->phone){{ $purchaseOrder->supplier->phone }}@endif
             </td>
             <td class="right">
@@ -259,14 +259,14 @@
                 <span class="strong">{{ __('main.date') }} :</span> {{ optional($purchaseOrder->order_date)->format('d/m/Y') }}<br>
                 <span class="strong">{{ __('main.expected_delivery_date') }} :</span> {{ optional($purchaseOrder->expected_delivery_date)->format('d/m/Y') ?: '-' }}<br>
                 @if ($purchaseOrder->supplier_reference)
-                    <span class="strong">{{ __('main.supplier_reference') }} :</span> {{ $purchaseOrder->supplier_reference }}
+                    <span class="strong">{{ __('main.supplier_reference') }} :</span> {{ pdf_text($purchaseOrder->supplier_reference) }}
                 @endif
             </td>
         </tr>
     </table>
 
     @if ($purchaseOrder->title)
-        <p><span class="strong">{{ __('main.object') }} :</span> {{ $purchaseOrder->title }}</p>
+        <p><span class="strong">{{ __('main.object') }} :</span> {{ pdf_text($purchaseOrder->title) }}</p>
     @endif
 
     <table>
@@ -285,12 +285,12 @@
                 <tr>
                     <td class="right">{{ $loop->iteration }}</td>
                     <td>
-                        {{ $line->description }}
+                        {{ pdf_text($line->description) }}
                         @if ($line->details)
                             <br><span class="muted">{!! nl2br(e($line->details)) !!}</span>
                         @endif
                     </td>
-                    <td class="right">{{ number_format((float) $line->quantity, 2, ',', ' ') }}</td>
+                    <td class="right">{{ number_format((float) $line->quantity, 0, ',', ' ') }}</td>
                     <td class="right">{{ number_format((float) $line->unit_price, 2, ',', ' ') }} {{ $purchaseOrder->currency }}</td>
                     <td class="right">
                         {{ number_format((float) $line->discount_amount, 2, ',', ' ') }}
@@ -315,7 +315,7 @@
         <tr>
             <td class="conditions">
                 <strong>{{ __('main.terms_and_conditions') }} :</strong>
-                <div class="conditions-body">{{ $purchaseOrder->terms ?: $purchaseOrder->notes ?: __('main.default_invoice_terms') }}</div>
+                <div class="conditions-body">{{ pdf_text($purchaseOrder->terms ?: $purchaseOrder->notes ?: __('main.default_invoice_terms')) }}</div>
                 @if ($pdfShowQrCode)
                     <div class="invoice-qr">
                         <img src="{{ $purchaseOrderQrCodeDataUri }}" alt="{{ __('main.purchase_order_document_title') }}">
@@ -324,9 +324,9 @@
             </td>
             <td class="signature">
                 <div class="signature-line"></div>
-                <div class="signature-name">{{ $signatory->name }}</div>
+                <div class="signature-name">{{ pdf_text($signatory->name) }}</div>
                 @if (filled($signatory->grade))
-                    <div class="signature-role">{{ $signatory->grade }}</div>
+                    <div class="signature-role">{{ pdf_text($signatory->grade) }}</div>
                 @endif
             </td>
         </tr>
@@ -334,7 +334,7 @@
 
     <footer class="pdf-footer">
         <table class="pdf-footer-line"><tr><td class="rule-blue"></td><td class="rule-grey"></td></tr></table>
-        <div><strong>{{ $company->name }}</strong></div>
+        <div><strong>{{ pdf_text($company->name) }}</strong></div>
         @if ($company->rccm || $company->id_nat || $company->nif)
             <div>
                 @if ($company->rccm) RCCM : {{ $company->rccm }} @endif
@@ -345,11 +345,11 @@
         @if ($company->phone_number)<div>Contact : {{ $company->phone_number }}</div>@endif
         @if ($company->email || $company->website)
             <div>
-                @if ($company->email) Email : {{ $company->email }} @endif
-                @if ($company->website) - Web : {{ $company->website }} @endif
+                @if ($company->email) Email : {{ pdf_text($company->email) }} @endif
+                @if ($company->website) - Web : {{ pdf_text($company->website) }} @endif
             </div>
         @endif
-        @if ($company->address || $company->country)<div>Adresse : {{ $company->address ?: $company->country }}</div>@endif
+        @if ($company->address || $company->country)<div>Adresse : {{ pdf_text($company->address ?: $company->country) }}</div>@endif
         @if ($primaryAccount)
             <div>Compte : {{ $primaryAccount->account_number ?: '-' }} - {{ $primaryAccount->currency ?: '-' }} @if ($primaryAccount->bank_name) - {{ $primaryAccount->bank_name }} @endif</div>
         @endif

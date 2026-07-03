@@ -75,6 +75,41 @@
         .toLowerCase()
         .trim();
 
+    const pageList = (currentPage, totalPages) => {
+        if (totalPages <= 7) {
+            return Array.from({ length: totalPages }, (_, index) => index + 1);
+        }
+
+        const pages = new Set([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
+
+        if (currentPage <= 3) {
+            pages.add(2);
+            pages.add(3);
+            pages.add(4);
+        }
+
+        if (currentPage >= totalPages - 2) {
+            pages.add(totalPages - 3);
+            pages.add(totalPages - 2);
+            pages.add(totalPages - 1);
+        }
+
+        const orderedPages = Array.from(pages)
+            .filter((pageNumber) => pageNumber >= 1 && pageNumber <= totalPages)
+            .sort((left, right) => left - right);
+
+        return orderedPages.reduce((items, pageNumber, index) => {
+            const previous = orderedPages[index - 1];
+
+            if (previous && pageNumber - previous > 1) {
+                items.push('ellipsis');
+            }
+
+            items.push(pageNumber);
+            return items;
+        }, []);
+    };
+
     const setFieldValue = (field, value = '') => {
         if (field) {
             field.value = value || '';
@@ -130,7 +165,7 @@
             button.type = 'button';
             button.textContent = label;
             button.disabled = disabled;
-            button.className = active ? 'active' : '';
+            button.className = `modal-page-button${active ? ' active' : ''}`;
             button.addEventListener('click', () => {
                 documentPage = page;
                 renderDocumentsRows();
@@ -147,12 +182,23 @@
         }
 
         documentsPaginationNav.append(createButton(previousLabel, Math.max(1, documentPage - 1), documentPage === 1));
+        documentsPaginationNav.lastElementChild?.classList.add('modal-page-edge');
 
-        for (let page = 1; page <= totalPages; page += 1) {
+        pageList(documentPage, totalPages).forEach((page) => {
+            if (page === 'ellipsis') {
+                const ellipsis = document.createElement('span');
+                ellipsis.className = 'pagination-ellipsis';
+                ellipsis.setAttribute('aria-hidden', 'true');
+                ellipsis.textContent = '...';
+                documentsPaginationNav.append(ellipsis);
+                return;
+            }
+
             documentsPaginationNav.append(createButton(String(page), page, false, page === documentPage));
-        }
+        });
 
         documentsPaginationNav.append(createButton(nextLabel, Math.min(totalPages, documentPage + 1), documentPage === totalPages));
+        documentsPaginationNav.lastElementChild?.classList.add('modal-page-edge');
     };
 
     const renderDocumentsRows = () => {

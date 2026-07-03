@@ -195,94 +195,148 @@
 
     @foreach ($paymentMethods as $method)
         @php
-            $methodReceiptsCount = (int) $method->salesInvoicePayments->count() + (int) $method->debtorPayments->count() + (int) $method->otherIncomes->count();
-            $methodReceiptsTotal = (float) ($method->receipts_total ?? $method->salesInvoicePayments->sum('amount')) + (float) ($method->debtor_payments_total ?? $method->debtorPayments->sum('amount')) + (float) ($method->other_incomes_total ?? $method->otherIncomes->sum('amount'));
-            $methodDisbursementsCount = (int) $method->purchasePayments->count() + (int) $method->creditorPayments->count() + (int) $method->expenses->count();
-            $methodDisbursementsTotal = (float) ($method->disbursements_total ?? $method->purchasePayments->sum('amount')) + (float) ($method->creditor_payments_total ?? $method->creditorPayments->sum('amount')) + (float) ($method->expenses_total ?? $method->expenses->sum('amount'));
+            $invoiceReceiptsCount = (int) $method->salesInvoicePayments->count();
+            $invoiceReceiptsTotal = (float) ($method->receipts_total ?? $method->salesInvoicePayments->sum('amount'));
+            $otherReceiptsCount = (int) $method->debtorPayments->count() + (int) $method->otherIncomes->count();
+            $otherReceiptsTotal = (float) ($method->debtor_payments_total ?? $method->debtorPayments->sum('amount')) + (float) ($method->other_incomes_total ?? $method->otherIncomes->sum('amount'));
+            $methodReceiptsCount = $invoiceReceiptsCount + $otherReceiptsCount;
+            $methodReceiptsTotal = $invoiceReceiptsTotal + $otherReceiptsTotal;
+            $purchaseDisbursementsCount = (int) $method->purchasePayments->count();
+            $purchaseDisbursementsTotal = (float) ($method->disbursements_total ?? $method->purchasePayments->sum('amount'));
+            $otherDisbursementsCount = (int) $method->creditorPayments->count() + (int) $method->expenses->count();
+            $otherDisbursementsTotal = (float) ($method->creditor_payments_total ?? $method->creditorPayments->sum('amount')) + (float) ($method->expenses_total ?? $method->expenses->sum('amount'));
+            $methodDisbursementsCount = $purchaseDisbursementsCount + $otherDisbursementsCount;
+            $methodDisbursementsTotal = $purchaseDisbursementsTotal + $otherDisbursementsTotal;
         @endphp
         <div class="modal fade subscription-modal related-table-modal payment-method-receipts-modal" id="paymentMethodReceiptsModal{{ $method->id }}" tabindex="-1" aria-labelledby="paymentMethodReceiptsModal{{ $method->id }}Label" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content admin-form modal-table-dialog">
-                    <div class="modal-body" data-payment-method-receipts-table>
+                    <div class="modal-body">
                         <button type="button" class="modal-close" data-bs-dismiss="modal" aria-label="{{ __('admin.close') }}"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                         <h2 id="paymentMethodReceiptsModal{{ $method->id }}Label">
                             <i class="bi bi-cash-coin" aria-hidden="true"></i>
                             {{ __('main.payment_method_receipts_title', ['name' => $method->name]) }}
                         </h2>
 
-                        <section class="table-tools modal-table-tools" aria-label="{{ __('admin.search_tools') }}">
-                            <label class="search-box">
-                                <i class="bi bi-search" aria-hidden="true"></i>
-                                <input type="search" data-payment-method-receipts-search placeholder="{{ __('admin.search') }}" autocomplete="off">
-                            </label>
-                            <span class="row-count">
-                                <strong data-payment-method-receipts-visible-count>{{ $methodReceiptsCount }}</strong>
-                                /
-                                <strong data-payment-method-receipts-total-count>{{ $methodReceiptsCount }}</strong>
-                                {{ __('admin.rows') }}
-                            </span>
-                        </section>
-
                         <div class="modal-total-strip">
                             <span>{{ __('main.payment_method_receipts_total') }}</span>
                             <strong>{{ number_format($methodReceiptsTotal, 2, ',', ' ') }} {{ $method->currency_code }}</strong>
                         </div>
 
-                        <div class="modal-table-frame">
-                            <table class="company-table modal-data-table">
-                                <thead>
-                                    <tr>
-                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="0" data-sort-type="number"># <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="1">{{ __('main.sales_invoice') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="2">{{ __('main.customer') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="3" data-sort-type="date">{{ __('main.payment_date') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                        <th class="text-end"><button class="table-sort" type="button" data-payment-method-receipts-sort="4" data-sort-type="number">{{ __('main.amount') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="5">{{ __('main.reference') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="6">{{ __('main.received_by') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    </tr>
-                                </thead>
-                                <tbody data-payment-method-receipts-body>
-                                    @foreach ($method->salesInvoicePayments->sortByDesc('payment_date')->values() as $payment)
-                                        <tr data-payment-method-receipt-row>
-                                            <td data-sort-value="{{ $loop->iteration }}">{{ $loop->iteration }}</td>
-                                            <td>{{ $payment->salesInvoice?->reference ?? '-' }}</td>
-                                            <td>{{ $payment->salesInvoice?->client?->display_name ?? '-' }}</td>
-                                            <td data-sort-value="{{ optional($payment->payment_date)->format('Y-m-d') }}">{{ optional($payment->payment_date)->format('d/m/Y') }}</td>
-                                            <td class="amount-cell text-end" data-sort-value="{{ $payment->amount }}">{{ number_format((float) $payment->amount, 2, ',', ' ') }} {{ $payment->currency }}</td>
-                                            <td>{{ $payment->reference ?: '-' }}</td>
-                                            <td>{{ $payment->receiver?->name ?? '-' }}</td>
-                                        </tr>
-                                    @endforeach
-                                    @foreach ($method->debtorPayments->sortByDesc('payment_date')->values() as $payment)
-                                        <tr data-payment-method-receipt-row>
-                                            <td data-sort-value="{{ $method->salesInvoicePayments->count() + $loop->iteration }}">{{ $method->salesInvoicePayments->count() + $loop->iteration }}</td>
-                                            <td>{{ __('main.manual_receivable') }}</td>
-                                            <td>{{ $payment->debtor?->name ?? '-' }}</td>
-                                            <td data-sort-value="{{ optional($payment->payment_date)->format('Y-m-d') }}">{{ optional($payment->payment_date)->format('d/m/Y') }}</td>
-                                            <td class="amount-cell text-end" data-sort-value="{{ $payment->amount }}">{{ number_format((float) $payment->amount, 2, ',', ' ') }} {{ $payment->currency }}</td>
-                                            <td>{{ $payment->reference ?: '-' }}</td>
-                                            <td>{{ $payment->receiver?->name ?? '-' }}</td>
-                                        </tr>
-                                    @endforeach
-                                    @foreach ($method->otherIncomes->sortByDesc('income_date')->values() as $income)
-                                        <tr data-payment-method-receipt-row>
-                                            <td data-sort-value="{{ $method->salesInvoicePayments->count() + $method->debtorPayments->count() + $loop->iteration }}">{{ $method->salesInvoicePayments->count() + $method->debtorPayments->count() + $loop->iteration }}</td>
-                                            <td>{{ __('main.other_income') }}</td>
-                                            <td>{{ $income->label }}</td>
-                                            <td data-sort-value="{{ optional($income->income_date)->format('Y-m-d') }}">{{ optional($income->income_date)->format('d/m/Y') }}</td>
-                                            <td class="amount-cell text-end" data-sort-value="{{ $income->amount }}">{{ number_format((float) $income->amount, 2, ',', ' ') }} {{ $income->currency }}</td>
-                                            <td>{{ $income->payment_reference ?: $income->reference }}</td>
-                                            <td>{{ $income->creator?->name ?? '-' }}</td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                            <p class="modal-table-empty" data-payment-method-receipts-empty hidden>{{ __('main.no_payment_method_receipts') }}</p>
+                        <div class="modal-tab-switcher" role="tablist" aria-label="{{ __('main.view_receipts') }}">
+                            <button type="button" class="active" role="tab" aria-selected="true" data-payment-method-tab-target="invoiceReceipts{{ $method->id }}">{{ __('main.sales_invoices') }} <span>{{ $invoiceReceiptsCount }}</span></button>
+                            <button type="button" role="tab" aria-selected="false" data-payment-method-tab-target="otherReceipts{{ $method->id }}">{{ __('main.other_income') }} <span>{{ $otherReceiptsCount }}</span></button>
                         </div>
 
-                        <section class="subscriptions-pagination modal-table-pagination" data-payment-method-receipts-pagination data-previous-label="{{ __('admin.previous') }}" data-next-label="{{ __('admin.next') }}" data-showing-label="{{ __('admin.showing') }}" data-to-label="{{ __('admin.to') }}" data-on-label="{{ __('admin.on') }}" hidden aria-label="{{ __('admin.pagination') }}">
-                            <span data-payment-method-receipts-pagination-count></span>
-                            <nav class="pagination-shell" data-payment-method-receipts-pagination-nav aria-label="{{ __('admin.pagination') }}"></nav>
+                        <section id="invoiceReceipts{{ $method->id }}" class="payment-method-tab-panel" data-payment-method-receipts-table>
+                            <section class="table-tools modal-table-tools" aria-label="{{ __('admin.search_tools') }}">
+                                <label class="search-box">
+                                    <i class="bi bi-search" aria-hidden="true"></i>
+                                    <input type="search" data-payment-method-receipts-search placeholder="{{ __('admin.search') }}" autocomplete="off">
+                                </label>
+                                <span class="row-count"><strong data-payment-method-receipts-visible-count>{{ $invoiceReceiptsCount }}</strong> / <strong data-payment-method-receipts-total-count>{{ $invoiceReceiptsCount }}</strong> {{ __('admin.rows') }}</span>
+                            </section>
+
+                            <div class="modal-total-strip modal-total-strip-subtle">
+                                <span>{{ __('main.sales_invoices') }}</span>
+                                <strong>{{ number_format($invoiceReceiptsTotal, 2, ',', ' ') }} {{ $method->currency_code }}</strong>
+                            </div>
+
+                            <div class="modal-table-frame">
+                                <table class="company-table modal-data-table">
+                                    <thead>
+                                        <tr>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="0" data-sort-type="number"># <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="1">{{ __('main.sales_invoice') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="2">{{ __('main.customer') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="3" data-sort-type="date">{{ __('main.payment_date') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th class="text-end"><button class="table-sort" type="button" data-payment-method-receipts-sort="4" data-sort-type="number">{{ __('main.amount') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="5">{{ __('main.reference') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="6">{{ __('main.received_by') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody data-payment-method-receipts-body>
+                                        @foreach ($method->salesInvoicePayments->sortByDesc('payment_date')->values() as $payment)
+                                            <tr data-payment-method-receipt-row>
+                                                <td data-sort-value="{{ $loop->iteration }}">{{ $loop->iteration }}</td>
+                                                <td>{{ $payment->salesInvoice?->reference ?? '-' }}</td>
+                                                <td>{{ $payment->salesInvoice?->client?->display_name ?? '-' }}</td>
+                                                <td data-sort-value="{{ optional($payment->payment_date)->format('Y-m-d') }}">{{ optional($payment->payment_date)->format('d/m/Y') }}</td>
+                                                <td class="amount-cell text-end" data-sort-value="{{ $payment->amount }}">{{ number_format((float) $payment->amount, 2, ',', ' ') }} {{ $payment->currency }}</td>
+                                                <td>{{ $payment->reference ?: '-' }}</td>
+                                                <td>{{ $payment->receiver?->name ?? '-' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                                <p class="modal-table-empty" data-payment-method-receipts-empty hidden>{{ __('main.no_payment_method_receipts') }}</p>
+                            </div>
+
+                            <section class="subscriptions-pagination modal-table-pagination payment-method-modal-pagination" data-payment-method-receipts-pagination data-previous-label="{{ __('admin.previous') }}" data-next-label="{{ __('admin.next') }}" data-showing-label="{{ __('admin.showing') }}" data-to-label="{{ __('admin.to') }}" data-on-label="{{ __('admin.on') }}" hidden aria-label="{{ __('admin.pagination') }}">
+                                <span data-payment-method-receipts-pagination-count></span>
+                                <nav class="pagination-shell" data-payment-method-receipts-pagination-nav aria-label="{{ __('admin.pagination') }}"></nav>
+                            </section>
+                        </section>
+
+                        <section id="otherReceipts{{ $method->id }}" class="payment-method-tab-panel" data-payment-method-receipts-table hidden>
+                            <section class="table-tools modal-table-tools" aria-label="{{ __('admin.search_tools') }}">
+                                <label class="search-box">
+                                    <i class="bi bi-search" aria-hidden="true"></i>
+                                    <input type="search" data-payment-method-receipts-search placeholder="{{ __('admin.search') }}" autocomplete="off">
+                                </label>
+                                <span class="row-count"><strong data-payment-method-receipts-visible-count>{{ $otherReceiptsCount }}</strong> / <strong data-payment-method-receipts-total-count>{{ $otherReceiptsCount }}</strong> {{ __('admin.rows') }}</span>
+                            </section>
+
+                            <div class="modal-total-strip modal-total-strip-subtle">
+                                <span>{{ __('main.other_income') }}</span>
+                                <strong>{{ number_format($otherReceiptsTotal, 2, ',', ' ') }} {{ $method->currency_code }}</strong>
+                            </div>
+
+                            <div class="modal-table-frame">
+                                <table class="company-table modal-data-table">
+                                    <thead>
+                                        <tr>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="0" data-sort-type="number"># <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="1">{{ __('main.document') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="2">{{ __('main.third_party') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="3" data-sort-type="date">{{ __('main.payment_date') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th class="text-end"><button class="table-sort" type="button" data-payment-method-receipts-sort="4" data-sort-type="number">{{ __('main.amount') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="5">{{ __('main.reference') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="6">{{ __('main.received_by') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody data-payment-method-receipts-body>
+                                        @foreach ($method->debtorPayments->sortByDesc('payment_date')->values() as $payment)
+                                            <tr data-payment-method-receipt-row>
+                                                <td data-sort-value="{{ $loop->iteration }}">{{ $loop->iteration }}</td>
+                                                <td>{{ __('main.manual_receivable') }}</td>
+                                                <td>{{ $payment->debtor?->name ?? '-' }}</td>
+                                                <td data-sort-value="{{ optional($payment->payment_date)->format('Y-m-d') }}">{{ optional($payment->payment_date)->format('d/m/Y') }}</td>
+                                                <td class="amount-cell text-end" data-sort-value="{{ $payment->amount }}">{{ number_format((float) $payment->amount, 2, ',', ' ') }} {{ $payment->currency }}</td>
+                                                <td>{{ $payment->reference ?: '-' }}</td>
+                                                <td>{{ $payment->receiver?->name ?? '-' }}</td>
+                                            </tr>
+                                        @endforeach
+                                        @foreach ($method->otherIncomes->sortByDesc('income_date')->values() as $income)
+                                            <tr data-payment-method-receipt-row>
+                                                <td data-sort-value="{{ $method->debtorPayments->count() + $loop->iteration }}">{{ $method->debtorPayments->count() + $loop->iteration }}</td>
+                                                <td>{{ __('main.other_income') }}</td>
+                                                <td>{{ $income->label }}</td>
+                                                <td data-sort-value="{{ optional($income->income_date)->format('Y-m-d') }}">{{ optional($income->income_date)->format('d/m/Y') }}</td>
+                                                <td class="amount-cell text-end" data-sort-value="{{ $income->amount }}">{{ number_format((float) $income->amount, 2, ',', ' ') }} {{ $income->currency }}</td>
+                                                <td>{{ $income->payment_reference ?: $income->reference }}</td>
+                                                <td>{{ $income->creator?->name ?? '-' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                                <p class="modal-table-empty" data-payment-method-receipts-empty hidden>{{ __('main.no_payment_method_receipts') }}</p>
+                            </div>
+
+                            <section class="subscriptions-pagination modal-table-pagination payment-method-modal-pagination" data-payment-method-receipts-pagination data-previous-label="{{ __('admin.previous') }}" data-next-label="{{ __('admin.next') }}" data-showing-label="{{ __('admin.showing') }}" data-to-label="{{ __('admin.to') }}" data-on-label="{{ __('admin.on') }}" hidden aria-label="{{ __('admin.pagination') }}">
+                                <span data-payment-method-receipts-pagination-count></span>
+                                <nav class="pagination-shell" data-payment-method-receipts-pagination-nav aria-label="{{ __('admin.pagination') }}"></nav>
+                            </section>
                         </section>
 
                         <div class="modal-actions">
@@ -296,86 +350,132 @@
         <div class="modal fade subscription-modal related-table-modal payment-method-receipts-modal" id="paymentMethodDisbursementsModal{{ $method->id }}" tabindex="-1" aria-labelledby="paymentMethodDisbursementsModal{{ $method->id }}Label" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content admin-form modal-table-dialog">
-                    <div class="modal-body" data-payment-method-receipts-table>
+                    <div class="modal-body">
                         <button type="button" class="modal-close" data-bs-dismiss="modal" aria-label="{{ __('admin.close') }}"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                         <h2 id="paymentMethodDisbursementsModal{{ $method->id }}Label">
                             <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
                             {{ __('main.payment_method_disbursements_title', ['name' => $method->name]) }}
                         </h2>
 
-                        <section class="table-tools modal-table-tools" aria-label="{{ __('admin.search_tools') }}">
-                            <label class="search-box">
-                                <i class="bi bi-search" aria-hidden="true"></i>
-                                <input type="search" data-payment-method-receipts-search placeholder="{{ __('admin.search') }}" autocomplete="off">
-                            </label>
-                            <span class="row-count">
-                                <strong data-payment-method-receipts-visible-count>{{ $methodDisbursementsCount }}</strong>
-                                /
-                                <strong data-payment-method-receipts-total-count>{{ $methodDisbursementsCount }}</strong>
-                                {{ __('admin.rows') }}
-                            </span>
-                        </section>
-
                         <div class="modal-total-strip">
                             <span>{{ __('main.payment_method_disbursements_total') }}</span>
                             <strong>{{ number_format($methodDisbursementsTotal, 2, ',', ' ') }} {{ $method->currency_code }}</strong>
                         </div>
 
-                        <div class="modal-table-frame">
-                            <table class="company-table modal-data-table">
-                                <thead>
-                                    <tr>
-                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="0" data-sort-type="number"># <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="1">{{ __('main.document') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="2">{{ __('main.third_party') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="3" data-sort-type="date">{{ __('main.payment_date') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                        <th class="text-end"><button class="table-sort" type="button" data-payment-method-receipts-sort="4" data-sort-type="number">{{ __('main.amount') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="5">{{ __('main.reference') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                        <th><button class="table-sort" type="button" data-payment-method-receipts-sort="6">{{ __('main.paid_by') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    </tr>
-                                </thead>
-                                <tbody data-payment-method-receipts-body>
-                                    @foreach ($method->purchasePayments->sortByDesc('payment_date')->values() as $payment)
-                                        <tr data-payment-method-receipt-row>
-                                            <td data-sort-value="{{ $loop->iteration }}">{{ $loop->iteration }}</td>
-                                            <td>{{ $payment->purchase?->reference ?? '-' }}</td>
-                                            <td>{{ $payment->purchase?->supplier?->display_name ?? $payment->purchase?->supplier?->name ?? '-' }}</td>
-                                            <td data-sort-value="{{ optional($payment->payment_date)->format('Y-m-d') }}">{{ optional($payment->payment_date)->format('d/m/Y') }}</td>
-                                            <td class="amount-cell text-end" data-sort-value="{{ $payment->amount }}">{{ number_format((float) $payment->amount, 2, ',', ' ') }} {{ $payment->currency }}</td>
-                                            <td>{{ $payment->reference ?: '-' }}</td>
-                                            <td>{{ $payment->payer?->name ?? '-' }}</td>
-                                        </tr>
-                                    @endforeach
-                                    @foreach ($method->expenses->sortByDesc('expense_date')->values() as $expense)
-                                        <tr data-payment-method-receipt-row>
-                                            <td data-sort-value="{{ $method->purchasePayments->count() + $loop->iteration }}">{{ $method->purchasePayments->count() + $loop->iteration }}</td>
-                                            <td>{{ $expense->reference }} - {{ $expense->category?->name ?? __('main.expenses') }}</td>
-                                            <td>{{ $expense->beneficiary ?: $expense->label }}</td>
-                                            <td data-sort-value="{{ optional($expense->expense_date)->format('Y-m-d') }}">{{ optional($expense->expense_date)->format('d/m/Y') }}</td>
-                                            <td class="amount-cell text-end" data-sort-value="{{ $expense->amount }}">{{ number_format((float) $expense->amount, 2, ',', ' ') }} {{ $expense->currency }}</td>
-                                            <td>{{ $expense->payment_reference ?: $expense->reference }}</td>
-                                            <td>{{ $expense->creator?->name ?? '-' }}</td>
-                                        </tr>
-                                    @endforeach
-                                    @foreach ($method->creditorPayments->sortByDesc('payment_date')->values() as $payment)
-                                        <tr data-payment-method-receipt-row>
-                                            <td data-sort-value="{{ $method->purchasePayments->count() + $method->expenses->count() + $loop->iteration }}">{{ $method->purchasePayments->count() + $method->expenses->count() + $loop->iteration }}</td>
-                                            <td>{{ $payment->creditor?->reference ?? '-' }}</td>
-                                            <td>{{ $payment->creditor?->name ?? '-' }}</td>
-                                            <td data-sort-value="{{ optional($payment->payment_date)->format('Y-m-d') }}">{{ optional($payment->payment_date)->format('d/m/Y') }}</td>
-                                            <td class="amount-cell text-end" data-sort-value="{{ $payment->amount }}">{{ number_format((float) $payment->amount, 2, ',', ' ') }} {{ $payment->currency }}</td>
-                                            <td>{{ $payment->reference ?: '-' }}</td>
-                                            <td>{{ $payment->payer?->name ?? '-' }}</td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                            <p class="modal-table-empty" data-payment-method-receipts-empty hidden>{{ __('main.no_payment_method_disbursements') }}</p>
+                        <div class="modal-tab-switcher" role="tablist" aria-label="{{ __('main.view_disbursements') }}">
+                            <button type="button" class="active" role="tab" aria-selected="true" data-payment-method-tab-target="purchaseDisbursements{{ $method->id }}">{{ __('main.purchases') }} <span>{{ $purchaseDisbursementsCount }}</span></button>
+                            <button type="button" role="tab" aria-selected="false" data-payment-method-tab-target="otherDisbursements{{ $method->id }}">{{ __('main.expenses_group') }} / {{ __('main.creditors') }} <span>{{ $otherDisbursementsCount }}</span></button>
                         </div>
 
-                        <section class="subscriptions-pagination modal-table-pagination" data-payment-method-receipts-pagination data-previous-label="{{ __('admin.previous') }}" data-next-label="{{ __('admin.next') }}" data-showing-label="{{ __('admin.showing') }}" data-to-label="{{ __('admin.to') }}" data-on-label="{{ __('admin.on') }}" hidden aria-label="{{ __('admin.pagination') }}">
-                            <span data-payment-method-receipts-pagination-count></span>
-                            <nav class="pagination-shell" data-payment-method-receipts-pagination-nav aria-label="{{ __('admin.pagination') }}"></nav>
+                        <section id="purchaseDisbursements{{ $method->id }}" class="payment-method-tab-panel" data-payment-method-receipts-table>
+                            <section class="table-tools modal-table-tools" aria-label="{{ __('admin.search_tools') }}">
+                                <label class="search-box">
+                                    <i class="bi bi-search" aria-hidden="true"></i>
+                                    <input type="search" data-payment-method-receipts-search placeholder="{{ __('admin.search') }}" autocomplete="off">
+                                </label>
+                                <span class="row-count"><strong data-payment-method-receipts-visible-count>{{ $purchaseDisbursementsCount }}</strong> / <strong data-payment-method-receipts-total-count>{{ $purchaseDisbursementsCount }}</strong> {{ __('admin.rows') }}</span>
+                            </section>
+
+                            <div class="modal-total-strip modal-total-strip-subtle">
+                                <span>{{ __('main.purchases') }}</span>
+                                <strong>{{ number_format($purchaseDisbursementsTotal, 2, ',', ' ') }} {{ $method->currency_code }}</strong>
+                            </div>
+
+                            <div class="modal-table-frame">
+                                <table class="company-table modal-data-table">
+                                    <thead>
+                                        <tr>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="0" data-sort-type="number"># <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="1">{{ __('main.document') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="2">{{ __('main.supplier') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="3" data-sort-type="date">{{ __('main.payment_date') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th class="text-end"><button class="table-sort" type="button" data-payment-method-receipts-sort="4" data-sort-type="number">{{ __('main.amount') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="5">{{ __('main.reference') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="6">{{ __('main.paid_by') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody data-payment-method-receipts-body>
+                                        @foreach ($method->purchasePayments->sortByDesc('payment_date')->values() as $payment)
+                                            <tr data-payment-method-receipt-row>
+                                                <td data-sort-value="{{ $loop->iteration }}">{{ $loop->iteration }}</td>
+                                                <td>{{ $payment->purchase?->reference ?? '-' }}</td>
+                                                <td>{{ $payment->purchase?->supplier?->display_name ?? $payment->purchase?->supplier?->name ?? '-' }}</td>
+                                                <td data-sort-value="{{ optional($payment->payment_date)->format('Y-m-d') }}">{{ optional($payment->payment_date)->format('d/m/Y') }}</td>
+                                                <td class="amount-cell text-end" data-sort-value="{{ $payment->amount }}">{{ number_format((float) $payment->amount, 2, ',', ' ') }} {{ $payment->currency }}</td>
+                                                <td>{{ $payment->reference ?: '-' }}</td>
+                                                <td>{{ $payment->payer?->name ?? '-' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                                <p class="modal-table-empty" data-payment-method-receipts-empty hidden>{{ __('main.no_payment_method_disbursements') }}</p>
+                            </div>
+
+                            <section class="subscriptions-pagination modal-table-pagination payment-method-modal-pagination" data-payment-method-receipts-pagination data-previous-label="{{ __('admin.previous') }}" data-next-label="{{ __('admin.next') }}" data-showing-label="{{ __('admin.showing') }}" data-to-label="{{ __('admin.to') }}" data-on-label="{{ __('admin.on') }}" hidden aria-label="{{ __('admin.pagination') }}">
+                                <span data-payment-method-receipts-pagination-count></span>
+                                <nav class="pagination-shell" data-payment-method-receipts-pagination-nav aria-label="{{ __('admin.pagination') }}"></nav>
+                            </section>
+                        </section>
+
+                        <section id="otherDisbursements{{ $method->id }}" class="payment-method-tab-panel" data-payment-method-receipts-table hidden>
+                            <section class="table-tools modal-table-tools" aria-label="{{ __('admin.search_tools') }}">
+                                <label class="search-box">
+                                    <i class="bi bi-search" aria-hidden="true"></i>
+                                    <input type="search" data-payment-method-receipts-search placeholder="{{ __('admin.search') }}" autocomplete="off">
+                                </label>
+                                <span class="row-count"><strong data-payment-method-receipts-visible-count>{{ $otherDisbursementsCount }}</strong> / <strong data-payment-method-receipts-total-count>{{ $otherDisbursementsCount }}</strong> {{ __('admin.rows') }}</span>
+                            </section>
+
+                            <div class="modal-total-strip modal-total-strip-subtle">
+                                <span>{{ __('main.expenses_group') }} / {{ __('main.creditors') }}</span>
+                                <strong>{{ number_format($otherDisbursementsTotal, 2, ',', ' ') }} {{ $method->currency_code }}</strong>
+                            </div>
+
+                            <div class="modal-table-frame">
+                                <table class="company-table modal-data-table">
+                                    <thead>
+                                        <tr>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="0" data-sort-type="number"># <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="1">{{ __('main.document') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="2">{{ __('main.third_party') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="3" data-sort-type="date">{{ __('main.payment_date') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th class="text-end"><button class="table-sort" type="button" data-payment-method-receipts-sort="4" data-sort-type="number">{{ __('main.amount') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="5">{{ __('main.reference') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                            <th><button class="table-sort" type="button" data-payment-method-receipts-sort="6">{{ __('main.paid_by') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody data-payment-method-receipts-body>
+                                        @foreach ($method->expenses->sortByDesc('expense_date')->values() as $expense)
+                                            <tr data-payment-method-receipt-row>
+                                                <td data-sort-value="{{ $loop->iteration }}">{{ $loop->iteration }}</td>
+                                                <td>{{ $expense->reference }} - {{ $expense->category?->name ?? __('main.expenses') }}</td>
+                                                <td>{{ $expense->beneficiary ?: $expense->label }}</td>
+                                                <td data-sort-value="{{ optional($expense->expense_date)->format('Y-m-d') }}">{{ optional($expense->expense_date)->format('d/m/Y') }}</td>
+                                                <td class="amount-cell text-end" data-sort-value="{{ $expense->amount }}">{{ number_format((float) $expense->amount, 2, ',', ' ') }} {{ $expense->currency }}</td>
+                                                <td>{{ $expense->payment_reference ?: $expense->reference }}</td>
+                                                <td>{{ $expense->creator?->name ?? '-' }}</td>
+                                            </tr>
+                                        @endforeach
+                                        @foreach ($method->creditorPayments->sortByDesc('payment_date')->values() as $payment)
+                                            <tr data-payment-method-receipt-row>
+                                                <td data-sort-value="{{ $method->expenses->count() + $loop->iteration }}">{{ $method->expenses->count() + $loop->iteration }}</td>
+                                                <td>{{ $payment->creditor?->reference ?? '-' }}</td>
+                                                <td>{{ $payment->creditor?->name ?? '-' }}</td>
+                                                <td data-sort-value="{{ optional($payment->payment_date)->format('Y-m-d') }}">{{ optional($payment->payment_date)->format('d/m/Y') }}</td>
+                                                <td class="amount-cell text-end" data-sort-value="{{ $payment->amount }}">{{ number_format((float) $payment->amount, 2, ',', ' ') }} {{ $payment->currency }}</td>
+                                                <td>{{ $payment->reference ?: '-' }}</td>
+                                                <td>{{ $payment->payer?->name ?? '-' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                                <p class="modal-table-empty" data-payment-method-receipts-empty hidden>{{ __('main.no_payment_method_disbursements') }}</p>
+                            </div>
+
+                            <section class="subscriptions-pagination modal-table-pagination payment-method-modal-pagination" data-payment-method-receipts-pagination data-previous-label="{{ __('admin.previous') }}" data-next-label="{{ __('admin.next') }}" data-showing-label="{{ __('admin.showing') }}" data-to-label="{{ __('admin.to') }}" data-on-label="{{ __('admin.on') }}" hidden aria-label="{{ __('admin.pagination') }}">
+                                <span data-payment-method-receipts-pagination-count></span>
+                                <nav class="pagination-shell" data-payment-method-receipts-pagination-nav aria-label="{{ __('admin.pagination') }}"></nav>
+                            </section>
                         </section>
 
                         <div class="modal-actions">
@@ -536,6 +636,49 @@
                 return normalize(value);
             };
 
+            const pageList = (currentPage, totalPages) => {
+                if (totalPages <= 7) {
+                    return Array.from({ length: totalPages }, (_, index) => index + 1);
+                }
+
+                const pages = new Set([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
+
+                if (currentPage <= 3) {
+                    pages.add(2);
+                    pages.add(3);
+                    pages.add(4);
+                }
+
+                if (currentPage >= totalPages - 2) {
+                    pages.add(totalPages - 3);
+                    pages.add(totalPages - 2);
+                    pages.add(totalPages - 1);
+                }
+
+                const orderedPages = Array.from(pages)
+                    .filter((pageNumber) => pageNumber >= 1 && pageNumber <= totalPages)
+                    .sort((left, right) => left - right);
+
+                return orderedPages.reduce((items, pageNumber, index) => {
+                    const previous = orderedPages[index - 1];
+
+                    if (previous && pageNumber - previous > 1) {
+                        items.push('ellipsis');
+                    }
+
+                    items.push(pageNumber);
+                    return items;
+                }, []);
+            };
+
+            const renderPageButton = (item, currentPage) => {
+                if (item === 'ellipsis') {
+                    return '<span class="pagination-ellipsis" aria-hidden="true">...</span>';
+                }
+
+                return `<button type="button" class="modal-page-button ${item === currentPage ? 'active' : ''}" data-payment-method-receipts-page="${item}">${item}</button>`;
+            };
+
             const initReceiptsTable = (wrapper) => {
                 if (!wrapper || wrapper.dataset.paymentMethodReceiptsTableBound === 'true') {
                     return;
@@ -622,12 +765,9 @@
                         }
 
                         paginationNav.innerHTML = `
-                            <button type="button" ${page === 1 ? 'disabled' : ''} data-payment-method-receipts-page="${page - 1}">${previousLabel}</button>
-                            ${Array.from({ length: totalPages }, (_, index) => {
-                                const currentPage = index + 1;
-                                return `<button type="button" class="${currentPage === page ? 'active' : ''}" data-payment-method-receipts-page="${currentPage}">${currentPage}</button>`;
-                            }).join('')}
-                            <button type="button" ${page === totalPages ? 'disabled' : ''} data-payment-method-receipts-page="${page + 1}">${nextLabel}</button>
+                            <button type="button" class="modal-page-button modal-page-edge" ${page === 1 ? 'disabled' : ''} data-payment-method-receipts-page="${page - 1}">${previousLabel}</button>
+                            ${pageList(page, totalPages).map((item) => renderPageButton(item, page)).join('')}
+                            <button type="button" class="modal-page-button modal-page-edge" ${page === totalPages ? 'disabled' : ''} data-payment-method-receipts-page="${page + 1}">${nextLabel}</button>
                         `;
                     } else {
                         pagination.hidden = true;
@@ -675,9 +815,37 @@
             };
 
             initAllReceiptsTables();
+
+            document.addEventListener('click', (event) => {
+                const tabButton = event.target.closest('[data-payment-method-tab-target]');
+
+                if (!tabButton) {
+                    return;
+                }
+
+                const modal = tabButton.closest('.payment-method-receipts-modal');
+                const target = modal?.querySelector(`#${CSS.escape(tabButton.dataset.paymentMethodTabTarget)}`);
+
+                if (!modal || !target) {
+                    return;
+                }
+
+                modal.querySelectorAll('[data-payment-method-tab-target]').forEach((button) => {
+                    const isActive = button === tabButton;
+                    button.classList.toggle('active', isActive);
+                    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                });
+
+                modal.querySelectorAll('.payment-method-tab-panel').forEach((panel) => {
+                    panel.hidden = panel !== target;
+                });
+
+                initReceiptsTable(target);
+            });
+
             document.addEventListener('exad:table-updated', initAllReceiptsTables);
             document.addEventListener('shown.bs.modal', (event) => {
-                initReceiptsTable(event.target.querySelector('[data-payment-method-receipts-table]'));
+                event.target.querySelectorAll('[data-payment-method-receipts-table]').forEach(initReceiptsTable);
             });
         })();
     </script>

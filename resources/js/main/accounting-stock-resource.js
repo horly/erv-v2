@@ -37,6 +37,49 @@
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
 
+    const pageList = (currentPage, totalPages) => {
+        if (totalPages <= 7) {
+            return Array.from({ length: totalPages }, (_, index) => index + 1);
+        }
+
+        const pages = new Set([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
+
+        if (currentPage <= 3) {
+            pages.add(2);
+            pages.add(3);
+            pages.add(4);
+        }
+
+        if (currentPage >= totalPages - 2) {
+            pages.add(totalPages - 3);
+            pages.add(totalPages - 2);
+            pages.add(totalPages - 1);
+        }
+
+        const orderedPages = Array.from(pages)
+            .filter((pageNumber) => pageNumber >= 1 && pageNumber <= totalPages)
+            .sort((left, right) => left - right);
+
+        return orderedPages.reduce((items, pageNumber, index) => {
+            const previous = orderedPages[index - 1];
+
+            if (previous && pageNumber - previous > 1) {
+                items.push('ellipsis');
+            }
+
+            items.push(pageNumber);
+            return items;
+        }, []);
+    };
+
+    const renderRelatedPageButton = (item) => {
+        if (item === 'ellipsis') {
+            return '<span class="pagination-ellipsis" aria-hidden="true">...</span>';
+        }
+
+        return `<button type="button" class="modal-page-button ${item === relatedPage ? 'active' : ''}" data-related-page="${item}">${item}</button>`;
+    };
+
     const clearValidationState = () => {
         form?.querySelectorAll('.is-invalid, .is-valid').forEach((field) => {
             field.classList.remove('is-invalid', 'is-valid');
@@ -185,12 +228,9 @@
                 relatedPaginationCount.textContent = `${showingLabel} ${start} ${toLabel} ${end} ${onLabel} ${relatedFilteredRows.length}`;
             }
             relatedPaginationNav.innerHTML = `
-                <button type="button" ${relatedPage === 1 ? 'disabled' : ''} data-related-page="${relatedPage - 1}">${escapeHtml(previousLabel)}</button>
-                ${Array.from({ length: totalPages }, (_, index) => {
-                    const page = index + 1;
-                    return `<button type="button" class="${page === relatedPage ? 'active' : ''}" data-related-page="${page}">${page}</button>`;
-                }).join('')}
-                <button type="button" ${relatedPage === totalPages ? 'disabled' : ''} data-related-page="${relatedPage + 1}">${escapeHtml(nextLabel)}</button>
+                <button type="button" class="modal-page-button modal-page-edge" ${relatedPage === 1 ? 'disabled' : ''} data-related-page="${relatedPage - 1}">${escapeHtml(previousLabel)}</button>
+                ${pageList(relatedPage, totalPages).map(renderRelatedPageButton).join('')}
+                <button type="button" class="modal-page-button modal-page-edge" ${relatedPage === totalPages ? 'disabled' : ''} data-related-page="${relatedPage + 1}">${escapeHtml(nextLabel)}</button>
             `;
         } else {
             relatedPagination.hidden = true;

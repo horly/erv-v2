@@ -126,6 +126,10 @@
             return;
         }
 
+        if (wrapper.querySelector('[data-payment-method-receipts-pagination-nav]')) {
+            return;
+        }
+
         wrapper.dataset.receiptsReady = '1';
 
         const searchInput = wrapper.querySelector('[data-payment-method-receipts-search]');
@@ -174,6 +178,40 @@
             return filteredRows;
         };
 
+        const pageList = (currentPage, totalPages) => {
+            if (totalPages <= 7) {
+                return Array.from({ length: totalPages }, (_, index) => index + 1);
+            }
+
+            const pages = new Set([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
+
+            if (currentPage <= 3) {
+                pages.add(2);
+                pages.add(3);
+                pages.add(4);
+            }
+
+            if (currentPage >= totalPages - 2) {
+                pages.add(totalPages - 3);
+                pages.add(totalPages - 2);
+                pages.add(totalPages - 1);
+            }
+
+            return Array.from(pages)
+                .filter((page) => page >= 1 && page <= totalPages)
+                .sort((left, right) => left - right)
+                .reduce((items, page, index, orderedPages) => {
+                    const previous = orderedPages[index - 1];
+
+                    if (previous && page - previous > 1) {
+                        items.push('ellipsis');
+                    }
+
+                    items.push(page);
+                    return items;
+                }, []);
+        };
+
         const renderPagination = (totalPages) => {
             if (!pagination) {
                 return;
@@ -193,7 +231,7 @@
                 button.type = 'button';
                 button.textContent = label;
                 button.disabled = disabled;
-                button.className = active ? 'active' : '';
+                button.className = `modal-page-button${active ? ' active' : ''}`;
                 button.addEventListener('click', () => {
                     state.page = page;
                     render();
@@ -203,12 +241,22 @@
             };
 
             pagination.append(createButton(previousLabel, Math.max(1, state.page - 1), state.page === 1));
+            pagination.lastElementChild?.classList.add('modal-page-edge');
 
-            for (let page = 1; page <= totalPages; page += 1) {
-                pagination.append(createButton(String(page), page, false, page === state.page));
-            }
+            pageList(state.page, totalPages).forEach((item) => {
+                if (item === 'ellipsis') {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.className = 'pagination-ellipsis';
+                    ellipsis.textContent = '...';
+                    pagination.append(ellipsis);
+                    return;
+                }
+
+                pagination.append(createButton(String(item), item, false, item === state.page));
+            });
 
             pagination.append(createButton(nextLabel, Math.min(totalPages, state.page + 1), state.page === totalPages));
+            pagination.lastElementChild?.classList.add('modal-page-edge');
         };
 
         const render = () => {

@@ -3,15 +3,43 @@
 namespace App\Support;
 
 use App\Models\AccountingBankReconciliation;
+use App\Models\AccountingClient;
 use App\Models\AccountingCreditNote;
+use App\Models\AccountingCreditor;
+use App\Models\AccountingCurrency;
+use App\Models\AccountingCustomerOrder;
+use App\Models\AccountingDebtor;
+use App\Models\AccountingDeliveryNote;
 use App\Models\AccountingExpense;
 use App\Models\AccountingNotification;
 use App\Models\AccountingOtherIncome;
+use App\Models\AccountingPartner;
+use App\Models\AccountingPaymentMethod;
 use App\Models\AccountingPaymentReminder;
+use App\Models\AccountingProformaInvoice;
+use App\Models\AccountingProspect;
 use App\Models\AccountingPurchase;
 use App\Models\AccountingPurchaseOrder;
+use App\Models\AccountingRecurringService;
 use App\Models\AccountingSalesInvoice;
+use App\Models\AccountingSalesRepresentative;
+use App\Models\AccountingService;
+use App\Models\AccountingServiceCategory;
+use App\Models\AccountingServiceSubcategory;
+use App\Models\AccountingServiceUnit;
+use App\Models\AccountingStockAlert;
+use App\Models\AccountingStockBatch;
+use App\Models\AccountingStockCategory;
+use App\Models\AccountingStockInventory;
+use App\Models\AccountingStockItem;
+use App\Models\AccountingStockMovement;
+use App\Models\AccountingStockSubcategory;
+use App\Models\AccountingStockTransfer;
+use App\Models\AccountingStockUnit;
+use App\Models\AccountingStockWarehouse;
+use App\Models\AccountingSupplier;
 use App\Models\AccountingTask;
+use App\Models\AccountingTax;
 use App\Models\AccountingTreasuryMovement;
 use App\Models\ArchiveActivity;
 use App\Models\ArchiveBox;
@@ -81,18 +109,7 @@ class AccountingActivityFeed
     public static function moduleKeys(?string $moduleGroup): array
     {
         return match ($moduleGroup) {
-            CompanySite::MODULE_ACCOUNTING => [
-                'sales-invoices',
-                'purchases',
-                'purchase-orders',
-                'credit-notes',
-                'expenses',
-                'other-incomes',
-                'payment-reminders',
-                'tasks',
-                'bank-reconciliations',
-                'treasury',
-            ],
+            CompanySite::MODULE_ACCOUNTING => AccountingModuleNavigation::keys(),
             CompanySite::MODULE_HUMAN_RESOURCES => [
                 'hr-employees',
                 'hr-contracts',
@@ -157,6 +174,34 @@ class AccountingActivityFeed
 
         if ($moduleGroup === null || $moduleGroup === CompanySite::MODULE_ACCOUNTING) {
             $payloads = $payloads
+                ->concat(self::records(AccountingProspect::class, $site, 'added_prospect', __('main.activity_added_prospect'), 'prospects', 'bi-person-plus', 'created_at'))
+                ->concat(self::records(AccountingClient::class, $site, 'added_client', __('main.activity_added_client'), 'clients', 'bi-person-lines-fill', 'created_at'))
+                ->concat(self::records(AccountingSupplier::class, $site, 'added_supplier', __('main.activity_added_supplier'), 'suppliers', 'bi-truck', 'created_at'))
+                ->concat(self::records(AccountingCreditor::class, $site, 'added_creditor', __('main.activity_added_creditor'), 'creditors', 'bi-arrow-up-circle', 'created_at'))
+                ->concat(self::records(AccountingDebtor::class, $site, 'added_debtor', __('main.activity_added_debtor'), 'debtors', 'bi-arrow-down-circle', 'created_at'))
+                ->concat(self::records(AccountingPartner::class, $site, 'added_partner', __('main.activity_added_partner'), 'partners', 'bi-diagram-3', 'created_at'))
+                ->concat(self::records(AccountingSalesRepresentative::class, $site, 'added_sales_representative', __('main.activity_added_sales_representative'), 'sales-representatives', 'bi-person-badge', 'created_at'))
+                ->concat(self::records(AccountingStockCategory::class, $site, 'added_stock_category', __('main.activity_added_stock_category'), 'stock-categories', 'bi-tags', 'created_at'))
+                ->concat(self::records(AccountingStockSubcategory::class, $site, 'added_stock_subcategory', __('main.activity_added_stock_subcategory'), 'stock-subcategories', 'bi-tag', 'created_at'))
+                ->concat(self::records(AccountingStockUnit::class, $site, 'added_stock_unit', __('main.activity_added_stock_unit'), 'stock-units', 'bi-rulers', 'created_at'))
+                ->concat(self::records(AccountingStockWarehouse::class, $site, 'added_stock_warehouse', __('main.activity_added_stock_warehouse'), 'stock-warehouses', 'bi-building', 'created_at'))
+                ->concat(self::records(AccountingStockItem::class, $site, 'added_stock_item', __('main.activity_added_stock_item'), 'stock-items', 'bi-box-seam', 'created_at'))
+                ->concat(self::records(AccountingStockMovement::class, $site, 'added_stock_movement', __('main.activity_added_stock_movement'), 'stock-movements', 'bi-arrow-left-right', 'created_at'))
+                ->concat(self::records(AccountingStockInventory::class, $site, 'added_stock_inventory', __('main.activity_added_stock_inventory'), 'stock-inventories', 'bi-clipboard-data', 'created_at'))
+                ->concat(self::records(AccountingStockAlert::class, $site, 'added_stock_alert', __('main.activity_added_stock_alert'), 'stock-alerts', 'bi-exclamation-triangle', 'created_at'))
+                ->concat(self::records(AccountingStockBatch::class, $site, 'added_stock_batch', __('main.activity_added_stock_batch'), 'stock-batches', 'bi-boxes', 'created_at'))
+                ->concat(self::records(AccountingStockTransfer::class, $site, 'added_stock_transfer', __('main.activity_added_stock_transfer'), 'stock-transfers', 'bi-arrow-left-right', 'created_at'))
+                ->concat(self::records(AccountingServiceCategory::class, $site, 'added_service_category', __('main.activity_added_service_category'), 'service-categories', 'bi-tags', 'created_at'))
+                ->concat(self::records(AccountingServiceSubcategory::class, $site, 'added_service_subcategory', __('main.activity_added_service_subcategory'), 'service-subcategories', 'bi-tag', 'created_at'))
+                ->concat(self::records(AccountingServiceUnit::class, $site, 'added_service_unit', __('main.activity_added_service_unit'), 'service-units', 'bi-rulers', 'created_at'))
+                ->concat(self::records(AccountingService::class, $site, 'added_service', __('main.activity_added_service'), 'service-price-list', 'bi-card-checklist', 'created_at'))
+                ->concat(self::records(AccountingRecurringService::class, $site, 'added_recurring_service', __('main.activity_added_recurring_service'), 'service-recurring', 'bi-arrow-repeat', 'created_at'))
+                ->concat(self::records(AccountingCurrency::class, $site, 'added_currency', __('main.activity_added_currency'), 'currencies', 'bi-currency-exchange', 'created_at'))
+                ->concat(self::records(AccountingPaymentMethod::class, $site, 'added_payment_method', __('main.activity_added_payment_method'), 'payment-methods', 'bi-credit-card-2-front', 'created_at'))
+                ->concat(self::records(AccountingTax::class, $site, 'added_tax', __('main.activity_added_tax'), 'taxes', 'bi-percent', 'created_at'))
+                ->concat(self::records(AccountingProformaInvoice::class, $site, 'added_proforma_invoice', __('main.activity_added_proforma_invoice'), 'proforma-invoices', 'bi-file-earmark-text', 'created_at'))
+                ->concat(self::records(AccountingCustomerOrder::class, $site, 'added_customer_order', __('main.activity_added_customer_order'), 'customer-orders', 'bi-cart-check', 'created_at'))
+                ->concat(self::records(AccountingDeliveryNote::class, $site, 'added_delivery_note', __('main.activity_added_delivery_note'), 'delivery-notes', 'bi-truck', 'created_at'))
                 ->concat(self::records(AccountingSalesInvoice::class, $site, 'added_invoice', __('main.activity_added_invoice'), 'sales-invoices', 'bi-receipt', 'created_at'))
                 ->concat(self::records(AccountingPurchase::class, $site, 'added_purchase', __('main.activity_added_purchase'), 'purchases', 'bi-bag-check', 'created_at'))
                 ->concat(self::records(AccountingPurchaseOrder::class, $site, 'added_purchase_order', __('main.activity_added_purchase_order'), 'purchase-orders', 'bi-clipboard-check', 'created_at'))

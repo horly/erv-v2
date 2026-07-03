@@ -48,7 +48,7 @@
             'service_id' => $line->service_id,
             'description' => $line->description,
             'details' => $line->details,
-            'quantity' => number_format((float) $line->quantity, 2, '.', ''),
+            'quantity' => number_format((float) $line->quantity, 0, '.', ''),
             'unit_price' => number_format((float) $line->unit_price, 2, '.', ''),
             'discount_type' => $line->discount_type ?: \App\Models\AccountingProformaInvoiceLine::DISCOUNT_FIXED,
             'discount_amount' => number_format((float) $line->discount_amount, 2, '.', ''),
