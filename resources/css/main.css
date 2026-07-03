@@ -2007,7 +2007,24 @@ body[data-theme="dark"] .subscription-modal .input-group-text {
 
 .login-history-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
+}
+
+.login-history-table th:nth-child(1),
+.login-history-table td:nth-child(1) {
+    width: 72px;
+}
+
+.login-history-table th:nth-child(3),
+.login-history-table td:nth-child(3) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.login-history-table th:nth-child(4),
+.login-history-table td:nth-child(4) {
+    width: 190px;
 }
 
 .login-history-table th,
@@ -2456,21 +2473,73 @@ body[data-theme="dark"] .subscription-modal .input-group-text {
 }
 
 .login-history-footer .pagination-shell {
-    flex-wrap: wrap;
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-end;
+    gap: 0;
+    margin-left: auto;
 }
 
-.login-history-footer .pagination-shell button {
+.login-history-footer .pagination-shell .modal-page-button,
+.login-history-footer .pagination-shell .pagination-ellipsis {
+    all: unset;
+    box-sizing: border-box;
     display: inline-flex;
-    min-width: 42px;
-    min-height: 40px;
+    min-width: 38px;
+    min-height: 36px;
     align-items: center;
     justify-content: center;
-    margin-left: -1px;
-    border: 1px solid var(--line);
-    background: var(--surface);
+    margin: 0 0 0 -1px;
+    padding: 0 .72rem;
+    border: 1px solid #c7d5e8;
+    background: #ffffff;
     color: var(--blue-600);
     font: inherit;
-    font-weight: 700;
+    font-size: .78rem;
+    font-weight: 850;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.login-history-footer .pagination-shell .modal-page-edge:first-child {
+    min-width: 92px;
+    margin-left: 0;
+    border-radius: 10px 0 0 10px;
+}
+
+.login-history-footer .pagination-shell .modal-page-edge:last-child {
+    min-width: 92px;
+    border-radius: 0 10px 10px 0;
+}
+
+.login-history-footer .pagination-shell .modal-page-button.active {
+    position: relative;
+    z-index: 1;
+    border-color: #2563eb;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #ffffff;
+    box-shadow: 0 10px 20px rgba(37, 99, 235, .2);
+}
+
+.login-history-footer .pagination-shell .modal-page-button.disabled {
+    background: #f8fafc;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.login-history-footer .pagination-shell .modal-page-button:not(.disabled):not(.active):hover {
+    position: relative;
+    z-index: 1;
+    border-color: #93c5fd;
+    background: #eff6ff;
+    color: var(--blue-700);
+}
+
+.login-history-footer .pagination-shell .pagination-ellipsis {
+    color: var(--muted);
+    cursor: default;
 }
 
 .main-user-modal h2 {

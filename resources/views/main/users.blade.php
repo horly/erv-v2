@@ -547,19 +547,63 @@
                 footer.hidden = payload.meta.total <= 5;
                 pagination.hidden = payload.meta.total <= 5;
 
-                const pageButton = (label, targetPage, disabled = false, active = false) => {
-                    const tag = disabled || active ? 'span' : 'button';
-                    const attrs = tag === 'button' ? ` type="button" data-history-page="${targetPage}"` : '';
-                    return `<${tag}${attrs} class="${active ? 'active' : disabled ? 'disabled' : ''}">${label}</${tag}>`;
+                const compactPages = (currentPage, lastPage) => {
+                    if (lastPage <= 7) {
+                        return Array.from({ length: lastPage }, (_, index) => index + 1);
+                    }
+
+                    const pages = new Set([1, lastPage, currentPage, currentPage - 1, currentPage + 1]);
+
+                    if (currentPage <= 4) {
+                        [2, 3, 4, 5].forEach((page) => pages.add(page));
+                    }
+
+                    if (currentPage >= lastPage - 3) {
+                        [lastPage - 4, lastPage - 3, lastPage - 2, lastPage - 1].forEach((page) => pages.add(page));
+                    }
+
+                    const ordered = Array.from(pages)
+                        .filter((page) => page >= 1 && page <= lastPage)
+                        .sort((left, right) => left - right);
+
+                    return ordered.reduce((items, page, index) => {
+                        const previous = ordered[index - 1];
+
+                        if (previous && page - previous > 1) {
+                            items.push('ellipsis');
+                        }
+
+                        items.push(page);
+
+                        return items;
+                    }, []);
                 };
 
-                pagination.insertAdjacentHTML('beforeend', pageButton('Previous', payload.meta.current_page - 1, payload.meta.current_page === 1));
+                const pageButton = (label, targetPage, disabled = false, active = false, edge = false) => {
+                    const tag = disabled || active ? 'span' : 'button';
+                    const attrs = tag === 'button' ? ` type="button" data-history-page="${targetPage}"` : '';
+                    const classes = [
+                        'modal-page-button',
+                        edge ? 'modal-page-edge' : '',
+                        active ? 'active' : '',
+                        disabled ? 'disabled' : '',
+                    ].filter(Boolean).join(' ');
 
-                for (let pageNumber = 1; pageNumber <= payload.meta.last_page; pageNumber += 1) {
+                    return `<${tag}${attrs} class="${classes}">${label}</${tag}>`;
+                };
+
+                pagination.insertAdjacentHTML('beforeend', pageButton(@json(__('admin.previous')), payload.meta.current_page - 1, payload.meta.current_page === 1, false, true));
+
+                compactPages(payload.meta.current_page, payload.meta.last_page).forEach((pageNumber) => {
+                    if (pageNumber === 'ellipsis') {
+                        pagination.insertAdjacentHTML('beforeend', '<span class="pagination-ellipsis">...</span>');
+                        return;
+                    }
+
                     pagination.insertAdjacentHTML('beforeend', pageButton(pageNumber, pageNumber, false, pageNumber === payload.meta.current_page));
-                }
+                });
 
-                pagination.insertAdjacentHTML('beforeend', pageButton('Next', payload.meta.current_page + 1, payload.meta.current_page === payload.meta.last_page));
+                pagination.insertAdjacentHTML('beforeend', pageButton(@json(__('admin.next')), payload.meta.current_page + 1, payload.meta.current_page === payload.meta.last_page, false, true));
             };
 
             pagination?.addEventListener('click', (event) => {

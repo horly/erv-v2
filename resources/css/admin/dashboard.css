@@ -1044,7 +1044,24 @@ a {
 
 .login-history-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
+}
+
+.login-history-table th:nth-child(1),
+.login-history-table td:nth-child(1) {
+    width: 72px;
+}
+
+.login-history-table th:nth-child(3),
+.login-history-table td:nth-child(3) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.login-history-table th:nth-child(4),
+.login-history-table td:nth-child(4) {
+    width: 190px;
 }
 
 .login-history-table th,
@@ -1084,21 +1101,73 @@ a {
 }
 
 .login-history-footer .pagination-shell {
-    flex-wrap: wrap;
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-end;
+    gap: 0;
+    margin-left: auto;
 }
 
-.login-history-footer .pagination-shell button {
+.login-history-footer .pagination-shell .modal-page-button,
+.login-history-footer .pagination-shell .pagination-ellipsis {
+    all: unset;
+    box-sizing: border-box;
     display: inline-flex;
-    min-width: 42px;
-    min-height: 40px;
+    min-width: 38px;
+    min-height: 36px;
     align-items: center;
     justify-content: center;
-    margin-left: -1px;
-    border: 1px solid var(--line);
-    background: var(--surface);
+    margin: 0 0 0 -1px;
+    padding: 0 .72rem;
+    border: 1px solid #c7d5e8;
+    background: #ffffff;
     color: var(--blue-600);
     font: inherit;
-    font-weight: 700;
+    font-size: .78rem;
+    font-weight: 850;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.login-history-footer .pagination-shell .modal-page-edge:first-child {
+    min-width: 92px;
+    margin-left: 0;
+    border-radius: 10px 0 0 10px;
+}
+
+.login-history-footer .pagination-shell .modal-page-edge:last-child {
+    min-width: 92px;
+    border-radius: 0 10px 10px 0;
+}
+
+.login-history-footer .pagination-shell .modal-page-button.active {
+    position: relative;
+    z-index: 1;
+    border-color: #2563eb;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #ffffff;
+    box-shadow: 0 10px 20px rgba(37, 99, 235, .2);
+}
+
+.login-history-footer .pagination-shell .modal-page-button.disabled {
+    background: #f8fafc;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.login-history-footer .pagination-shell .modal-page-button:not(.disabled):not(.active):hover {
+    position: relative;
+    z-index: 1;
+    border-color: #93c5fd;
+    background: #eff6ff;
+    color: var(--blue-700);
+}
+
+.login-history-footer .pagination-shell .pagination-ellipsis {
+    color: var(--muted);
+    cursor: default;
 }
 
 .company-users-modal .modal-dialog {
@@ -2522,5 +2591,23 @@ html.main-users-root body.main-users-body .main-shell {
 }
 
 html.main-users-root body.main-users-body .content-wrap {
+    padding-bottom: 4rem;
+}
+
+html.company-form-root,
+html.company-form-root body.company-form-body {
+    min-height: 100vh !important;
+    height: auto !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+}
+
+html.company-form-root body.company-form-body .main-shell {
+    min-height: 100vh !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+html.company-form-root body.company-form-body .company-form-page {
     padding-bottom: 4rem;
 }

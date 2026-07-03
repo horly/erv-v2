@@ -5427,6 +5427,7 @@ class MainController extends Controller
         $purchaseDebts = $source === 'manual' ? collect() : $purchasesQuery->get();
 
         $rows = $manualDebts
+            ->toBase()
             ->map(fn (AccountingCreditor $creditor) => [
                 'source' => 'manual',
                 'id' => $creditor->id,
@@ -5443,7 +5444,7 @@ class MainController extends Controller
                 'raw_status' => $creditor->status,
                 'model' => $creditor,
             ])
-            ->merge($purchaseDebts->map(fn (AccountingPurchase $purchase) => [
+            ->merge($purchaseDebts->toBase()->map(fn (AccountingPurchase $purchase) => [
                 'source' => 'purchase',
                 'id' => $purchase->id,
                 'reference' => $purchase->reference,
@@ -5734,6 +5735,7 @@ class MainController extends Controller
         $invoiceReceivables = $source === 'manual' ? collect() : $invoicesQuery->get();
 
         $rows = $manualReceivables
+            ->toBase()
             ->map(fn (AccountingDebtor $debtor) => [
                 'source' => 'manual',
                 'id' => $debtor->id,
@@ -5750,7 +5752,7 @@ class MainController extends Controller
                 'raw_status' => $debtor->status,
                 'model' => $debtor,
             ])
-            ->merge($invoiceReceivables->map(fn (AccountingSalesInvoice $invoice) => [
+            ->merge($invoiceReceivables->toBase()->map(fn (AccountingSalesInvoice $invoice) => [
                 'source' => 'invoice',
                 'id' => $invoice->id,
                 'reference' => $invoice->reference,
