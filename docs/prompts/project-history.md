@@ -15882,3 +15882,33 @@ Fichiers modifiés :
 - `lang/en/admin.php`
 - `tests/Feature/ApplicationBrandingColorsTest.php`
 - `docs/prompts/project-history.md`
+
+### 2026-07-15 - Couleurs du thème sur les liens, onglets, sous-menus et dropdowns
+
+Demande :
+
+```text
+Le lien doit prendre la couleur du thème, ainsi que les onglets, les sous-menus et les dropdowns.
+```
+
+Correction appliquée :
+
+- Ajout de jetons CSS sémantiques générés par le branding :
+  - couleur et survol des liens ;
+  - dégradé des états actifs ;
+  - fonds légers du thème pour les survols et sélections.
+- Les liens d’entreprise et de site suivent maintenant les couleurs principale et secondaire.
+- Les onglets de période, onglets de modale et onglets de rapports utilisent les couleurs principale et d’accent.
+- Les groupes et sous-menus de sidebar utilisent la couleur d’accent pour les icônes, survols et éléments actifs.
+- Le sous-menu flottant de la sidebar réduite reprend les deux couleurs de sidebar.
+- Les dropdowns de langue et de profil utilisent les fonds légers du thème, y compris le badge de rôle et les icônes.
+- Les ombres des dropdowns et des onglets sont calculées depuis la couleur principale.
+- Extension du test fonctionnel de personnalisation pour couvrir ces nouveaux jetons et composants.
+
+Fichiers modifiés :
+
+- `app/Support/AppBranding.php`
+- `resources/css/admin/dashboard.css`
+- `resources/css/main.css`
+- `tests/Feature/ApplicationBrandingColorsTest.php`
+- `docs/prompts/project-history.md`

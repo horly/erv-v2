@@ -120,6 +120,11 @@ class AppBranding
     --brand-button-rgb: {$buttonRgb};
     --brand-avatar-rgb: {$avatarRgb};
     --brand-accent-rgb: {$accentRgb};
+    --link-color: {$primary};
+    --link-hover-color: {$primaryHover};
+    --theme-active-gradient: linear-gradient(135deg, {$primary}, {$accent});
+    --theme-soft-background: color-mix(in srgb, {$primary} 9%, #FFFFFF);
+    --theme-soft-background-strong: color-mix(in srgb, {$primary} 16%, #FFFFFF);
     --muted: color-mix(in srgb, {$primary} 16%, #5F6672);
     --line: color-mix(in srgb, {$primary} 14%, #D9DEE7);
     --page: color-mix(in srgb, {$primary} 5%, #FFFFFF);

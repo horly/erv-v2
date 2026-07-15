@@ -7,7 +7,14 @@
     --blue-500: #3b82f6;
     --button-color: #2563eb;
     --avatar-color: #3b82f6;
+    --brand-primary-rgb: 37, 99, 235;
     --brand-avatar-rgb: 59, 130, 246;
+    --brand-accent-rgb: 124, 58, 237;
+    --link-color: #2563eb;
+    --link-hover-color: #3b82f6;
+    --theme-active-gradient: linear-gradient(135deg, #2563eb, #7c3aed);
+    --theme-soft-background: #edf4ff;
+    --theme-soft-background-strong: #dbeafe;
     --violet: #7c3aed;
     --rose: #f43f5e;
     --amber: #d97706;
@@ -393,7 +400,7 @@ a {
     border: 1px solid var(--line);
     border-radius: 18px;
     background: var(--surface);
-    box-shadow: 0 24px 60px rgba(15, 23, 42, .13);
+    box-shadow: 0 24px 60px rgba(var(--brand-primary-rgb), .14);
     opacity: 0;
     pointer-events: none;
     transform: translateY(-8px);
@@ -428,8 +435,8 @@ a {
 
 .language-option:hover,
 .language-option.active {
-    background: color-mix(in srgb, var(--blue-600) 9%, var(--surface));
-    color: var(--blue-600);
+    background: var(--theme-soft-background);
+    color: var(--link-color);
 }
 
 .language-code {
@@ -437,10 +444,10 @@ a {
     width: 48px;
     height: 40px;
     place-items: center;
-    border: 1px solid #dce5f2;
+    border: 1px solid var(--line);
     border-radius: 8px;
-    background: #f3f6fb;
-    color: #0b2554;
+    background: var(--soft);
+    color: var(--ink);
     font-weight: 850;
 }
 
@@ -482,8 +489,8 @@ a {
     margin-top: .6rem;
     padding: .45rem .75rem;
     border-radius: 7px;
-    background: #dbeafe;
-    color: #1d4ed8;
+    background: var(--theme-soft-background-strong);
+    color: var(--link-color);
     font-style: normal;
     font-size: .78rem;
     font-weight: 850;
@@ -505,7 +512,12 @@ a {
 }
 
 .profile-link:hover {
-    color: var(--blue-600);
+    background: var(--theme-soft-background);
+    color: var(--link-color);
+}
+
+.profile-link i {
+    color: var(--link-color);
 }
 
 .dashboard-content {
@@ -535,9 +547,9 @@ a {
 }
 
 .period-tabs .active {
-    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    background: var(--theme-active-gradient);
     color: #ffffff;
-    box-shadow: 0 10px 22px rgba(37, 99, 235, .22);
+    box-shadow: 0 10px 22px rgba(var(--brand-primary-rgb), .22);
 }
 
 .subscription-actions {

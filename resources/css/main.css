@@ -5,7 +5,14 @@
     --blue-500: #3b82f6;
     --button-color: #2563eb;
     --avatar-color: #3b82f6;
+    --brand-primary-rgb: 37, 99, 235;
     --brand-avatar-rgb: 59, 130, 246;
+    --brand-accent-rgb: 124, 58, 237;
+    --link-color: #2563eb;
+    --link-hover-color: #3b82f6;
+    --theme-active-gradient: linear-gradient(135deg, #2563eb, #7c3aed);
+    --theme-soft-background: #edf4ff;
+    --theme-soft-background-strong: #dbeafe;
     --ink: #061126;
     --muted: #667085;
     --line: #cdd9ea;
@@ -329,14 +336,14 @@ input {
     gap: .45rem;
     min-height: 44px;
     border-top: 1px solid var(--line);
-    color: #2563eb;
+    color: var(--link-color);
     font-size: .8rem;
     font-weight: 800;
     text-decoration: none;
 }
 
 .notification-view-all:hover {
-    background: #f3f7ff;
+    background: var(--theme-soft-background);
 }
 
 [data-theme="dark"] .notification-dropdown {
@@ -372,7 +379,7 @@ input {
     border: 1px solid var(--line);
     border-radius: 18px;
     background: var(--surface);
-    box-shadow: 0 24px 60px rgba(15, 23, 42, .13);
+    box-shadow: 0 24px 60px rgba(var(--brand-primary-rgb), .14);
     opacity: 0;
     pointer-events: none;
     transform: translateY(-8px);
@@ -407,8 +414,8 @@ input {
 
 .language-option:hover,
 .language-option.active {
-    background: #edf4ff;
-    color: var(--blue-600);
+    background: var(--theme-soft-background);
+    color: var(--link-color);
 }
 
 .language-code {
@@ -416,10 +423,10 @@ input {
     width: 48px;
     height: 40px;
     place-items: center;
-    border: 1px solid #dce5f2;
+    border: 1px solid var(--line);
     border-radius: 8px;
-    background: #f3f6fb;
-    color: #0b2554;
+    background: var(--soft);
+    color: var(--ink);
     font-weight: 850;
 }
 
@@ -465,8 +472,8 @@ input {
     margin-top: .6rem;
     padding: .45rem .75rem;
     border-radius: 7px;
-    background: #dbeafe;
-    color: #1d4ed8;
+    background: var(--theme-soft-background-strong);
+    color: var(--link-color);
     font-style: normal;
     font-size: .78rem;
     font-weight: 850;
@@ -489,7 +496,12 @@ input {
 }
 
 .profile-link:hover {
-    color: var(--blue-600);
+    background: var(--theme-soft-background);
+    color: var(--link-color);
+}
+
+.profile-link i {
+    color: var(--link-color);
 }
 
 .content-wrap {
@@ -764,7 +776,7 @@ textarea::placeholder {
     display: inline-flex;
     align-items: center;
     gap: .75rem;
-    color: #0b55ff;
+    color: var(--link-color);
     font-weight: 800;
     text-decoration: none;
 }
@@ -1574,8 +1586,8 @@ body[data-theme="dark"] .subscription-modal .input-group-text {
     padding: 0 .8rem;
     border: 0;
     border-radius: 8px;
-    background: #edf4ff;
-    color: #0b55ff;
+    background: var(--theme-soft-background);
+    color: var(--link-color);
     font-size: .78rem;
     font-weight: 850;
 }
@@ -1671,8 +1683,8 @@ body[data-theme="dark"] .subscription-modal .input-group-text {
 
 .proforma-search-select-option:hover,
 .proforma-search-select-option:focus {
-    background: #edf4ff;
-    color: #0b55ff;
+    background: var(--theme-soft-background);
+    color: var(--link-color);
     outline: 0;
 }
 
@@ -1851,7 +1863,7 @@ body[data-theme="dark"] .subscription-modal .input-group-text {
 }
 
 .proforma-total-card .total dd {
-    color: #0b55ff;
+    color: var(--link-color);
     font-size: 1.1rem;
 }
 
@@ -1921,12 +1933,12 @@ body[data-theme="dark"] .subscription-modal .input-group-text {
 }
 
 .site-name-link {
-    color: var(--blue-600);
+    color: var(--link-color);
     text-decoration: none;
 }
 
 .site-name-link:hover {
-    color: var(--blue-500);
+    color: var(--link-hover-color);
     text-decoration: underline;
 }
 
@@ -2161,9 +2173,9 @@ body[data-theme="dark"] .subscription-modal .input-group-text {
 }
 
 .modal-tab-switcher button.active {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    background: var(--theme-active-gradient);
     color: #fff;
-    box-shadow: 0 10px 22px rgba(37, 99, 235, .2);
+    box-shadow: 0 10px 22px rgba(var(--brand-primary-rgb), .2);
 }
 
 .modal-tab-switcher button.active span {
@@ -7209,7 +7221,7 @@ body.archiving-module-body {
 
 .sidebar-group-toggle:hover,
 .sidebar-group.open .sidebar-group-toggle {
-    background: rgba(56, 189, 248, .1);
+    background: rgba(var(--brand-accent-rgb), .14);
     color: #ffffff;
 }
 
@@ -7255,17 +7267,17 @@ body.archiving-module-body {
 }
 
 .sidebar-subnav a:hover {
-    background: rgba(56, 189, 248, .12);
+    background: rgba(var(--brand-accent-rgb), .14);
     color: #ffffff;
 }
 
 .sidebar-subnav a.active {
-    background: rgba(56, 189, 248, .18);
+    background: rgba(var(--brand-accent-rgb), .22);
     color: #ffffff;
 }
 
 .sidebar-subnav i {
-    color: rgba(56, 189, 248, .9);
+    color: var(--violet);
     font-size: .8rem;
 }
 
@@ -7374,7 +7386,7 @@ body.archiving-module-body {
     padding: .55rem;
     border: 1px solid rgba(148, 163, 184, .24);
     border-radius: 10px;
-    background: #08214c;
+    background: linear-gradient(180deg, var(--navy), var(--navy-2));
     box-shadow: 0 24px 55px rgba(8, 22, 48, .34);
 }
 
@@ -7388,7 +7400,7 @@ body.archiving-module-body {
     transform: rotate(45deg);
     border-left: 1px solid rgba(148, 163, 184, .24);
     border-bottom: 1px solid rgba(148, 163, 184, .24);
-    background: #08214c;
+    background: var(--navy-2);
 }
 
 .accounting-shell.sidebar-collapsed .sidebar-subnav a {
@@ -8627,7 +8639,7 @@ body.archiving-module-body {
 .report-section-tabs a:hover,
 .report-section-tabs a.active {
     color: #fff;
-    background: #2865e8;
+    background: var(--theme-active-gradient);
 }
 
 .report-filter-card {
@@ -8639,22 +8651,22 @@ body.archiving-module-body {
     align-items: center;
     gap: .6rem;
     padding: .82rem 1rem;
-    border: 1px solid #cdddf8;
+    border: 1px solid var(--line);
     border-radius: 8px;
-    color: #516581;
-    background: #f3f7ff;
+    color: var(--muted);
+    background: var(--theme-soft-background);
 }
 
 .report-period-note i {
-    color: #2865e8;
+    color: var(--link-color);
 }
 
 .report-period-note span {
     margin-left: auto;
     padding: .3rem .65rem;
     border-radius: 6px;
-    color: #2056db;
-    background: #e5edff;
+    color: var(--link-color);
+    background: var(--theme-soft-background-strong);
     font-weight: 700;
 }
 
@@ -9741,8 +9753,8 @@ body.archiving-module-body {
 .gmao-status-new,
 .gmao-status-approved,
 .gmao-status-priority-normal {
-    background: #e8f0ff;
-    color: #0b55ff;
+    background: var(--theme-soft-background);
+    color: var(--link-color);
 }
 
 .gmao-status-maintenance,
@@ -9778,8 +9790,8 @@ body.archiving-module-body {
 .gmao-settings-tags span {
     padding: 8px 10px;
     border-radius: 8px;
-    background: #eef4ff;
-    color: #0b55ff;
+    background: var(--theme-soft-background);
+    color: var(--link-color);
     font-size: .78rem;
     font-weight: 800;
 }
@@ -9798,14 +9810,14 @@ body.archiving-module-body {
     align-items: center;
     gap: 6px;
     margin-top: 8px;
-    color: #0b55ff;
+    color: var(--link-color);
     font-size: .78rem;
     font-weight: 800;
     text-decoration: none;
 }
 
 .modal-inline-link:hover {
-    color: #0644d7;
+    color: var(--link-hover-color);
     text-decoration: underline;
 }
 
@@ -9840,8 +9852,8 @@ body.archiving-module-body {
     align-items: center;
     justify-content: center;
     border-radius: 12px;
-    background: #e8f0ff;
-    color: #0b55ff;
+    background: var(--theme-soft-background);
+    color: var(--link-color);
 }
 
 .notification-row small,
@@ -10207,8 +10219,8 @@ body.archiving-module-body {
 }
 
 .gmao-shortcuts a:hover {
-    border-color: rgba(37, 99, 235, .45);
-    color: #0b55ff;
+    border-color: rgba(var(--brand-primary-rgb), .45);
+    color: var(--link-color);
     transform: translateY(-1px);
 }
 
@@ -10220,8 +10232,8 @@ body.archiving-module-body {
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    background: #e8f0ff;
-    color: #0b55ff;
+    background: var(--theme-soft-background);
+    color: var(--link-color);
 }
 
 .gmao-risk-grid {
@@ -10315,8 +10327,8 @@ body.archiving-module-body {
     place-items: center;
     padding: 0 10px;
     border-radius: 999px;
-    background: #e8f0ff;
-    color: #0b55ff;
+    background: var(--theme-soft-background);
+    color: var(--link-color);
     font-weight: 850;
 }
 

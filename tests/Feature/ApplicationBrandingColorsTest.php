@@ -54,6 +54,14 @@ class ApplicationBrandingColorsTest extends TestCase
 
         $this->assertStringContainsString('--button-color: #6B3F12', $themeCss);
         $this->assertStringContainsString('--avatar-color: #B07D21', $themeCss);
+        $this->assertStringContainsString('--link-color: #4A2508', $themeCss);
+        $this->assertStringContainsString('--theme-active-gradient: linear-gradient(135deg, #4A2508, #A18416)', $themeCss);
+        $this->assertStringContainsString('--theme-soft-background:', $themeCss);
         $this->assertStringContainsString('--page: color-mix(in srgb, #4A2508 5%, #FFFFFF)', $themeCss);
+
+        $mainCss = file_get_contents(resource_path('css/main.css'));
+        $this->assertStringContainsString('color: var(--link-color);', $mainCss);
+        $this->assertStringContainsString('background: rgba(var(--brand-accent-rgb), .22);', $mainCss);
+        $this->assertStringContainsString('background: var(--theme-soft-background);', $mainCss);
     }
 }
