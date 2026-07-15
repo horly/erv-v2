@@ -3,6 +3,9 @@
     --font-app: "JetBrains Mono", monospace;
     --blue-600: #2563eb;
     --blue-500: #3b82f6;
+    --button-color: #2563eb;
+    --avatar-color: #3b82f6;
+    --brand-avatar-rgb: 59, 130, 246;
     --ink: #061126;
     --muted: #667085;
     --line: #cdd9ea;
@@ -163,7 +166,7 @@ input {
     height: 34px;
     place-items: center;
     border-radius: 999px;
-    background: linear-gradient(135deg, #60a5fa, #2563eb);
+    background: var(--avatar-color);
     color: #ffffff;
     font-weight: 850;
     overflow: hidden;
@@ -526,7 +529,7 @@ input {
     padding: 0 1.15rem;
     border: 0;
     border-radius: 9px;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    background: var(--button-color);
     box-shadow: var(--shadow);
     color: #ffffff;
     font-weight: 850;
@@ -1918,12 +1921,12 @@ body[data-theme="dark"] .subscription-modal .input-group-text {
 }
 
 .site-name-link {
-    color: #0b55ff;
+    color: var(--blue-600);
     text-decoration: none;
 }
 
 .site-name-link:hover {
-    color: #174ce5;
+    color: var(--blue-500);
     text-decoration: underline;
 }
 
@@ -1935,8 +1938,8 @@ body[data-theme="dark"] .subscription-modal .input-group-text {
     min-height: 24px;
     padding: .2rem .5rem;
     border-radius: 6px;
-    background: #dbeafe;
-    color: #2563eb;
+    background: color-mix(in srgb, var(--blue-600) 14%, var(--surface));
+    color: var(--blue-600);
     font-size: .68rem;
     font-weight: 850;
     letter-spacing: .06em;
@@ -7674,7 +7677,7 @@ body.archiving-module-body {
     overflow: hidden;
     border: 1px solid var(--line);
     border-radius: 999px;
-    background: linear-gradient(135deg, #60a5fa, #2563eb);
+    background: var(--avatar-color);
     color: #ffffff;
     font-size: 1.9rem;
     font-weight: 850;
@@ -9391,8 +9394,8 @@ body.archiving-module-body {
     border-radius: 999px;
     border: 2px solid #fff;
     color: #fff;
-    background: linear-gradient(135deg, #60a5fa, #2563eb);
-    box-shadow: 0 8px 18px rgba(37, 99, 235, .18);
+    background: var(--avatar-color);
+    box-shadow: 0 8px 18px rgba(var(--brand-avatar-rgb), .18);
     overflow: hidden;
 }
 

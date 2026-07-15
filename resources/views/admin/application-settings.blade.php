@@ -244,6 +244,16 @@
                                 <input id="primaryHoverColor" name="primary_hover_color" type="color" class="@error('primary_hover_color') is-invalid @enderror" value="{{ old('primary_hover_color', $branding['primary_hover_color'] ?? $brandColorDefaults['primary_hover_color']) }}" data-brand-default-color="{{ $brandColorDefaults['primary_hover_color'] }}">
                                 @error('primary_hover_color')<em>{{ $message }}</em>@enderror
                             </label>
+                            <label class="brand-color-field" for="buttonColor">
+                                <span>{{ __('admin.button_color') }}</span>
+                                <input id="buttonColor" name="button_color" type="color" class="@error('button_color') is-invalid @enderror" value="{{ old('button_color', $branding['button_color'] ?? $brandColorDefaults['button_color']) }}" data-brand-default-color="{{ $brandColorDefaults['button_color'] }}">
+                                @error('button_color')<em>{{ $message }}</em>@enderror
+                            </label>
+                            <label class="brand-color-field" for="avatarColor">
+                                <span>{{ __('admin.avatar_color') }}</span>
+                                <input id="avatarColor" name="avatar_color" type="color" class="@error('avatar_color') is-invalid @enderror" value="{{ old('avatar_color', $branding['avatar_color'] ?? $brandColorDefaults['avatar_color']) }}" data-brand-default-color="{{ $brandColorDefaults['avatar_color'] }}">
+                                @error('avatar_color')<em>{{ $message }}</em>@enderror
+                            </label>
                             <label class="brand-color-field" for="accentColor">
                                 <span>{{ __('admin.accent_color') }}</span>
                                 <input id="accentColor" name="accent_color" type="color" class="@error('accent_color') is-invalid @enderror" value="{{ old('accent_color', $branding['accent_color'] ?? $brandColorDefaults['accent_color']) }}" data-brand-default-color="{{ $brandColorDefaults['accent_color'] }}">

@@ -49,6 +49,8 @@ class AppBranding
             'website' => null,
             'primary_color' => '#2563eb',
             'primary_hover_color' => '#3b82f6',
+            'button_color' => '#2563eb',
+            'avatar_color' => '#3b82f6',
             'accent_color' => '#7c3aed',
             'sidebar_color' => '#071b42',
             'sidebar_secondary_color' => '#0d2b61',
@@ -93,23 +95,36 @@ class AppBranding
         $defaults = self::defaults();
         $primary = self::normalizeHex((string) self::get('primary_color'), $defaults['primary_color']);
         $primaryHover = self::normalizeHex((string) self::get('primary_hover_color'), $defaults['primary_hover_color']);
+        $button = self::normalizeHex((string) self::get('button_color'), $defaults['button_color']);
+        $avatar = self::normalizeHex((string) self::get('avatar_color'), $defaults['avatar_color']);
         $accent = self::normalizeHex((string) self::get('accent_color'), $defaults['accent_color']);
         $sidebar = self::normalizeHex((string) self::get('sidebar_color'), $defaults['sidebar_color']);
         $sidebarSecondary = self::normalizeHex((string) self::get('sidebar_secondary_color'), $defaults['sidebar_secondary_color']);
         $primaryRgb = self::hexToRgb($primary);
         $primaryHoverRgb = self::hexToRgb($primaryHover);
+        $buttonRgb = self::hexToRgb($button);
+        $avatarRgb = self::hexToRgb($avatar);
         $accentRgb = self::hexToRgb($accent);
 
         return <<<CSS
 :root {
     --blue-600: {$primary};
     --blue-500: {$primaryHover};
+    --button-color: {$button};
+    --avatar-color: {$avatar};
     --violet: {$accent};
     --navy: {$sidebar};
     --navy-2: {$sidebarSecondary};
     --brand-primary-rgb: {$primaryRgb};
     --brand-primary-hover-rgb: {$primaryHoverRgb};
+    --brand-button-rgb: {$buttonRgb};
+    --brand-avatar-rgb: {$avatarRgb};
     --brand-accent-rgb: {$accentRgb};
+    --muted: color-mix(in srgb, {$primary} 16%, #5F6672);
+    --line: color-mix(in srgb, {$primary} 14%, #D9DEE7);
+    --page: color-mix(in srgb, {$primary} 5%, #FFFFFF);
+    --soft: color-mix(in srgb, {$primary} 4%, #FFFFFF);
+    --table-head: color-mix(in srgb, {$primary} 6%, #FFFFFF);
     --shadow: 0 22px 50px rgba({$primaryRgb}, .12);
 }
 
@@ -125,6 +140,33 @@ class AppBranding
 .nav-link.active,
 .sidebar-collapsed .nav-link.active {
     box-shadow: inset 3px 0 0 {$accent};
+}
+
+.sidebar-footer i {
+    color: {$accent} !important;
+}
+
+.avatar,
+.profile-photo-preview,
+.menu-access-avatar {
+    background: {$avatar} !important;
+    box-shadow: 0 8px 18px rgba({$avatarRgb}, .18);
+}
+
+.primary-action,
+.modal-submit,
+.primary-button,
+.btn-primary {
+    border-color: {$button} !important;
+    background: {$button} !important;
+    box-shadow: 0 14px 30px rgba({$buttonRgb}, .2);
+}
+
+.primary-action:hover,
+.modal-submit:hover,
+.primary-button:hover,
+.btn-primary:hover {
+    filter: brightness(.92);
 }
 CSS;
     }

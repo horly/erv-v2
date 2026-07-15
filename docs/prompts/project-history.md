@@ -15845,3 +15845,40 @@ Fichiers modifiés :
 - `resources/css/admin/dashboard.css`
 - `resources/css/auth/login.css`
 - `docs/prompts/project-history.md`
+
+### 2026-07-15 - Personnalisation des boutons, avatars et surfaces du thème
+
+Demande :
+
+```text
+Dans personnalisation superadmin on doit etre en mesure de personnaliser meme la couleurs des boutons.
+la couleur des icones de profil des utilisateurs.
+La page de connexion a appliqué le theme mais on voit toujours un bleu léger.
+```
+
+Correction appliquée :
+
+- Ajout de deux couleurs indépendantes dans la personnalisation superadmin :
+  - couleur des boutons ;
+  - couleur des avatars utilisateurs.
+- Sauvegarde et validation de ces couleurs dans `application_settings` via le système de branding existant.
+- Injection des variables CSS `--button-color` et `--avatar-color` dans toutes les pages HTML.
+- Application de la couleur des boutons aux actions principales, soumissions de modale, boutons Bootstrap principaux et bouton de connexion.
+- Application de la couleur des avatars aux initiales de profil, aperçus de photo et avatars de gestion des accès.
+- Les fonds, bordures et en-têtes clairs sont maintenant légèrement teintés avec la couleur principale au lieu de conserver une teinte bleue fixe.
+- Suppression du dernier arrêt bleu fixe du panneau gauche de la page de connexion.
+- Harmonisation des badges de site, modules et liens de site avec la couleur principale personnalisée.
+- Ajout d’un test fonctionnel couvrant l’affichage, l’enregistrement et l’injection des nouvelles couleurs.
+
+Fichiers modifiés :
+
+- `app/Support/AppBranding.php`
+- `app/Http/Controllers/AdminController.php`
+- `resources/views/admin/application-settings.blade.php`
+- `resources/css/admin/dashboard.css`
+- `resources/css/main.css`
+- `resources/css/auth/login.css`
+- `lang/fr/admin.php`
+- `lang/en/admin.php`
+- `tests/Feature/ApplicationBrandingColorsTest.php`
+- `docs/prompts/project-history.md`
