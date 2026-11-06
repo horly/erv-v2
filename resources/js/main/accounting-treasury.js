@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
     const dataNode = document.getElementById('accountingTreasuryData');
 
     if (!dataNode) {
@@ -34,7 +34,7 @@
 
     const baseOptions = {
         chart: {
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'Inter Variable, Segoe UI, sans-serif',
             toolbar: { show: false },
             animations: { enabled: true, speed: 400 },
             redrawOnParentResize: true,
@@ -71,7 +71,7 @@
         return {
             labels: selected.labels || [],
             series: [
-                { name: data.labels?.inflows || 'Entrées', data: inflows },
+                { name: data.labels?.inflows || 'EntrÃ©es', data: inflows },
                 { name: data.labels?.outflows || 'Sorties', data: outflows },
                 { name: data.labels?.net || 'Flux net', data: inflows.map((value, index) => Number(value || 0) - Number(outflows[index] || 0)) },
             ],

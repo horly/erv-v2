@@ -269,6 +269,12 @@
         <p><span class="strong">{{ __('main.object') }} :</span> {{ pdf_text($purchaseOrder->title) }}</p>
     @endif
 
+    @php
+        $hasDiscount = (float) $purchaseOrder->discount_total > 0
+            || $purchaseOrder->lines->contains(fn ($line) => (float) $line->discount_amount > 0);
+        $hasVat = (float) $purchaseOrder->tax_amount > 0 || (float) $purchaseOrder->tax_rate > 0;
+    @endphp
+
     <table>
         <thead>
             <tr>
@@ -276,7 +282,9 @@
                 <th>{{ __('main.description') }}</th>
                 <th class="right" style="width: 15%;">{{ __('main.quantity') }}</th>
                 <th class="right" style="width: 18%;">{{ __('main.unit_price') }}</th>
-                <th class="right" style="width: 14%;">{{ __('main.discount') }}</th>
+                @if ($hasDiscount)
+                    <th class="right" style="width: 14%;">{{ __('main.discount') }}</th>
+                @endif
                 <th class="right" style="width: 18%;">{{ __('main.total') }}</th>
             </tr>
         </thead>
@@ -292,10 +300,12 @@
                     </td>
                     <td class="right">{{ number_format((float) $line->quantity, 0, ',', ' ') }}</td>
                     <td class="right">{{ number_format((float) $line->unit_price, 2, ',', ' ') }} {{ $purchaseOrder->currency }}</td>
-                    <td class="right">
-                        {{ number_format((float) $line->discount_amount, 2, ',', ' ') }}
-                        {{ $line->discount_type === \App\Models\AccountingPurchaseOrderLine::DISCOUNT_PERCENT ? '%' : $purchaseOrder->currency }}
-                    </td>
+                    @if ($hasDiscount)
+                        <td class="right">
+                            {{ number_format((float) $line->discount_amount, 2, ',', ' ') }}
+                            {{ $line->discount_type === \App\Models\AccountingPurchaseOrderLine::DISCOUNT_PERCENT ? '%' : $purchaseOrder->currency }}
+                        </td>
+                    @endif
                     <td class="right">{{ number_format((float) $line->line_total, 2, ',', ' ') }} {{ $purchaseOrder->currency }}</td>
                 </tr>
             @endforeach
@@ -303,11 +313,17 @@
     </table>
 
     <table class="totals">
-        <tr><td>{{ __('main.subtotal') }} :</td><td class="right strong">{{ number_format((float) $purchaseOrder->subtotal, 2, ',', ' ') }} {{ $purchaseOrder->currency }}</td></tr>
-        <tr><td>{{ __('main.discount_total') }} :</td><td class="right strong">{{ number_format((float) $purchaseOrder->discount_total, 2, ',', ' ') }} {{ $purchaseOrder->currency }}</td></tr>
-        <tr><td>{{ __('main.total_ht') }} :</td><td class="right strong">{{ number_format((float) $purchaseOrder->total_ht, 2, ',', ' ') }} {{ $purchaseOrder->currency }}</td></tr>
-        <tr><td>{{ __('main.global_vat_rate') }} :</td><td class="right strong">{{ number_format((float) $purchaseOrder->tax_rate, 2, ',', ' ') }} %</td></tr>
-        <tr><td>{{ __('main.vat_amount') }} :</td><td class="right strong">{{ number_format((float) $purchaseOrder->tax_amount, 2, ',', ' ') }} {{ $purchaseOrder->currency }}</td></tr>
+        @if ($hasDiscount || $hasVat)
+            <tr><td>{{ __('main.subtotal') }} :</td><td class="right strong">{{ number_format((float) $purchaseOrder->subtotal, 2, ',', ' ') }} {{ $purchaseOrder->currency }}</td></tr>
+        @endif
+        @if ($hasDiscount)
+            <tr><td>{{ __('main.discount_total') }} :</td><td class="right strong">{{ number_format((float) $purchaseOrder->discount_total, 2, ',', ' ') }} {{ $purchaseOrder->currency }}</td></tr>
+            <tr><td>{{ __('main.total_ht') }} :</td><td class="right strong">{{ number_format((float) $purchaseOrder->total_ht, 2, ',', ' ') }} {{ $purchaseOrder->currency }}</td></tr>
+        @endif
+        @if ($hasVat)
+            <tr><td>{{ __('main.global_vat_rate') }} :</td><td class="right strong">{{ number_format((float) $purchaseOrder->tax_rate, 2, ',', ' ') }} %</td></tr>
+            <tr><td>{{ __('main.vat_amount') }} :</td><td class="right strong">{{ number_format((float) $purchaseOrder->tax_amount, 2, ',', ' ') }} {{ $purchaseOrder->currency }}</td></tr>
+        @endif
         <tr class="grand"><td>{{ __('main.total_ttc') }} :</td><td class="right">{{ number_format((float) $purchaseOrder->total_ttc, 2, ',', ' ') }} {{ $purchaseOrder->currency }}</td></tr>
     </table>
 

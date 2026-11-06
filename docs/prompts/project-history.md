@@ -15912,3 +15912,352 @@ Fichiers modifiés :
 - `resources/css/main.css`
 - `tests/Feature/ApplicationBrandingColorsTest.php`
 - `docs/prompts/project-history.md`
+
+### 2026-11-02 - Fond de caisse et blocage du solde négatif pour le mode de paiement espèces
+
+Demande :
+
+```text
+J'ai un problème avec le mode de paiement espèces, c'est un mode de paiement un peu spécifique,
+pour ce mode de paiement on doit pouvoir mettre un fond de caisse pour savoir combien il y a
+dans la caisse pour permettre d'encaisser ou décaisser. Le mode de paiement espèces ne doit
+jamais être négatif : si la caisse est vide, on ne peut pas payer en espèces.
+```
+
+Correction appliquée :
+
+- Nouvelle table `accounting_cash_movements` et modèle `AccountingCashMovement` : opérations manuelles de caisse (`funding` = approvisionnement, `withdrawal` = retrait), avec référence `CSH-`, libellé, notes, devise et date.
+- Le solde de caisse d''un mode espèces est calculé en temps réel par devise : approvisionnements + encaissements (paiements de factures, créances, autres revenus) − retraits − décaissements (paiements d''achats, dettes, dépenses validées).
+- Tout décaissement en espèces est désormais bloqué si le fond de caisse est insuffisant, avec un message indiquant le solde disponible :
+  - création ou modification d''une dépense directement validée ;
+  - validation d''une dépense en brouillon (toast d''erreur) ;
+  - paiement d''un achat fournisseur ;
+  - paiement d''une dette (créancier) ;
+  - retrait manuel de caisse.
+- Page « Modes de paiement » :
+  - nouvelle colonne « Solde de caisse » pour les modes espèces (vert si positif, rouge sinon) ;
+  - nouveau bouton « Gérer la caisse » ouvrant une modale avec le solde, un formulaire d''approvisionnement/retrait et l''historique des opérations (recherche, tri, pagination) ;
+  - la suppression d''un approvisionnement est refusée si elle rendrait le solde négatif ;
+  - un mode de paiement avec des opérations de caisse ne peut plus être supprimé.
+- Les opérations de caisse sont synchronisées dans la trésorerie comme nouveau type de mouvement `cash_adjustment` (« Opération de caisse »), entrée pour un approvisionnement, sortie pour un retrait.
+- Ajout d''un test fonctionnel couvrant l''approvisionnement, le blocage des retraits et dépenses au-delà du solde, la validation de dépense en brouillon, la suppression protégée et l''absence de restriction pour les modes non espèces.
+
+Fichiers modifiés :
+
+- `database/migrations/2026_11_02_000001_create_accounting_cash_movements_table.php`
+- `app/Models/AccountingCashMovement.php`
+- `app/Models/AccountingPaymentMethod.php`
+- `app/Models/AccountingTreasuryMovement.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting/payment-methods.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/CashPaymentMethodFundTest.php`
+- `docs/prompts/project-history.md`
+
+### 2026-11-02 - Caisse espèces : opérations via Autres entrées/Dépenses, solde sans historique, nouvelle police
+
+Demande :
+
+```text
+Tu dois ignorer les anciennes valeurs encaissées ou décaissées car nous venons juste d''implémenter
+cette solution et certains utilisateurs n''ont plus le montant dans leur caisse.
+L''approvisionnement est comme une opération qui se fait dans Autres entrées ;
+pareil pour le retrait, c''est comme ce qui se fait dans Dépenses.
+Change aussi la police, utilise une bonne police d''écriture pour la plateforme.
+```
+
+Correction appliquée :
+
+- Suppression de la table dédiée `accounting_cash_movements` (remplacée avant toute mise en production) :
+  - l''approvisionnement de caisse crée désormais une « Autre entrée » validée (type ajustement positif) rattachée au mode espèces ;
+  - le retrait de caisse crée une « Dépense » validée dans la nouvelle catégorie système « Opérations de caisse » (slug `operations-caisse`), avec contrôle du solde ;
+  - ces opérations suivent les cycles de vie existants et alimentent automatiquement la trésorerie.
+- Nouveau champ `cash_tracking_started_at` sur les modes de paiement : la migration le fixe à la date de déploiement pour les modes existants. Le solde de caisse ignore tout encaissement/décaissement enregistré avant cette date ; seuls les enregistrements postérieurs comptent.
+- L''annulation d''une « Autre entrée » encaissée en espèces est bloquée si elle rendait le solde de caisse négatif.
+- La modale « Gérer la caisse » affiche le solde et le formulaire d''opération ; l''historique se consulte dans Autres entrées et Dépenses (note explicative dans la modale).
+- Remplacement de la police globale « JetBrains Mono » (monospace) par une pile de polices UI : Segoe UI, Inter, system-ui, Roboto…, et graisse par défaut ramenée de 500 à 400, sur l''interface principale, la console admin et la page de connexion.
+- Réécriture du test fonctionnel : approvisionnement → autre entrée, retrait → dépense plafonnée au solde, enregistrements antérieurs au suivi ignorés, validation de dépense bloquée, annulation d''entrée protégée, modes non espèces non restreints.
+
+Fichiers modifiés :
+
+- `database/migrations/2026_11_02_000002_add_cash_tracking_started_at_to_accounting_payment_methods.php` (nouvelle)
+- `database/migrations/2026_11_02_000001_create_accounting_cash_movements_table.php` (supprimée)
+- `app/Models/AccountingCashMovement.php` (supprimé)
+- `app/Models/AccountingPaymentMethod.php`
+- `app/Models/AccountingTreasuryMovement.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting/payment-methods.blade.php`
+- `resources/css/main.css`
+- `resources/css/admin/dashboard.css`
+- `resources/css/auth/login.css`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/CashPaymentMethodFundTest.php`
+- `docs/prompts/project-history.md`
+
+### 2026-11-02 - Police Inter Variable (identique à EXAD ERP Advanced)
+
+Demande :
+
+```text
+Je n''ai pas la police, utilise la police qu''il y a dans EXAD ERP Advanced.
+```
+
+Correction appliquée :
+
+- Copie des fichiers de police Inter Variable (latin + latin étendu, woff2) depuis `exad-erp-advanced` (`@fontsource-variable/inter`) vers `public/vendor/fonts/inter/`.
+- Déclarations `@font-face` auto-hébergées ajoutées en tête de `main.css`, `admin/dashboard.css` et `auth/login.css` (URLs absolues car ces CSS sont inlinées dans les pages).
+- `--font-app` fixé à `'Inter Variable', 'Segoe UI', sans-serif`, exactement comme dans EXAD ERP Advanced.
+
+Fichiers modifiés :
+
+- `public/vendor/fonts/inter/inter-latin-wght-normal.woff2` (nouveau)
+- `public/vendor/fonts/inter/inter-latin-ext-wght-normal.woff2` (nouveau)
+- `resources/css/main.css`
+- `resources/css/admin/dashboard.css`
+- `resources/css/auth/login.css`
+- `docs/prompts/project-history.md`
+
+### 2026-11-02 - Correction de l''étirement infini du graphique « Flux de documents »
+
+Demande :
+
+```text
+Pourquoi dans le tableau de bord comptabilité et facturation, le flux de documents s''étire instantanément ?
+```
+
+Correction appliquée :
+
+- Le graphique « Flux de documents » était le seul configuré en `height: ''100%''` alors que son conteneur CSS avait aussi `height: 100%` et des hauteurs forcées en `!important` sur le canvas ApexCharts. Avec `redrawOnParentResize: true`, chaque rendu agrandissait le panneau, ce qui redéclenchait un rendu plus grand : boucle d''étirement infinie.
+- Hauteur fixe de 300 px appliquée au graphique, comme les autres graphiques du tableau de bord.
+- Suppression des règles CSS `height: 100%` et `!important` du panneau documents ; `min-height: 300px` conservé pour la mise en page.
+- La police des graphiques ApexCharts (tableau de bord admin, comptabilité, trésorerie, rapports) passe de « JetBrains Mono » à « Inter Variable », ainsi que la page d''accueil et `app.css`.
+
+Fichiers modifiés :
+
+- `resources/js/main/accounting-dashboard.js`
+- `resources/js/main/accounting-treasury.js`
+- `resources/js/main/accounting-reports.js`
+- `resources/js/admin/dashboard.js`
+- `resources/css/main.css`
+- `resources/css/app.css`
+- `resources/views/welcome.blade.php`
+- `docs/prompts/project-history.md`
+
+### 2026-11-03 - Suivi du paiement de la TVA sur les factures de vente
+
+Demande :
+
+```text
+Nous devons être en mesure de savoir combien on doit payer pour la TVA sur les factures qui ont la TVA.
+Une fois que tout le solde de facture est payé, nous devons pouvoir signaler que la TVA de telle facture
+a été payée, et que celle de telle autre ne l''est pas encore.
+```
+
+Décisions validées : la TVA ne peut être marquée « payée » que lorsque la facture est entièrement soldée ;
+le récapitulatif apparaît dans les Rapports et sur le tableau de bord.
+
+Correction appliquée :
+
+- Nouveaux champs sur les factures de vente : `tax_paid_at`, `tax_paid_by`, `tax_payment_reference` (migration dédiée).
+- Page Factures de vente :
+  - nouvelle colonne « TVA » : montant + badge « TVA payée » (avec date et référence) ou « TVA à payer » ; « - » si la facture n''a pas de TVA ;
+  - filtre « TVA : toutes / à payer / payée » ;
+  - action « Marquer la TVA payée » (modale avec référence de quittance optionnelle), disponible uniquement quand la facture est soldée ; refus avec message sinon ;
+  - action inverse « Annuler le paiement de la TVA » avec confirmation (réversible, traçée : qui et quand).
+- Nouvelle section « TVA » dans Comptabilité → Rapports : indicateurs TVA collectée / TVA payée / TVA restant à payer / factures avec TVA à payer, graphique d''évolution, tableau détaillé par facture, filtres (période, client, statut TVA), export CSV et impression PDF.
+- Tableau de bord comptabilité : carte « TVA restant à payer » avec le détail collectée/payée, orange si un montant reste dû.
+- Test fonctionnel : marquage sur facture soldée, refus sur facture non soldée, annulation, facture sans TVA ignorée, filtre de liste, totaux du rapport.
+
+Fichiers modifiés :
+
+- `database/migrations/2026_11_02_000003_add_tax_payment_tracking_to_accounting_sales_invoices.php` (nouvelle)
+- `app/Models/AccountingSalesInvoice.php`
+- `app/Http/Controllers/MainController.php`
+- `routes/web.php`
+- `resources/views/main/modules/accounting/sales-invoices.blade.php`
+- `resources/views/main/modules/accounting/reports.blade.php`
+- `resources/views/main/modules/accounting/report-print.blade.php`
+- `lang/fr/main.php`
+- `lang/en/main.php`
+- `tests/Feature/SalesInvoiceVatTrackingTest.php`
+- `docs/prompts/project-history.md`
+
+### 2026-11-03 - Sécurisation des documents GED et archives (stockage privé authentifié)
+
+Demande :
+
+```text
+Continuer le projet : chantier prioritaire n°1 de l''analyse Esengo — les pièces jointes
+GED et les fichiers d''archives étaient accessibles sans authentification.
+```
+
+Constat : le disque « public » pointe sur `public/user-files` (racine web). Les pièces jointes GED
+et les fichiers d''archives y étaient servis statiquement, sans authentification ni contrôle d''accès :
+toute personne connaissant l''URL pouvait télécharger un document.
+
+Correction appliquée :
+
+- Les pièces jointes GED (`document-management/…`) et les fichiers d''archives (`archives/…`) sont
+  désormais stockés sur le disque privé (`storage/app/private`), hors de la racine web.
+- Nouvelle route authentifiée `GET /private-storage/{path}` (`private.storage`) avec contrôle d''accès
+  par objet : le fichier est rattaché à son enregistrement (GED, archive ou révision d''archive), puis
+  au site ; l''accès est accordé au superadmin, à l''admin du même abonnement, ou à l''utilisateur
+  affecté au site. Sinon 404. Réponse servie en `no-store`.
+- Nouveau helper `private_storage_url()` ; les liens des vues GED (courriers entrant/sortant/interne)
+  et des archives l''utilisent.
+- Les uploads et suppressions GED/archives passent du disque public au disque privé.
+- Migration de données : déplacement physique des fichiers existants de `public/user-files/{document-management,archives}`
+  vers `storage/app/private/…` (réversible). Les chemins en base restent inchangés.
+- Les ressources réellement publiques (branding, logos de sociétés, photos de profil) restent sur le disque public.
+- Nouveau test fonctionnel : invité redirigé vers la connexion ; utilisateur affecté au site et superadmin
+  autorisés ; admin d''un autre abonnement et utilisateur non affecté refusés ; fichier orphelin ou chemin
+  hors périmètre refusés.
+
+Fichiers modifiés :
+
+- `app/Http/Controllers/PublicStorageController.php`
+- `app/Http/Controllers/DocumentManagementController.php`
+- `app/Http/Controllers/ArchivingController.php`
+- `app/Support/helpers.php`
+- `routes/web.php`
+- `resources/views/main/modules/document-management/incoming.blade.php`
+- `resources/views/main/modules/document-management/outgoing.blade.php`
+- `resources/views/main/modules/document-management/internal.blade.php`
+- `resources/views/main/modules/archiving/records.blade.php`
+- `database/migrations/2026_11_03_000001_move_sensitive_files_to_private_storage.php` (nouvelle)
+- `tests/Feature/PrivateDocumentStorageTest.php` (nouveau)
+- `docs/prompts/project-history.md`
+
+### 2026-11-06 - Rééquilibrage typographique entre la navigation et la zone de contenu
+
+Demande :
+
+```text
+Les textes de la zone de contenu sont plus grands que les textes des menus de navigation,
+cela crée un déséquilibre visuel.
+```
+
+Correction appliquée :
+
+- Les textes de la zone de contenu descendent d''un cran pour s''aligner sur l''échelle de la
+  sidebar (liens .84rem, groupes .82rem, sous-menus .72rem) :
+  - titre du topbar : 1.65rem → 1.35rem ;
+  - titre de page : 1.52rem → 1.26rem ; sous-titre : .88rem → .8rem ;
+  - lien de retour (fil d''Ariane) : .82rem → .78rem ;
+  - en-têtes de tableau : .82rem → .74rem ; cellules : .9rem → .84rem ;
+  - champ de recherche : .92rem → .84rem, hauteur 48px → 44px ;
+  - bouton principal : taille .84rem explicite, hauteur 48px → 44px ;
+  - compteur de lignes et barre de pagination : .8rem.
+- Changement global : toutes les pages (modules, admin, listes et modales à tableaux) utilisent
+  ces classes partagées, l''échelle reste donc cohérente partout.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `resources/css/admin/dashboard.css`
+- `docs/prompts/project-history.md`
+
+### 2026-11-06 - Échelle globale réduite et adaptée aux petits écrans
+
+Demande :
+
+```text
+Je trouve que c''est toujours grand, surtout pour les écrans de petite taille.
+```
+
+Correction appliquée :
+
+- La taille de base `html` passe de 14px à **13,5px** sur l''interface principale, la console admin
+  et la page de connexion. Tout le projet étant en `rem`, la sidebar et la zone de contenu se
+  réduisent ensemble, l''équilibre du 2026-11-06 est conservé.
+- Paliers ajoutés selon la largeur d''écran : **13px en dessous de 1280px**, **12,5px en dessous de 768px**.
+- Compactage des éléments à hauteur fixe sur mobile (≤ 768px) : topbar sans hauteur minimale de 122px
+  (padding réduit), bouton principal et champ de recherche à 40px.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `resources/css/admin/dashboard.css`
+- `resources/css/auth/login.css`
+- `docs/prompts/project-history.md`
+
+### 2026-11-06 - Compactage des tableaux
+
+Demande :
+
+```text
+Diminue encore, surtout les éléments des tableaux.
+```
+
+Correction appliquée :
+
+- Lignes de tableau : padding des cellules .86rem → .55rem/.75rem ; texte des cellules .84rem → .8rem ;
+  en-têtes .74rem → .7rem.
+- Boutons d''action des lignes : 38px → 30px (icône .78rem), espacement du groupe resserré.
+- Puces d''icône des tiers (client, fournisseur, prospect…) : 42px → 32px.
+- Pastilles de référence (CLT-000001…) : hauteur 28px → 22px, texte .68rem.
+- Pastilles de statut/type (PARTICULIER, ENTREPRISE…) : hauteur 28px → 22px, texte .66rem.
+- Appliqué partout : classes partagées par tous les tableaux des modules, de la console admin et des modales.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `resources/css/admin/dashboard.css`
+- `docs/prompts/project-history.md`
+
+### 2026-11-06 - Compactage des formulaires internes
+
+Demande :
+
+```text
+Pareil pour les formulaires internes.
+```
+
+Correction appliquée :
+
+- Base globale des champs : `form-control`/`form-select` à 36px de haut, texte .8rem, padding réduit ;
+  libellés `form-label` et cases à cocher à .78rem avec marge resserrée.
+- Alignement des contextes qui imposaient leur propre hauteur (42 à 50px → 36px, textes .8rem) :
+  modales de formulaire (`subscription-modal`), création d''entreprise, panneau profil, modale de
+  paiement de facture, sélecteurs à recherche des lignes de document (déclencheur et champ de recherche).
+- Boutons harmonisés : actions principales/secondaires 48px → 40px (texte .84rem), boutons de
+  modale `modal-cancel`/`modal-submit` 50px → 40px.
+- Les zones de texte multilignes (notes, descriptions) conservent leur hauteur.
+
+Fichiers modifiés :
+
+- `resources/css/main.css`
+- `resources/css/admin/dashboard.css`
+- `docs/prompts/project-history.md`
+
+### 2026-11-06 - Documents PDF : masquer remise et TVA quand elles sont nulles
+
+Demande :
+
+```text
+Quand on n''applique pas de remise ni la TVA, inutile d''afficher 0,00 ou le titre :
+mieux vaut ne pas afficher.
+```
+
+Correction appliquée :
+
+- Facture de vente, proforma et bon de commande fournisseur :
+  - la colonne « Remise » du tableau des lignes n''apparaît que si au moins une ligne porte une remise ;
+  - la ligne « Remise totale » (et « Total HT », redondant sans remise) n''apparaît que s''il y a une remise ;
+  - les lignes « Taux TVA global » et « Montant TVA » n''apparaissent que si un taux ou un montant de TVA est renseigné ;
+  - « Sous-total » est masqué quand il n''y a ni remise ni TVA (identique au grand total).
+- Avoir : le bloc Total HT / Taux TVA / Montant TVA n''apparaît que si l''avoir porte de la TVA ;
+  le total de l''avoir reste toujours affiché.
+- Dès qu''une remise ou une TVA existe, l''affichage reste identique à avant.
+
+Fichiers modifiés :
+
+- `resources/views/main/modules/accounting/sales-invoice-print.blade.php`
+- `resources/views/main/modules/accounting/proforma-invoice-print.blade.php`
+- `resources/views/main/modules/accounting/purchase-order-print.blade.php`
+- `resources/views/main/modules/accounting/credit-note-print.blade.php`
+- `docs/prompts/project-history.md`

@@ -1040,7 +1040,7 @@ class ArchivingController extends Controller
     private function storeArchiveFile(Request $request): ?string
     {
         return $request->hasFile('file')
-            ? $request->file('file')->store('archives', 'public')
+            ? $request->file('file')->store('archives', 'local')
             : null;
     }
 

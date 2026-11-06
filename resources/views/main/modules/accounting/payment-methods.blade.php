@@ -15,7 +15,8 @@
         $currentLocale = app()->getLocale();
         $moduleRoute = route('main.companies.sites.modules.show', [$company, $site, $module]);
         $totalRecords = $paymentMethods->total();
-        $hasPaymentMethodErrors = $errors->any();
+        $hasCashMovementErrors = $errors->any() && old('cash_movement_method_id');
+        $hasPaymentMethodErrors = $errors->any() && ! $hasCashMovementErrors;
         $isEditingPaymentMethod = old('form_mode') === 'edit' && old('payment_method_id');
         $formAction = $isEditingPaymentMethod
             ? route('main.accounting.payment-methods.update', [$company, $site, old('payment_method_id')])
@@ -101,9 +102,10 @@
                                     <th><button class="table-sort" type="button" data-sort-index="1">{{ __('main.payment_method') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="2">{{ __('main.payment_method_type') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th><button class="table-sort" type="button" data-sort-index="3">{{ __('main.currency') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    <th><button class="table-sort" type="button" data-sort-index="4">{{ __('main.bank_information') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    <th><button class="table-sort" type="button" data-sort-index="5">{{ __('main.default_payment_method') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    <th><button class="table-sort" type="button" data-sort-index="6">{{ __('main.status') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="4" data-sort-type="number">{{ __('main.cash_balance') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="5">{{ __('main.bank_information') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="6">{{ __('main.default_payment_method') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="7">{{ __('main.status') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th class="text-end">{{ __('admin.actions') }}</th>
                                 </tr>
                             </thead>
@@ -113,6 +115,8 @@
                                         $bankSummary = $method->type === \App\Models\AccountingPaymentMethod::TYPE_BANK
                                             ? trim(collect([$method->bank_name, $method->account_number])->filter()->implode(' - '))
                                             : null;
+                                        $isCashMethod = $method->isCash();
+                                        $cashBalance = $isCashMethod ? (float) ($cashBalances[$method->id] ?? 0) : null;
                                     @endphp
                                     <tr>
                                         <td>{{ ($paymentMethods->firstItem() ?? 1) + $loop->index }}</td>
@@ -124,6 +128,13 @@
                                         </td>
                                         <td>{{ $typeLabels[$method->type] ?? $method->type }}</td>
                                         <td>{{ $method->currency_code }}</td>
+                                        <td data-sort-value="{{ $isCashMethod ? $cashBalance : '' }}">
+                                            @if ($isCashMethod)
+                                                <strong class="{{ $cashBalance > 0 ? 'text-success' : 'text-danger' }}">{{ number_format($cashBalance, 2, ',', ' ') }} {{ $method->currency_code }}</strong>
+                                            @else
+                                                -
+                                            @endif
+                                        </td>
                                         <td>{{ $bankSummary !== '' ? ($bankSummary ?: '-') : '-' }}</td>
                                         <td>
                                             <span class="status-pill {{ $method->is_default ? 'payment-method-status-default' : 'payment-method-status-secondary' }}">
@@ -133,6 +144,11 @@
                                         <td><span class="status-pill payment-method-status-{{ $method->status }}">{{ $statusLabels[$method->status] ?? $method->status }}</span></td>
                                         <td>
                                             <div class="table-actions">
+                                                @if ($isCashMethod)
+                                                    <button type="button" class="table-button table-button-history" data-bs-toggle="modal" data-bs-target="#cashFundModal{{ $method->id }}" aria-label="{{ __('main.manage_cash_fund') }}" title="{{ __('main.manage_cash_fund') }}">
+                                                        <i class="bi bi-safe2" aria-hidden="true"></i>
+                                                    </button>
+                                                @endif
                                                 @if ($method->is_system_default)
                                                     <button type="button" class="table-button table-button-history" data-bs-toggle="modal" data-bs-target="#paymentMethodReceiptsModal{{ $method->id }}" aria-label="{{ __('main.view_receipts') }}" title="{{ __('main.view_receipts') }}">
                                                         <i class="bi bi-cash-coin" aria-hidden="true"></i>
@@ -155,7 +171,7 @@
                                                             <i class="bi bi-pencil" aria-hidden="true"></i>
                                                         </button>
                                                     @endif
-                                                    @if ($paymentMethodPermissions['can_delete'] && ! $method->is_default && (int) $method->sales_invoice_payments_count === 0 && (int) $method->debtor_payments_count === 0 && (int) $method->other_incomes_count === 0 && (int) $method->purchase_payments_count === 0 && (int) $method->creditor_payments_count === 0 && (int) $method->expenses_count === 0 && (int) $method->bank_reconciliations_count === 0)
+                                                    @if ($paymentMethodPermissions['can_delete'] && ! $method->is_default && (int) $method->sales_invoice_payments_count === 0 && (int) $method->debtor_payments_count === 0 && (int) $method->other_incomes_count === 0 && (int) $method->purchase_payments_count === 0 && (int) $method->creditor_payments_count === 0 && (int) $method->expenses_count === 0 && (int) $method->bank_reconciliations_count === 0 && (int) $method->cash_movements_count === 0)
                                                         <form method="POST" action="{{ route('main.accounting.payment-methods.destroy', [$company, $site, $method]) }}">
                                                             @csrf
                                                             @method('DELETE')
@@ -169,9 +185,9 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr class="empty-row"><td colspan="8">{{ __('main.no_payment_methods') }}</td></tr>
+                                    <tr class="empty-row"><td colspan="9">{{ __('main.no_payment_methods') }}</td></tr>
                                 @endforelse
-                                <tr class="empty-row search-empty-row" hidden><td colspan="8">{{ __('admin.no_results') }}</td></tr>
+                                <tr class="empty-row search-empty-row" hidden><td colspan="9">{{ __('admin.no_results') }}</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -485,6 +501,74 @@
                 </div>
             </div>
         </div>
+
+        @if ($method->isCash())
+            @php
+                $methodCashBalance = (float) ($cashBalances[$method->id] ?? 0);
+                $reopenCashModal = $hasCashMovementErrors && (int) old('cash_movement_method_id') === $method->id;
+            @endphp
+            <div class="modal fade subscription-modal related-table-modal payment-method-receipts-modal" id="cashFundModal{{ $method->id }}" tabindex="-1" aria-labelledby="cashFundModal{{ $method->id }}Label" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content admin-form modal-table-dialog">
+                        <div class="modal-body">
+                            <button type="button" class="modal-close" data-bs-dismiss="modal" aria-label="{{ __('admin.close') }}"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                            <h2 id="cashFundModal{{ $method->id }}Label">
+                                <i class="bi bi-safe2" aria-hidden="true"></i>
+                                {{ __('main.cash_fund_title', ['name' => $method->name]) }}
+                            </h2>
+
+                            <div class="modal-total-strip">
+                                <span>{{ __('main.cash_balance') }}</span>
+                                <strong class="{{ $methodCashBalance > 0 ? 'text-success' : 'text-danger' }}">{{ number_format($methodCashBalance, 2, ',', ' ') }} {{ $method->currency_code }}</strong>
+                            </div>
+
+                            @if ($paymentMethodPermissions['can_create'])
+                                <form method="POST" action="{{ route('main.accounting.payment-methods.cash-movements.store', [$company, $site, $method]) }}" novalidate>
+                                    @csrf
+                                    <input type="hidden" name="cash_movement_method_id" value="{{ $method->id }}">
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label for="cash_type_{{ $method->id }}" class="form-label">{{ __('main.cash_movement_type') }} *</label>
+                                            <select id="cash_type_{{ $method->id }}" name="cash_type" class="form-select @if ($reopenCashModal) @error('cash_type') is-invalid @enderror @endif">
+                                                @foreach ($cashMovementTypeLabels as $value => $label)
+                                                    <option value="{{ $value }}" @selected($reopenCashModal && old('cash_type') === $value)>{{ $label }}</option>
+                                                @endforeach
+                                            </select>
+                                            @if ($reopenCashModal) @error('cash_type')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror @endif
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="cash_movement_date_{{ $method->id }}" class="form-label">{{ __('main.cash_movement_date') }} *</label>
+                                            <input type="date" id="cash_movement_date_{{ $method->id }}" name="cash_movement_date" class="form-control @if ($reopenCashModal) @error('cash_movement_date') is-invalid @enderror @endif" value="{{ $reopenCashModal ? old('cash_movement_date', now()->format('Y-m-d')) : now()->format('Y-m-d') }}">
+                                            @if ($reopenCashModal) @error('cash_movement_date')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror @endif
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="cash_amount_{{ $method->id }}" class="form-label">{{ __('main.amount') }} ({{ $method->currency_code }}) *</label>
+                                            <input type="number" step="0.01" min="0.01" id="cash_amount_{{ $method->id }}" name="cash_amount" class="form-control @if ($reopenCashModal) @error('cash_amount') is-invalid @enderror @endif" value="{{ $reopenCashModal ? old('cash_amount') : '' }}">
+                                            @if ($reopenCashModal) @error('cash_amount')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror @endif
+                                        </div>
+                                        <div class="col-12">
+                                            <label for="cash_label_{{ $method->id }}" class="form-label">{{ __('main.cash_movement_label') }} *</label>
+                                            <input id="cash_label_{{ $method->id }}" name="cash_label" class="form-control @if ($reopenCashModal) @error('cash_label') is-invalid @enderror @endif" value="{{ $reopenCashModal ? old('cash_label') : '' }}" placeholder="{{ __('main.cash_movement_label_placeholder') }}">
+                                            @if ($reopenCashModal) @error('cash_label')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror @endif
+                                        </div>
+                                        <div class="col-12">
+                                            <label for="cash_notes_{{ $method->id }}" class="form-label">{{ __('main.cash_movement_notes') }}</label>
+                                            <textarea id="cash_notes_{{ $method->id }}" name="cash_notes" rows="2" class="form-control">{{ $reopenCashModal ? old('cash_notes') : '' }}</textarea>
+                                        </div>
+                                    </div>
+                                    <div class="modal-actions">
+                                        <button type="button" class="modal-cancel" data-bs-dismiss="modal">{{ __('admin.cancel') }}</button>
+                                        <button class="modal-submit" type="submit">{{ __('main.cash_movement_save') }}</button>
+                                    </div>
+                                </form>
+                            @endif
+
+                            <p class="text-muted mb-0" style="font-size: .82rem;">{{ __('main.cash_fund_history_hint') }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
     @endforeach
 
     <div class="modal fade subscription-modal accounting-payment-method-modal" id="paymentMethodModal" tabindex="-1" aria-labelledby="paymentMethodModalLabel" aria-hidden="true">
@@ -602,6 +686,17 @@
         <script>
             document.addEventListener('DOMContentLoaded', () => {
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('paymentMethodModal')).show();
+            });
+        </script>
+    @endif
+    @if ($hasCashMovementErrors)
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const cashModal = document.getElementById('cashFundModal{{ (int) old('cash_movement_method_id') }}');
+
+                if (cashModal) {
+                    bootstrap.Modal.getOrCreateInstance(cashModal).show();
+                }
             });
         </script>
     @endif

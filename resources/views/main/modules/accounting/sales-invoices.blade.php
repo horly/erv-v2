@@ -67,6 +67,13 @@
                         <i class="bi bi-search" aria-hidden="true"></i>
                         <input type="search" id="companySearch" placeholder="{{ __('admin.search') }}" autocomplete="off">
                     </label>
+                    <form method="GET" action="{{ route('main.accounting.sales-invoices', [$company, $site]) }}">
+                        <select name="tax_status" class="form-select" aria-label="{{ __('main.invoice_tax_status') }}" onchange="this.form.submit()">
+                            <option value="">{{ __('main.invoice_tax_filter_all') }}</option>
+                            <option value="pending" @selected($taxStatusFilter === 'pending')>{{ __('main.invoice_tax_pending') }}</option>
+                            <option value="paid" @selected($taxStatusFilter === 'paid')>{{ __('main.invoice_tax_paid') }}</option>
+                        </select>
+                    </form>
                     <span class="row-count">
                         <strong id="visibleCount">{{ $invoices->count() }}</strong>
                         /
@@ -89,7 +96,8 @@
                                     <th class="text-end"><button class="table-sort" type="button" data-sort-index="6" data-sort-type="number">{{ __('main.paid_total') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th class="text-end"><button class="table-sort" type="button" data-sort-index="7" data-sort-type="number">{{ __('main.credit_total') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th class="text-end"><button class="table-sort" type="button" data-sort-index="8" data-sort-type="number">{{ __('main.balance_due') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
-                                    <th><button class="table-sort" type="button" data-sort-index="9">{{ __('main.status') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="9" data-sort-type="number">{{ __('main.vat') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="10">{{ __('main.status') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                     <th class="text-end">{{ __('admin.actions') }}</th>
                                 </tr>
                             </thead>
@@ -105,6 +113,19 @@
                                         <td class="amount-cell text-end" data-sort-value="{{ $invoice->paid_total }}">{{ number_format((float) $invoice->paid_total, 2, ',', ' ') }} {{ $invoice->currency }}</td>
                                         <td class="amount-cell text-end" data-sort-value="{{ $invoice->credit_total }}">{{ number_format((float) $invoice->credit_total, 2, ',', ' ') }} {{ $invoice->currency }}</td>
                                         <td class="amount-cell text-end" data-sort-value="{{ $invoice->balance_due }}">{{ number_format((float) $invoice->balance_due, 2, ',', ' ') }} {{ $invoice->currency }}</td>
+                                        <td data-sort-value="{{ $invoice->hasTax() ? $invoice->tax_amount : '' }}">
+                                            @if ($invoice->hasTax())
+                                                <strong class="d-block">{{ number_format((float) $invoice->tax_amount, 2, ',', ' ') }} {{ $invoice->currency }}</strong>
+                                                @if ($invoice->isTaxPaid())
+                                                    <span class="status-pill sales-invoice-status-paid">{{ __('main.invoice_tax_paid') }}</span>
+                                                    <small class="d-block text-muted">{{ optional($invoice->tax_paid_at)->format('d/m/Y') }}{{ $invoice->tax_payment_reference ? ' · '.$invoice->tax_payment_reference : '' }}</small>
+                                                @else
+                                                    <span class="status-pill sales-invoice-status-overdue">{{ __('main.invoice_tax_pending') }}</span>
+                                                @endif
+                                            @else
+                                                -
+                                            @endif
+                                        </td>
                                         <td><span class="status-pill sales-invoice-status-{{ $invoice->status }}">{{ $statusLabels[$invoice->status] ?? $invoice->status }}</span></td>
                                         <td>
                                             <div class="table-actions">
@@ -131,6 +152,20 @@
                                                         <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
                                                     </a>
                                                 @endif
+                                                @if ($invoicePermissions['can_update'] && $invoice->hasTax() && ! $invoice->isTaxPaid() && $invoice->isFullySettled())
+                                                    <button class="table-button table-button-history" type="button" data-bs-toggle="modal" data-bs-target="#salesInvoiceTaxModal{{ $invoice->id }}" aria-label="{{ __('main.mark_invoice_tax_paid') }}" title="{{ __('main.mark_invoice_tax_paid') }}">
+                                                        <i class="bi bi-percent" aria-hidden="true"></i>
+                                                    </button>
+                                                @endif
+                                                @if ($invoicePermissions['can_update'] && $invoice->isTaxPaid())
+                                                    <form method="POST" action="{{ route('main.accounting.sales-invoices.tax-payment.destroy', [$company, $site, $invoice]) }}">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="button" class="table-button table-button-delete" aria-label="{{ __('main.unmark_invoice_tax_paid') }}" title="{{ __('main.unmark_invoice_tax_paid') }}" data-delete-trigger data-delete-title="{{ __('main.unmark_invoice_tax_paid') }}" data-delete-text="{{ __('main.unmark_invoice_tax_text', ['reference' => $invoice->reference]) }}" data-delete-confirm="{{ __('admin.delete_user_confirm') }}" data-delete-cancel="{{ __('admin.delete_user_cancel') }}">
+                                                            <i class="bi bi-percent" aria-hidden="true"></i>
+                                                        </button>
+                                                    </form>
+                                                @endif
                                                 @if ($invoicePermissions['can_update'] && $invoice->isEditable())
                                                     <a class="table-button table-button-edit" href="{{ route('main.accounting.sales-invoices.edit', [$company, $site, $invoice]) }}" aria-label="{{ __('admin.edit') }}">
                                                         <i class="bi bi-pencil" aria-hidden="true"></i>
@@ -149,9 +184,9 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr class="empty-row"><td colspan="11">{{ __('main.no_sales_invoices') }}</td></tr>
+                                    <tr class="empty-row"><td colspan="12">{{ __('main.no_sales_invoices') }}</td></tr>
                                 @endforelse
-                                <tr class="empty-row search-empty-row" hidden><td colspan="11">{{ __('admin.no_results') }}</td></tr>
+                                <tr class="empty-row search-empty-row" hidden><td colspan="12">{{ __('admin.no_results') }}</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -174,6 +209,39 @@
     </div>
 
     @foreach ($invoices as $invoice)
+        @if ($invoicePermissions['can_update'] && $invoice->hasTax() && ! $invoice->isTaxPaid() && $invoice->isFullySettled())
+            <div class="modal fade subscription-modal" id="salesInvoiceTaxModal{{ $invoice->id }}" tabindex="-1" aria-labelledby="salesInvoiceTaxModal{{ $invoice->id }}Label" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <form class="modal-content admin-form" method="POST" action="{{ route('main.accounting.sales-invoices.tax-payment.store', [$company, $site, $invoice]) }}" novalidate>
+                        @csrf
+                        <div class="modal-body">
+                            <button type="button" class="modal-close" data-bs-dismiss="modal" aria-label="{{ __('admin.close') }}"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                            <h2 id="salesInvoiceTaxModal{{ $invoice->id }}Label">
+                                <i class="bi bi-percent" aria-hidden="true"></i>
+                                {{ __('main.mark_invoice_tax_paid') }}
+                            </h2>
+
+                            <div class="modal-total-strip">
+                                <span>{{ $invoice->reference }} · {{ __('main.vat') }}</span>
+                                <strong>{{ number_format((float) $invoice->tax_amount, 2, ',', ' ') }} {{ $invoice->currency }}</strong>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label for="tax_payment_reference_{{ $invoice->id }}" class="form-label">{{ __('main.invoice_tax_reference') }}</label>
+                                    <input id="tax_payment_reference_{{ $invoice->id }}" name="tax_payment_reference" class="form-control" placeholder="{{ __('main.invoice_tax_reference_placeholder') }}">
+                                </div>
+                            </div>
+
+                            <div class="modal-actions">
+                                <button type="button" class="modal-cancel" data-bs-dismiss="modal">{{ __('admin.cancel') }}</button>
+                                <button class="modal-submit" type="submit">{{ __('main.mark_invoice_tax_paid') }}</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
         @if ($invoice->payments->isNotEmpty())
             <div class="modal fade subscription-modal related-table-modal sales-invoice-payments-history-modal" id="salesInvoicePaymentsHistoryModal{{ $invoice->id }}" tabindex="-1" aria-labelledby="salesInvoicePaymentsHistoryModal{{ $invoice->id }}Label" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">

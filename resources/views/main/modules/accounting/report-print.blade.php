@@ -107,6 +107,36 @@
                     <tr><td class="empty" colspan="7">{{ __('main.report_no_results') }}</td></tr>
                 @endforelse
             </tbody>
+        @elseif ($section === 'vat')
+            <thead><tr>
+                <th>{{ __('main.reference') }}</th>
+                <th>{{ __('main.customer') }}</th>
+                <th>{{ __('main.date') }}</th>
+                <th class="right">{{ __('main.total_ttc') }}</th>
+                <th class="right">{{ __('main.vat') }}</th>
+                <th>{{ __('main.status') }}</th>
+                <th>{{ __('main.invoice_tax_status') }}</th>
+            </tr></thead>
+            <tbody>
+                @forelse ($records as $record)
+                    <tr>
+                        <td>{{ $record->reference }}</td>
+                        <td>{{ $record->client?->display_name ?: '-' }}</td>
+                        <td>{{ optional($record->invoice_date)->format('d/m/Y') }}</td>
+                        <td class="right">{{ $money($record->total_ttc) }}</td>
+                        <td class="right">{{ $money($record->tax_amount) }}</td>
+                        <td class="status">{{ $salesInvoiceStatuses[$record->status] ?? $record->status }}</td>
+                        <td class="status">
+                            {{ $record->isTaxPaid() ? __('main.invoice_tax_paid') : __('main.invoice_tax_pending') }}
+                            @if ($record->isTaxPaid())
+                                <br>{{ optional($record->tax_paid_at)->format('d/m/Y') }}{{ $record->tax_payment_reference ? ' | '.$record->tax_payment_reference : '' }}
+                            @endif
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td class="empty" colspan="7">{{ __('main.report_no_results') }}</td></tr>
+                @endforelse
+            </tbody>
         @elseif ($section === 'receipts')
             <thead><tr>
                 <th>{{ __('main.payment_date') }}</th>

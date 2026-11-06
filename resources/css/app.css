@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+﻿@import 'tailwindcss';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -6,5 +6,5 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: "JetBrains Mono", monospace;
+    --font-sans: 'Inter Variable', 'Segoe UI', sans-serif;
 }

@@ -3248,6 +3248,8 @@ class ExampleTest extends TestCase
 
     public function test_accounting_proforma_invoices_page_manages_proformas_with_global_vat(): void
     {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-05-07 12:00:00'));
+
         $subscription = Subscription::create([
             'name' => 'Accounting Proformas',
             'code' => 'ACCOUNTING_PROFORMAS',
@@ -3352,7 +3354,7 @@ class ExampleTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame('Routeur fournisseur', session()->getOldInput('lines.0.description'));
-        $this->assertSame('2.00', session()->getOldInput('lines.0.quantity'));
+        $this->assertSame('2', session()->getOldInput('lines.0.quantity'));
         $this->assertSame('125.00', session()->getOldInput('lines.0.cost_price'));
         $this->assertSame('1', session()->getOldInput('lines.0.create_stock_item'));
         $this->assertSame('Support premium', session()->getOldInput('lines.1.description'));
@@ -3411,7 +3413,7 @@ class ExampleTest extends TestCase
 
         $this->assertDatabaseHas('accounting_proforma_invoices', [
             'id' => $proforma->id,
-            'reference' => 'PRO-000001',
+            'reference' => 'PRO-PA-000001-2026',
             'client_id' => $client->id,
             'payment_terms' => AccountingProformaInvoice::PAYMENT_HALF_ORDER,
             'subtotal' => 250,
@@ -3504,7 +3506,7 @@ class ExampleTest extends TestCase
 
         $this->actingAs($admin)->get($route)
             ->assertOk()
-            ->assertSee('PRO-000001')
+            ->assertSee('PRO-PA-000001-2026')
             ->assertSee('Client Proforma')
             ->assertSee('198,00 CDF', false)
             ->assertSee(route('main.accounting.proforma-invoices.print', [$company, $site, $proforma]), false)
@@ -3522,7 +3524,7 @@ class ExampleTest extends TestCase
 
         $this->assertDatabaseHas('accounting_customer_orders', [
             'id' => $order->id,
-            'reference' => 'CMD-000001',
+            'reference' => 'CMD-PA-000001-2026',
             'client_id' => $client->id,
             'proforma_invoice_id' => $proforma->id,
             'status' => AccountingCustomerOrder::STATUS_CONFIRMED,
@@ -3563,6 +3565,8 @@ class ExampleTest extends TestCase
 
     public function test_accounting_customer_orders_page_manages_orders_with_item_margins(): void
     {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-05-07 12:00:00'));
+
         $subscription = Subscription::create([
             'name' => 'Accounting Orders',
             'code' => 'ACCOUNTING_ORDERS',
@@ -3712,7 +3716,7 @@ class ExampleTest extends TestCase
 
         $this->assertDatabaseHas('accounting_customer_orders', [
             'id' => $order->id,
-            'reference' => 'CMD-000001',
+            'reference' => 'CMD-OA-000001-2026',
             'client_id' => $client->id,
             'subtotal' => 250,
             'cost_total' => 190,
@@ -3756,7 +3760,7 @@ class ExampleTest extends TestCase
 
         $this->actingAs($admin)->get($route)
             ->assertOk()
-            ->assertSee('CMD-000001')
+            ->assertSee('CMD-OA-000001-2026')
             ->assertSee('Client Commande')
             ->assertSee('50,00 CDF', false)
             ->assertSee('278,40 CDF', false);
@@ -3764,6 +3768,8 @@ class ExampleTest extends TestCase
 
     public function test_accounting_sales_invoices_page_manages_invoice_payments_and_pdf(): void
     {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-05-07 12:00:00'));
+
         $subscription = Subscription::create([
             'name' => 'Sales Invoices',
             'code' => 'SALES_INVOICES',
@@ -3869,7 +3875,7 @@ class ExampleTest extends TestCase
 
         $this->assertDatabaseHas('accounting_sales_invoices', [
             'id' => $invoice->id,
-            'reference' => 'FAC-000001',
+            'reference' => 'FAC-IA-000001-2026',
             'client_id' => $client->id,
             'status' => AccountingSalesInvoice::STATUS_ISSUED,
             'subtotal' => 200,
@@ -3888,7 +3894,7 @@ class ExampleTest extends TestCase
 
         $this->actingAs($admin)->get($route)
             ->assertOk()
-            ->assertSee('FAC-000001')
+            ->assertSee('FAC-IA-000001-2026')
             ->assertSee('Client Facture')
             ->assertSee('220,40 CDF', false)
             ->assertSee(__('main.sales_invoice_status_issued'), false)
@@ -3939,7 +3945,7 @@ class ExampleTest extends TestCase
         $this->actingAs($admin)->get($route)
             ->assertOk()
             ->assertSee(__('main.view_payments'), false)
-            ->assertSee(__('main.sales_invoice_payments_title', ['reference' => 'FAC-000001']), false)
+            ->assertSee(__('main.sales_invoice_payments_title', ['reference' => 'FAC-IA-000001-2026']), false)
             ->assertSee('PAY-CLIENT-1')
             ->assertSee('120,40 CDF', false)
             ->assertSee('Caisse CDF');
@@ -3978,7 +3984,7 @@ class ExampleTest extends TestCase
         ])->assertRedirect(route('main.accounting.credit-notes', [$company, $site]));
 
         $this->assertDatabaseHas('accounting_credit_notes', [
-            'reference' => 'AVR-000001',
+            'reference' => 'AVR-IA-000001-2026',
             'sales_invoice_id' => $invoice->id,
             'client_id' => $client->id,
             'status' => AccountingCreditNote::STATUS_VALIDATED,
@@ -3992,8 +3998,8 @@ class ExampleTest extends TestCase
         $this->actingAs($admin)
             ->get(route('main.accounting.credit-notes', [$company, $site]))
             ->assertOk()
-            ->assertSee('AVR-000001')
-            ->assertSee('FAC-000001')
+            ->assertSee('AVR-IA-000001-2026')
+            ->assertSee('FAC-IA-000001-2026')
             ->assertSee('58,00 CDF', false);
 
         $creditNote = AccountingCreditNote::query()->firstOrFail();
@@ -4475,6 +4481,8 @@ class ExampleTest extends TestCase
 
     public function test_accounting_delivery_notes_create_partial_delivery_release_stock_and_print_pdf(): void
     {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-05-07 12:00:00'));
+
         $subscription = Subscription::create([
             'name' => 'Delivery Notes',
             'code' => 'DELIVERY_NOTES',
@@ -4616,7 +4624,7 @@ class ExampleTest extends TestCase
             ->assertSee(__('main.quantity_to_deliver'), false)
             ->assertSee(__('main.serial_numbers'), false)
             ->assertSee('Serveur livraison', false)
-            ->assertSee('5,00', false);
+            ->assertSee('value="5" placeholder="0" data-delivery-quantity', false);
 
         $this->actingAs($admin)->post(route('main.accounting.delivery-notes.store', [$company, $site]), [
             'customer_order_id' => $order->id,
@@ -4639,7 +4647,7 @@ class ExampleTest extends TestCase
 
         $this->assertDatabaseHas('accounting_delivery_notes', [
             'id' => $deliveryNote->id,
-            'reference' => 'BL-000001',
+            'reference' => 'BL-DA-000001-2026',
             'customer_order_id' => $order->id,
             'client_id' => $client->id,
             'status' => AccountingDeliveryNote::STATUS_PARTIAL,
@@ -4828,11 +4836,11 @@ class ExampleTest extends TestCase
             ->get($createRoute)
             ->assertOk()
             ->assertSee('Serveur HP Proliant380 gen10', false)
-            ->assertSee('1,00', false)
-            ->assertDontSee('value=\"0,00\"', false);
+            ->assertSee('value="1" placeholder="0" data-delivery-quantity', false)
+            ->assertDontSee('value="0" placeholder="0" data-delivery-quantity', false);
     }
 
-    public function test_non_accounting_module_opens_under_development_page(): void
+    public function test_human_resources_module_opens_dashboard(): void
     {
         $subscription = Subscription::create([
             'name' => 'HR Module',
@@ -4871,9 +4879,11 @@ class ExampleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee(__('main.module_human_resources'), false);
-        $response->assertSee(__('main.module_human_resources_description'), false);
-        $response->assertSee(__('main.module_under_development'), false);
-        $response->assertSee(__('main.connected_as', ['name' => $admin->name]), false);
+        $response->assertSee('<body class="accounting-module-body human-resources-module-body">', false);
+        $response->assertSee(__('main.hr_dashboard'), false);
+        $response->assertSee(__('main.hr_dashboard_subtitle'), false);
+        $response->assertDontSee(__('main.module_under_development'), false);
+        $response->assertSee($site->name, false);
     }
 
     public function test_assigned_user_only_sees_site_modules_from_permissions(): void

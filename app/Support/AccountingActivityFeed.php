@@ -59,6 +59,7 @@ use App\Models\HumanResourceEmployee;
 use App\Models\HumanResourceLeaveRequest;
 use App\Models\HumanResourcePayrollEntry;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
@@ -68,7 +69,7 @@ class AccountingActivityFeed
     {
         self::syncSite($site, $moduleGroup);
 
-        return AccountingNotification::query()
+        return self::visibleToUser(AccountingNotification::query(), $user)
             ->with(['actor:id,name,email', 'reads' => fn ($query) => $user ? $query->where('user_id', $user->id) : $query->whereRaw('1 = 0')])
             ->where('company_site_id', $site->id)
             ->when($moduleGroup, fn ($query) => $query->whereIn('module_key', self::moduleKeys($moduleGroup)))
@@ -84,13 +85,37 @@ class AccountingActivityFeed
     {
         self::syncSite($site, $moduleGroup);
 
-        return AccountingNotification::query()
+        return self::visibleToUser(AccountingNotification::query(), $user)
             ->where('company_site_id', $site->id)
             ->when($moduleGroup, fn ($query) => $query->whereIn('module_key', self::moduleKeys($moduleGroup)))
             ->whereDoesntHave('reads', fn ($query) => $query
                 ->where('user_id', $user->id)
                 ->whereNotNull('read_at'))
             ->count();
+    }
+
+    public static function visibleToUser(Builder $query, ?User $user): Builder
+    {
+        if (! $user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if (! $user->isUser()) {
+            return $query;
+        }
+
+        // Match the cash register's ownership restriction in every notification surface.
+        return $query->where(function (Builder $notificationQuery) use ($user): void {
+            $notificationQuery
+                ->where('subject_type', '!=', AccountingSalesInvoice::class)
+                ->orWhereIn('subject_id', AccountingSalesInvoice::query()
+                    ->select('id')
+                    ->whereColumn('company_site_id', 'accounting_notifications.company_site_id')
+                    ->where(fn (Builder $invoiceQuery) => $invoiceQuery
+                        ->whereNull('title')
+                        ->orWhere('title', '!=', AccountingSalesInvoice::TITLE_CASH_REGISTER)
+                        ->orWhere('created_by', $user->id)));
+        });
     }
 
     public static function syncSite(CompanySite $site, ?string $moduleGroup = null): void

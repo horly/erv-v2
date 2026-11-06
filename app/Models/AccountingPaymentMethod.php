@@ -41,6 +41,7 @@ class AccountingPaymentMethod extends Model
         'description',
         'is_default',
         'is_system_default',
+        'cash_tracking_started_at',
         'status',
     ];
 
@@ -49,6 +50,7 @@ class AccountingPaymentMethod extends Model
         return [
             'is_default' => 'boolean',
             'is_system_default' => 'boolean',
+            'cash_tracking_started_at' => 'datetime',
         ];
     }
 
@@ -95,6 +97,11 @@ class AccountingPaymentMethod extends Model
     public function bankReconciliations(): HasMany
     {
         return $this->hasMany(AccountingBankReconciliation::class, 'payment_method_id');
+    }
+
+    public function isCash(): bool
+    {
+        return $this->type === self::TYPE_CASH;
     }
 
     public static function types(): array

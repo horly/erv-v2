@@ -178,10 +178,15 @@
                     @endif
                 </td>
                 <td class="summary-right">
+                    @php
+                        $hasVat = (float) $creditNote->tax_amount > 0 || (float) $creditNote->tax_rate > 0;
+                    @endphp
                     <table class="totals">
-                        <tr><td class="label">{{ __('main.total_ht') }} :</td><td class="value">{{ $formatAmount($creditNote->subtotal) }} {{ $currency }}</td></tr>
-                        <tr><td class="label">{{ __('main.global_vat_rate') }} (%) :</td><td class="value">{{ $formatAmount($creditNote->tax_rate) }} %</td></tr>
-                        <tr><td class="label">{{ __('main.vat_amount') }} :</td><td class="value">{{ $formatAmount($creditNote->tax_amount) }} {{ $currency }}</td></tr>
+                        @if ($hasVat)
+                            <tr><td class="label">{{ __('main.total_ht') }} :</td><td class="value">{{ $formatAmount($creditNote->subtotal) }} {{ $currency }}</td></tr>
+                            <tr><td class="label">{{ __('main.global_vat_rate') }} (%) :</td><td class="value">{{ $formatAmount($creditNote->tax_rate) }} %</td></tr>
+                            <tr><td class="label">{{ __('main.vat_amount') }} :</td><td class="value">{{ $formatAmount($creditNote->tax_amount) }} {{ $currency }}</td></tr>
+                        @endif
                     </table>
                     <table class="grand-total">
                         <tr>

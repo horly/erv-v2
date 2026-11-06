@@ -15,6 +15,11 @@ Route::get('/public-storage/{path}', [PublicStorageController::class, 'show'])
     ->where('path', '.*')
     ->name('public.storage');
 
+Route::get('/private-storage/{path}', [PublicStorageController::class, 'showPrivate'])
+    ->where('path', '.*')
+    ->middleware('auth')
+    ->name('private.storage');
+
 Route::controller(MainController::class)->group(function (): void {
     Route::get('/', 'root');
 
@@ -198,6 +203,7 @@ Route::controller(MainController::class)->group(function (): void {
         Route::post('/main/companies/{company}/sites/{site}/modules/accounting/payment-methods', 'storeAccountingPaymentMethod')->name('main.accounting.payment-methods.store');
         Route::put('/main/companies/{company}/sites/{site}/modules/accounting/payment-methods/{method}', 'updateAccountingPaymentMethod')->name('main.accounting.payment-methods.update');
         Route::delete('/main/companies/{company}/sites/{site}/modules/accounting/payment-methods/{method}', 'destroyAccountingPaymentMethod')->name('main.accounting.payment-methods.destroy');
+        Route::post('/main/companies/{company}/sites/{site}/modules/accounting/payment-methods/{method}/cash-movements', 'storeAccountingPaymentMethodCashMovement')->name('main.accounting.payment-methods.cash-movements.store');
         Route::get('/main/companies/{company}/sites/{site}/modules/accounting/taxes', 'accountingTaxes')->name('main.accounting.taxes');
         Route::post('/main/companies/{company}/sites/{site}/modules/accounting/taxes', 'storeAccountingTax')->name('main.accounting.taxes.store');
         Route::put('/main/companies/{company}/sites/{site}/modules/accounting/taxes/{tax}', 'updateAccountingTax')->name('main.accounting.taxes.update');
@@ -301,6 +307,8 @@ Route::controller(MainController::class)->group(function (): void {
         Route::put('/main/companies/{company}/sites/{site}/modules/accounting/sales-invoices/{invoice}', 'updateAccountingSalesInvoice')->name('main.accounting.sales-invoices.update');
         Route::get('/main/companies/{company}/sites/{site}/modules/accounting/sales-invoices/{invoice}/print', 'printAccountingSalesInvoice')->name('main.accounting.sales-invoices.print');
         Route::post('/main/companies/{company}/sites/{site}/modules/accounting/sales-invoices/{invoice}/payments', 'storeAccountingSalesInvoicePayment')->name('main.accounting.sales-invoices.payments.store');
+        Route::post('/main/companies/{company}/sites/{site}/modules/accounting/sales-invoices/{invoice}/tax-payment', 'markAccountingSalesInvoiceTaxPaid')->name('main.accounting.sales-invoices.tax-payment.store');
+        Route::delete('/main/companies/{company}/sites/{site}/modules/accounting/sales-invoices/{invoice}/tax-payment', 'unmarkAccountingSalesInvoiceTaxPaid')->name('main.accounting.sales-invoices.tax-payment.destroy');
         Route::delete('/main/companies/{company}/sites/{site}/modules/accounting/sales-invoices/{invoice}', 'destroyAccountingSalesInvoice')->name('main.accounting.sales-invoices.destroy');
         Route::get('/main/companies/{company}/sites/{site}/modules/accounting/credit-notes', 'accountingCreditNotes')->name('main.accounting.credit-notes');
         Route::get('/main/companies/{company}/sites/{site}/modules/accounting/credit-notes/create', 'createAccountingCreditNote')->name('main.accounting.credit-notes.create');

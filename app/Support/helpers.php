@@ -44,6 +44,13 @@ if (! function_exists('public_storage_url')) {
     }
 }
 
+if (! function_exists('private_storage_url')) {
+    function private_storage_url(string $path): string
+    {
+        return url('private-storage/'.ltrim($path, '/'));
+    }
+}
+
 if (! function_exists('pdf_text')) {
     function pdf_text(mixed $value, string $default = '-'): string
     {

@@ -483,7 +483,7 @@ class MainController extends Controller
         AccountingActivityFeed::syncSite($site, CompanySite::MODULE_ACCOUNTING);
 
         $status = $request->query('status', 'all');
-        $notifications = AccountingNotification::query()
+        $notifications = AccountingActivityFeed::visibleToUser(AccountingNotification::query(), $user)
             ->with(['actor:id,name,email', 'reads' => fn ($query) => $query->where('user_id', $user->id)])
             ->where('company_site_id', $site->id)
             ->whereIn('module_key', AccountingActivityFeed::moduleKeys(CompanySite::MODULE_ACCOUNTING))
@@ -516,6 +516,9 @@ class MainController extends Controller
 
         abort_unless((int) $notification->company_site_id === (int) $site->id, Response::HTTP_NOT_FOUND);
         abort_unless(in_array($notification->module_key, AccountingActivityFeed::moduleKeys(CompanySite::MODULE_ACCOUNTING), true), Response::HTTP_NOT_FOUND);
+        abort_unless(AccountingActivityFeed::visibleToUser(AccountingNotification::query(), $user)
+            ->whereKey($notification->id)
+            ->exists(), Response::HTTP_NOT_FOUND);
 
         $notification->load(['actor:id,name,email', 'reads' => fn ($query) => $query->where('user_id', $user->id)]);
         $notification->markReadBy($user);
@@ -1736,14 +1739,7 @@ class MainController extends Controller
         $this->ensureDefaultAccountingCurrencyRecord($site);
         $this->ensureDefaultAccountingPaymentMethodRecord($site);
 
-        return view('main.modules.accounting.payment-methods', [
-            'user' => $user,
-            'company' => $company->load('subscription'),
-            'site' => $site->load('responsible'),
-            'module' => CompanySite::MODULE_ACCOUNTING,
-            'moduleMeta' => $moduleMeta,
-            'paymentMethodPermissions' => $this->sitePermissionFlags($user, $site),
-            'paymentMethods' => AccountingPaymentMethod::query()
+        $paymentMethods = AccountingPaymentMethod::query()
                 ->with([
                     'salesInvoicePayments.salesInvoice.client',
                     'salesInvoicePayments.receiver',
@@ -1792,7 +1788,26 @@ class MainController extends Controller
                 ->orderByDesc('is_default')
                 ->orderBy('name')
                 ->paginate(5)
-                ->withQueryString(),
+                ->withQueryString();
+
+        $cashBalances = $paymentMethods->getCollection()
+            ->filter(fn (AccountingPaymentMethod $method): bool => $method->isCash())
+            ->mapWithKeys(fn (AccountingPaymentMethod $method): array => [$method->id => $this->accountingCashMethodBalance($method)])
+            ->all();
+
+        return view('main.modules.accounting.payment-methods', [
+            'user' => $user,
+            'company' => $company->load('subscription'),
+            'site' => $site->load('responsible'),
+            'module' => CompanySite::MODULE_ACCOUNTING,
+            'moduleMeta' => $moduleMeta,
+            'paymentMethodPermissions' => $this->sitePermissionFlags($user, $site),
+            'paymentMethods' => $paymentMethods,
+            'cashBalances' => $cashBalances,
+            'cashMovementTypeLabels' => [
+                'funding' => __('main.cash_movement_funding'),
+                'withdrawal' => __('main.cash_movement_withdrawal'),
+            ],
             'typeLabels' => $this->paymentMethodTypeLabels(),
             'statusLabels' => $this->paymentMethodStatusLabels(),
             'currencyOptions' => $this->siteCurrencyOptions($site),
@@ -1922,6 +1937,84 @@ class MainController extends Controller
             ->route('main.accounting.payment-methods', [$company, $site])
             ->with('success', __('main.payment_method_deleted'))
             ->with('toast_type', 'danger');
+    }
+
+    public function storeAccountingPaymentMethodCashMovement(Request $request, Company $company, CompanySite $site, AccountingPaymentMethod $method): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ((int) $method->company_site_id !== (int) $site->id
+            || ! $method->isCash()
+            || ! $this->sitePermissionFlags($user, $site)['can_create']) {
+            return redirect()->route('main.accounting.payment-methods', [$company, $site]);
+        }
+
+        $validated = $request->validate([
+            'cash_movement_method_id' => ['required', 'integer'],
+            'cash_type' => ['required', Rule::in(['funding', 'withdrawal'])],
+            'cash_movement_date' => ['required', 'date'],
+            'cash_amount' => ['required', 'numeric', 'min:0.01'],
+            'cash_label' => ['required', 'string', 'max:255'],
+            'cash_notes' => ['nullable', 'string'],
+        ]);
+
+        $currency = strtoupper(trim((string) ($method->currency_code ?: $site->currency)));
+        $amount = round((float) $validated['cash_amount'], 2);
+
+        if ($validated['cash_type'] === 'funding') {
+            // L'approvisionnement de caisse est une entrée comme les autres :
+            // il est enregistré dans « Autres entrées » et suit son cycle de vie.
+            AccountingOtherIncome::query()->create([
+                'company_site_id' => $site->id,
+                'payment_method_id' => $method->id,
+                'created_by' => $user->id,
+                'income_date' => $validated['cash_movement_date'],
+                'type' => AccountingOtherIncome::TYPE_POSITIVE_ADJUSTMENT,
+                'label' => $validated['cash_label'],
+                'description' => $validated['cash_notes'] ?? null,
+                'amount' => $amount,
+                'currency' => $currency,
+                'status' => AccountingOtherIncome::STATUS_VALIDATED,
+            ]);
+
+            return redirect()
+                ->route('main.accounting.payment-methods', [$company, $site])
+                ->with('success', __('main.cash_funding_saved'));
+        }
+
+        // Le retrait de caisse est un décaissement comme les autres :
+        // il est enregistré dans « Dépenses » avec une catégorie dédiée.
+        $this->ensureDefaultAccountingExpenseCategories($site);
+        $category = AccountingExpenseCategory::query()
+            ->where('company_site_id', $site->id)
+            ->where('slug', 'operations-caisse')
+            ->first();
+
+        DB::transaction(function () use ($site, $method, $validated, $user, $currency, $amount, $category): void {
+            $this->ensureCashPaymentMethodCanDisburse($site, $method->id, $amount, $currency, 'cash_amount');
+
+            $site->accountingExpenses()->create([
+                'created_by' => $user->id,
+                'expense_category_id' => $category?->id,
+                'expense_date' => $validated['cash_movement_date'],
+                'label' => $validated['cash_label'],
+                'description' => $validated['cash_notes'] ?? null,
+                'amount' => $amount,
+                'currency' => $currency,
+                'payment_method_id' => $method->id,
+                'status' => AccountingExpense::STATUS_VALIDATED,
+            ]);
+        });
+
+        return redirect()
+            ->route('main.accounting.payment-methods', [$company, $site])
+            ->with('success', __('main.cash_withdrawal_saved'));
     }
 
     public function accountingTaxes(Request $request, Company $company, CompanySite $site): View|RedirectResponse
@@ -3288,7 +3381,7 @@ class MainController extends Controller
 
     private function accountingReportData(Request $request, CompanySite $site, bool $paginate = true): array
     {
-        $sections = ['sales', 'receipts', 'purchases', 'treasury', 'stock'];
+        $sections = ['sales', 'receipts', 'vat', 'purchases', 'treasury', 'stock'];
         $section = in_array($request->query('section'), $sections, true) ? (string) $request->query('section') : 'sales';
         [$period, $dateFrom, $dateTo] = $this->accountingReportPeriod($request);
         $currency = strtoupper($site->currency ?: 'CDF');
@@ -3330,6 +3423,34 @@ class MainController extends Controller
                 $this->reportMetric(__('main.report_overdue_invoices'), (float) (clone $financialQuery)->where('status', AccountingSalesInvoice::STATUS_OVERDUE)->count(), 'bi-exclamation-circle', 'rose', false),
             ];
             $statusLabels = $this->salesInvoiceStatusLabels();
+            $query->latest('invoice_date')->latest();
+        } elseif ($section === 'vat') {
+            $query = AccountingSalesInvoice::query()
+                ->with(['client', 'taxPayer'])
+                ->where('company_site_id', $site->id)
+                ->where('tax_amount', '>', 0)
+                ->whereNotIn('status', [AccountingSalesInvoice::STATUS_DRAFT, AccountingSalesInvoice::STATUS_CANCELLED])
+                ->whereBetween('invoice_date', [$filters['date_from'], $filters['date_to']])
+                ->when($filters['client_id'] > 0, fn ($builder) => $builder->where('client_id', $filters['client_id']))
+                ->when($filters['status'] === 'tax_paid', fn ($builder) => $builder->whereNotNull('tax_paid_at'))
+                ->when($filters['status'] === 'tax_pending', fn ($builder) => $builder->whereNull('tax_paid_at'))
+                ->when($search !== '', fn ($builder) => $this->applyTableSearch($builder, $search, [
+                    'reference', 'title', 'invoice_date', 'status', 'tax_amount', 'total_ttc', 'tax_payment_reference',
+                    $this->relationTableSearch('client', ['reference', 'name']),
+                ]));
+            $financialQuery = clone $query;
+            $collectedTax = (float) (clone $financialQuery)->sum('tax_amount');
+            $paidTax = (float) (clone $financialQuery)->whereNotNull('tax_paid_at')->sum('tax_amount');
+            $metrics = [
+                $this->reportMetric(__('main.report_vat_collected'), $collectedTax, 'bi-percent', 'blue'),
+                $this->reportMetric(__('main.report_vat_paid'), $paidTax, 'bi-check2-circle', 'green'),
+                $this->reportMetric(__('main.report_vat_due'), $collectedTax - $paidTax, 'bi-hourglass-split', 'amber'),
+                $this->reportMetric(__('main.report_vat_pending_invoices'), (float) (clone $financialQuery)->whereNull('tax_paid_at')->count(), 'bi-exclamation-circle', 'rose', false),
+            ];
+            $statusLabels = [
+                'tax_pending' => __('main.invoice_tax_pending'),
+                'tax_paid' => __('main.invoice_tax_paid'),
+            ];
             $query->latest('invoice_date')->latest();
         } elseif ($section === 'receipts') {
             $query = AccountingSalesInvoicePayment::query()
@@ -3437,6 +3558,7 @@ class MainController extends Controller
             'sections' => [
                 'sales' => __('main.report_section_sales'),
                 'receipts' => __('main.report_section_receipts'),
+                'vat' => __('main.report_section_vat'),
                 'purchases' => __('main.report_section_purchases'),
                 'treasury' => __('main.report_section_treasury'),
                 'stock' => __('main.report_section_stock'),
@@ -3446,6 +3568,7 @@ class MainController extends Controller
             'records' => $records,
             'metrics' => $metrics,
             'statusLabels' => $statusLabels,
+            'salesInvoiceStatuses' => $this->salesInvoiceStatusLabels(),
             'movementTypeLabels' => $this->accountingTreasuryMovementTypeLabels(),
             'movementDirectionLabels' => $this->accountingTreasuryDirectionLabels(),
             'clients' => AccountingClient::query()->where('company_site_id', $site->id)->orderBy('name')->get(),
@@ -3516,6 +3639,17 @@ class MainController extends Controller
                     ->when($filters['status'] !== '', fn ($query) => $query->where('status', $filters['status']))
                     ->sum('paid_total'), 2))->all()],
             ];
+        } elseif ($section === 'vat') {
+            $vatBase = fn ($bucket) => AccountingSalesInvoice::query()
+                ->where('company_site_id', $site->id)
+                ->where('tax_amount', '>', 0)
+                ->whereNotIn('status', [AccountingSalesInvoice::STATUS_DRAFT, AccountingSalesInvoice::STATUS_CANCELLED])
+                ->whereBetween('invoice_date', [$bucket['start'], $bucket['end']])
+                ->when($filters['client_id'] > 0, fn ($query) => $query->where('client_id', $filters['client_id']));
+            $series = [
+                ['name' => __('main.report_vat_collected'), 'data' => $buckets->map(fn ($bucket) => round((float) $vatBase($bucket)->sum('tax_amount'), 2))->all()],
+                ['name' => __('main.report_vat_paid'), 'data' => $buckets->map(fn ($bucket) => round((float) $vatBase($bucket)->whereNotNull('tax_paid_at')->sum('tax_amount'), 2))->all()],
+            ];
         } elseif ($section === 'receipts') {
             $series = [
                 ['name' => __('main.report_receipts_total'), 'data' => $buckets->map(fn ($bucket) => round((float) AccountingSalesInvoicePayment::query()
@@ -3579,6 +3713,7 @@ class MainController extends Controller
             'title' => [
                 'sales' => __('main.report_chart_sales'),
                 'receipts' => __('main.report_chart_receipts'),
+                'vat' => __('main.report_chart_vat'),
                 'purchases' => __('main.report_chart_purchases'),
                 'treasury' => __('main.report_chart_treasury'),
                 'stock' => __('main.report_chart_stock'),
@@ -3617,6 +3752,7 @@ class MainController extends Controller
     {
         return match ($section) {
             'receipts' => [__('main.date'), __('main.reference'), __('main.sales_invoices'), __('main.customer'), __('main.payment_method'), __('main.amount'), __('main.currency')],
+            'vat' => [__('main.reference'), __('main.customer'), __('main.date'), __('main.total_ttc'), __('main.vat'), __('main.status'), __('main.invoice_tax_status'), __('main.invoice_tax_paid_on'), __('main.invoice_tax_reference')],
             'purchases' => [__('main.reference'), __('main.supplier'), __('main.purchase_date'), __('main.due_date'), __('main.total_ttc'), __('main.paid_total'), __('main.balance_due'), __('main.status')],
             'treasury' => [__('main.date'), __('main.reference'), __('main.treasury_source'), __('main.type'), __('main.payment_method'), __('main.direction'), __('main.amount')],
             'stock' => [__('main.reference'), __('main.items'), __('main.categories'), __('main.subcategories'), __('main.current_stock'), __('main.min_stock'), __('main.report_inventory_value')],
@@ -3630,6 +3766,13 @@ class MainController extends Controller
             'receipts' => [
                 optional($record->payment_date)->format('d/m/Y'), $record->reference, $record->salesInvoice?->reference,
                 $record->salesInvoice?->client?->display_name, $record->paymentMethod?->name, number_format((float) $record->amount, 2, ',', ' '), $record->currency,
+            ],
+            'vat' => [
+                $record->reference, $record->client?->display_name, optional($record->invoice_date)->format('d/m/Y'),
+                number_format((float) $record->total_ttc, 2, ',', ' '), number_format((float) $record->tax_amount, 2, ',', ' '),
+                $this->salesInvoiceStatusLabels()[$record->status] ?? $record->status,
+                $record->isTaxPaid() ? __('main.invoice_tax_paid') : __('main.invoice_tax_pending'),
+                optional($record->tax_paid_at)->format('d/m/Y'), $record->tax_payment_reference,
             ],
             'purchases' => [
                 $record->reference, $record->supplier?->name, optional($record->purchase_date)->format('d/m/Y'),
@@ -4841,6 +4984,10 @@ class MainController extends Controller
         $this->ensureDefaultAccountingCurrencyRecord($site);
         $this->refreshOverdueSalesInvoices($site);
 
+        $taxStatus = in_array($request->query('tax_status'), ['pending', 'paid'], true)
+            ? (string) $request->query('tax_status')
+            : '';
+
         return view('main.modules.accounting.sales-invoices', [
             'user' => $user,
             'company' => $company->load('subscription'),
@@ -4848,9 +4995,15 @@ class MainController extends Controller
             'module' => CompanySite::MODULE_ACCOUNTING,
             'moduleMeta' => $moduleMeta,
             'invoicePermissions' => $this->sitePermissionFlags($user, $site),
+            'taxStatusFilter' => $taxStatus,
             'invoices' => AccountingSalesInvoice::query()
-                ->with(['client', 'customerOrder', 'deliveryNote', 'payments.paymentMethod', 'payments.receiver', 'creditNotes'])
+                ->with(['client', 'customerOrder', 'deliveryNote', 'payments.paymentMethod', 'payments.receiver', 'creditNotes', 'taxPayer'])
                 ->where('company_site_id', $site->id)
+                ->when($taxStatus !== '', fn ($query) => $query
+                    ->where('tax_amount', '>', 0)
+                    ->whereNotIn('status', [AccountingSalesInvoice::STATUS_DRAFT, AccountingSalesInvoice::STATUS_CANCELLED])
+                    ->when($taxStatus === 'paid', fn ($taxQuery) => $taxQuery->whereNotNull('tax_paid_at'))
+                    ->when($taxStatus === 'pending', fn ($taxQuery) => $taxQuery->whereNull('tax_paid_at')))
                 ->when($search !== '', fn ($query) => $this->applyTableSearch($query, $search, [
                     'reference',
                     'title',
@@ -4873,6 +5026,76 @@ class MainController extends Controller
             'paymentMethods' => $this->salesInvoicePaymentMethodOptions($site),
             'statusLabels' => $this->salesInvoiceStatusLabels(),
         ]);
+    }
+
+    public function markAccountingSalesInvoiceTaxPaid(Request $request, Company $company, CompanySite $site, AccountingSalesInvoice $invoice): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ((int) $invoice->company_site_id !== (int) $site->id || ! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.sales-invoices', [$company, $site]);
+        }
+
+        if (! $invoice->hasTax() || $invoice->isTaxPaid()) {
+            return redirect()->route('main.accounting.sales-invoices', [$company, $site]);
+        }
+
+        if (! $invoice->isFullySettled()) {
+            return redirect()
+                ->route('main.accounting.sales-invoices', [$company, $site])
+                ->with('success', __('main.invoice_tax_requires_settlement'))
+                ->with('toast_type', 'danger');
+        }
+
+        $validated = $request->validate([
+            'tax_payment_reference' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $invoice->update([
+            'tax_paid_at' => now(),
+            'tax_paid_by' => $user->id,
+            'tax_payment_reference' => $validated['tax_payment_reference'] ?? null,
+        ]);
+
+        return redirect()
+            ->route('main.accounting.sales-invoices', [$company, $site])
+            ->with('success', __('main.invoice_tax_marked_paid'));
+    }
+
+    public function unmarkAccountingSalesInvoiceTaxPaid(Company $company, CompanySite $site, AccountingSalesInvoice $invoice): RedirectResponse
+    {
+        $access = $this->accountingAccess($company, $site);
+
+        if ($access instanceof RedirectResponse) {
+            return $access;
+        }
+
+        [$user] = $access;
+
+        if ((int) $invoice->company_site_id !== (int) $site->id || ! $this->sitePermissionFlags($user, $site)['can_update']) {
+            return redirect()->route('main.accounting.sales-invoices', [$company, $site]);
+        }
+
+        if (! $invoice->isTaxPaid()) {
+            return redirect()->route('main.accounting.sales-invoices', [$company, $site]);
+        }
+
+        $invoice->update([
+            'tax_paid_at' => null,
+            'tax_paid_by' => null,
+            'tax_payment_reference' => null,
+        ]);
+
+        return redirect()
+            ->route('main.accounting.sales-invoices', [$company, $site])
+            ->with('success', __('main.invoice_tax_marked_unpaid'))
+            ->with('toast_type', 'danger');
     }
 
     public function accountingCreditNotes(Request $request, Company $company, CompanySite $site): View|RedirectResponse
@@ -5309,6 +5532,10 @@ class MainController extends Controller
         $this->ensureDefaultAccountingExpenseCategories($site);
         $validated = $request->validate($this->expenseRules($site));
 
+        if ($validated['status'] === AccountingExpense::STATUS_VALIDATED) {
+            $this->ensureCashPaymentMethodCanDisburse($site, $validated['payment_method_id'], (float) $validated['amount'], (string) $validated['currency']);
+        }
+
         $site->accountingExpenses()->create($this->expensePayload($validated, $user));
 
         return redirect()
@@ -5339,6 +5566,11 @@ class MainController extends Controller
 
         $this->ensureDefaultAccountingExpenseCategories($site);
         $validated = $request->validate($this->expenseRules($site));
+
+        if ($validated['status'] === AccountingExpense::STATUS_VALIDATED) {
+            $this->ensureCashPaymentMethodCanDisburse($site, $validated['payment_method_id'], (float) $validated['amount'], (string) $validated['currency']);
+        }
+
         $expense->update($this->expensePayload($validated, $user, false));
 
         return redirect()
@@ -5638,6 +5870,8 @@ class MainController extends Controller
         }
 
         $validated = $request->validate($this->creditorPaymentRules($site, $creditor));
+
+        $this->ensureCashPaymentMethodCanDisburse($site, $validated['payment_method_id'], (float) $validated['amount'], (string) $creditor->currency);
 
         DB::transaction(function () use ($creditor, $validated, $user): void {
             $creditor->payments()->create([
@@ -6257,6 +6491,8 @@ class MainController extends Controller
                 'currency' => $purchase->currency,
             ]),
         ]);
+
+        $this->ensureCashPaymentMethodCanDisburse($site, $validated['payment_method_id'], (float) $validated['amount'], (string) $purchase->currency);
 
         DB::transaction(function () use ($purchase, $user, $validated): void {
             $purchase->payments()->create([
@@ -8498,6 +8734,13 @@ class MainController extends Controller
             ->where('direction', AccountingTreasuryMovement::DIRECTION_OUTFLOW)
             ->sum('amount');
         $treasuryBalance = $treasuryInflows - $treasuryOutflows;
+        $vatBase = AccountingSalesInvoice::query()
+            ->where('company_site_id', $site->id)
+            ->where('tax_amount', '>', 0)
+            ->whereNotIn('status', [AccountingSalesInvoice::STATUS_DRAFT, AccountingSalesInvoice::STATUS_CANCELLED]);
+        $vatCollected = (float) (clone $vatBase)->sum('tax_amount');
+        $vatPaid = (float) (clone $vatBase)->whereNotNull('tax_paid_at')->sum('tax_amount');
+        $vatDue = round($vatCollected - $vatPaid, 2);
         $openTasksQuery = AccountingTask::query()
             ->where('company_site_id', $site->id)
             ->whereNotIn('status', [AccountingTask::STATUS_COMPLETED, AccountingTask::STATUS_CANCELLED]);
@@ -8589,6 +8832,7 @@ class MainController extends Controller
                 ['label' => __('main.open_tasks'), 'value' => (clone $openTasksQuery)->count(), 'meta' => __('main.overdue_tasks').' '.(clone $openTasksQuery)->whereDate('due_date', '<', now()->toDateString())->count().' / '.__('main.urgent_tasks').' '.(clone $openTasksQuery)->where('priority', AccountingTask::PRIORITY_URGENT)->count(), 'icon' => 'bi-check2-square', 'tone' => 'blue', 'route' => 'main.accounting.tasks'],
                 ['label' => __('main.payment_reminders'), 'value' => (clone $openRemindersQuery)->count(), 'meta' => __('main.pending_promises').' '.AccountingPaymentPromise::query()->whereHas('reminder', fn ($query) => $query->where('company_site_id', $site->id))->where('status', AccountingPaymentPromise::STATUS_PENDING)->count(), 'icon' => 'bi-bell', 'tone' => 'amber', 'route' => 'main.accounting.payment-reminders'],
                 ['label' => __('main.bank_reconciliation'), 'value' => (clone $openReconciliationsQuery)->count(), 'meta' => __('main.unmatched_bank_lines').' '.AccountingBankStatementLine::query()->whereHas('reconciliation', fn ($query) => $query->where('company_site_id', $site->id))->where('status', AccountingBankStatementLine::STATUS_UNMATCHED)->count(), 'icon' => 'bi-bank', 'tone' => 'violet', 'route' => 'main.accounting.bank-reconciliations'],
+                ['label' => __('main.report_vat_due'), 'value' => $this->dashboardMoney($vatDue, $currency), 'meta' => __('main.report_vat_collected').' '.$this->dashboardMoney($vatCollected, $currency).' / '.__('main.report_vat_paid').' '.$this->dashboardMoney($vatPaid, $currency), 'icon' => 'bi-percent', 'tone' => $vatDue > 0 ? 'amber' : 'green', 'route' => 'main.accounting.reports'],
                 ['label' => __('main.taxes'), 'value' => AccountingTax::query()->where('company_site_id', $site->id)->where('status', AccountingTax::STATUS_ACTIVE)->count(), 'meta' => __('main.payment_methods').' '.AccountingPaymentMethod::query()->where('company_site_id', $site->id)->where('status', AccountingPaymentMethod::STATUS_ACTIVE)->count(), 'icon' => 'bi-percent', 'tone' => 'cyan', 'route' => 'main.accounting.taxes'],
                 ['label' => __('main.cash_register'), 'value' => AccountingCashRegisterSession::query()->where('company_site_id', $site->id)->where('status', AccountingCashRegisterSession::STATUS_OPEN)->count(), 'meta' => __('main.purchase_orders').' '.AccountingPurchaseOrder::query()->where('company_site_id', $site->id)->whereNotIn('status', [AccountingPurchaseOrder::STATUS_CANCELLED, AccountingPurchaseOrder::STATUS_CONVERTED])->count(), 'icon' => 'bi-calculator', 'tone' => 'green', 'route' => 'main.accounting.cash-register'],
             ],
@@ -9392,6 +9636,7 @@ class MainController extends Controller
             'restauration' => __('main.expense_category_meals'),
             'avances-salaires' => __('main.expense_category_salary_advances'),
             'taxes' => __('main.expense_category_taxes'),
+            'operations-caisse' => __('main.expense_category_cash_operations'),
             'autres-charges' => __('main.expense_category_other'),
         ];
 
@@ -10894,6 +11139,59 @@ class MainController extends Controller
             });
     }
 
+    private function accountingCashMethodBalance(AccountingPaymentMethod $method, ?string $currency = null): float
+    {
+        $currency = strtoupper(trim((string) ($currency ?: $method->currency_code)));
+
+        if ($currency === '') {
+            return 0.0;
+        }
+
+        // Le suivi de caisse ignore tout ce qui a été enregistré avant son activation :
+        // ces montants ne sont plus nécessairement présents physiquement dans la caisse.
+        $trackedSince = $method->cash_tracking_started_at;
+        $tracked = fn ($query) => $query
+            ->where('currency', $currency)
+            ->when($trackedSince, fn ($trackedQuery) => $trackedQuery->where('created_at', '>=', $trackedSince));
+
+        $inflows = (float) $tracked($method->salesInvoicePayments())->sum('amount')
+            + (float) $tracked($method->debtorPayments())->sum('amount')
+            + (float) $tracked($method->otherIncomes()->where('status', AccountingOtherIncome::STATUS_VALIDATED))->sum('amount');
+
+        $outflows = (float) $tracked($method->purchasePayments())->sum('amount')
+            + (float) $tracked($method->creditorPayments())->sum('amount')
+            + (float) $tracked($method->expenses()->where('status', AccountingExpense::STATUS_VALIDATED))->sum('amount');
+
+        return round($inflows - $outflows, 2);
+    }
+
+    private function ensureCashPaymentMethodCanDisburse(CompanySite $site, int|string|null $methodId, float $amount, string $currency, string $field = 'amount'): void
+    {
+        if (! $methodId) {
+            return;
+        }
+
+        $method = AccountingPaymentMethod::query()
+            ->where('company_site_id', $site->id)
+            ->whereKey((int) $methodId)
+            ->first();
+
+        if (! $method || ! $method->isCash()) {
+            return;
+        }
+
+        $balance = $this->accountingCashMethodBalance($method, $currency);
+
+        if (round($amount, 2) > $balance + 0.009) {
+            throw ValidationException::withMessages([
+                $field => __('main.cash_method_insufficient_funds', [
+                    'balance' => number_format(max($balance, 0), 2, ',', ' '),
+                    'currency' => strtoupper(trim($currency)),
+                ]),
+            ]);
+        }
+    }
+
     private function syncAccountingTreasuryMovement(CompanySite $site, string $sourceType, int $sourceId, array $payload): void
     {
         $query = AccountingTreasuryMovement::query()
@@ -11245,6 +11543,24 @@ class MainController extends Controller
             return redirect()->route('main.accounting.other-incomes', [$company, $site]);
         }
 
+        if ($status === AccountingOtherIncome::STATUS_CANCELLED && $income->payment_method_id) {
+            $paymentMethod = AccountingPaymentMethod::query()
+                ->where('company_site_id', $site->id)
+                ->whereKey($income->payment_method_id)
+                ->first();
+
+            if ($paymentMethod && $paymentMethod->isCash()) {
+                $balance = $this->accountingCashMethodBalance($paymentMethod, (string) $income->currency);
+
+                if (round((float) $income->amount, 2) > $balance + 0.009) {
+                    return redirect()
+                        ->route('main.accounting.other-incomes', [$company, $site])
+                        ->with('success', __('main.cash_income_cancel_blocked'))
+                        ->with('toast_type', 'danger');
+                }
+            }
+        }
+
         $income->update(['status' => $status]);
 
         return redirect()
@@ -11350,6 +11666,17 @@ class MainController extends Controller
 
         if ($status === AccountingExpense::STATUS_CANCELLED && ! $expense->isValidated()) {
             return redirect()->route('main.accounting.expenses', [$company, $site]);
+        }
+
+        if ($status === AccountingExpense::STATUS_VALIDATED) {
+            try {
+                $this->ensureCashPaymentMethodCanDisburse($site, $expense->payment_method_id, (float) $expense->amount, (string) $expense->currency);
+            } catch (ValidationException $exception) {
+                return redirect()
+                    ->route('main.accounting.expenses', [$company, $site])
+                    ->with('success', collect($exception->errors())->flatten()->first())
+                    ->with('toast_type', 'danger');
+            }
         }
 
         $expense->update(['status' => $status]);

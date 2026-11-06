@@ -1,6 +1,25 @@
+/* Inter Variable (auto-hébergée, même police qu'EXAD ERP Advanced) */
+@font-face {
+    font-family: 'Inter Variable';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    src: url('/vendor/fonts/inter/inter-latin-ext-wght-normal.woff2') format('woff2-variations');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+    font-family: 'Inter Variable';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    src: url('/vendor/fonts/inter/inter-latin-wght-normal.woff2') format('woff2-variations');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
     color-scheme: light;
-    --font-app: "JetBrains Mono", monospace;
+    --font-app: 'Inter Variable', 'Segoe UI', sans-serif;
     --navy: #071b42;
     --navy-2: #0d2b61;
     --blue-600: #2563eb;
@@ -52,7 +71,7 @@ body {
     color: var(--ink);
     font-family: var(--font-app);
     font-size: .9rem;
-    font-weight: 500;
+    font-weight: 400;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow: hidden;
@@ -68,7 +87,24 @@ html {
     margin: 0;
     padding: 0;
     background: var(--page);
-    font-size: 14px;
+    font-size: 13.5px;
+}
+
+@media (max-width: 1280px) {
+    html {
+        font-size: 13px;
+    }
+}
+
+@media (max-width: 768px) {
+    html {
+        font-size: 12.5px;
+    }
+
+    .dashboard-topbar {
+        min-height: 0;
+        padding: 1.1rem 1rem;
+    }
 }
 
 button,
@@ -284,7 +320,7 @@ a {
 
 .dashboard-topbar h1 {
     margin: 0 0 .55rem;
-    font-size: 1.65rem;
+    font-size: 1.35rem;
     font-weight: 800;
     letter-spacing: -.02em;
 }
@@ -565,9 +601,10 @@ a {
     align-items: center;
     justify-content: center;
     gap: .65rem;
-    min-height: 48px;
-    padding: 0 1.1rem;
+    min-height: 40px;
+    padding: 0 1rem;
     border-radius: 9px;
+    font-size: .84rem;
     font-weight: 800;
     text-decoration: none;
 }
@@ -721,10 +758,10 @@ a {
     display: inline-flex;
     align-items: center;
     gap: .35rem;
-    min-height: 28px;
-    padding: 0 .7rem;
-    border-radius: 7px;
-    font-size: .72rem;
+    min-height: 22px;
+    padding: 0 .55rem;
+    border-radius: 6px;
+    font-size: .66rem;
     font-weight: 850;
     letter-spacing: .06em;
     text-transform: uppercase;
@@ -1245,21 +1282,21 @@ a {
 }
 
 .subscription-modal .form-label {
-    margin-bottom: .45rem;
+    margin-bottom: .3rem;
     color: var(--ink);
-    font-size: .88rem;
+    font-size: .78rem;
     font-weight: 500;
 }
 
 .subscription-modal .form-control,
 .subscription-modal .form-select {
-    min-height: 42px;
-    padding: .45rem .75rem;
+    min-height: 36px;
+    padding: .32rem .6rem;
     border-color: #c7d5e8;
     border-radius: 8px;
     background-color: var(--surface);
     color: var(--ink);
-    font-size: .92rem;
+    font-size: .8rem;
 }
 
 .password-control {
@@ -1422,10 +1459,11 @@ a {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 50px;
-    padding: 0 1.15rem;
+    min-height: 40px;
+    padding: 0 1rem;
     border: 0;
-    border-radius: 10px;
+    border-radius: 9px;
+    font-size: .84rem;
     font-weight: 750;
     line-height: 1;
     text-align: center;
@@ -2277,20 +2315,20 @@ input[data-submit-loading="true"] {
 }
 
 .company-create-form .form-label {
-    margin-bottom: .45rem;
+    margin-bottom: .3rem;
     color: var(--ink);
-    font-size: .88rem;
+    font-size: .78rem;
     font-weight: 500;
 }
 
 .company-create-form .form-control,
 .company-create-form .form-select {
-    min-height: 46px;
+    min-height: 36px;
     border-color: var(--line);
     border-radius: 8px;
     background-color: var(--surface);
     color: var(--ink);
-    font-size: .92rem;
+    font-size: .8rem;
 }
 
 .company-create-form .form-control:focus,

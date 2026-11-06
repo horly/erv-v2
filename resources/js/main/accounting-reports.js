@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
     const dataNode = document.getElementById('accountingReportData');
     const chartNode = document.getElementById('accountingReportChart');
 
@@ -27,7 +27,7 @@
         chart: {
             type: 'area',
             height: 300,
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'Inter Variable, Segoe UI, sans-serif',
             toolbar: { show: false },
             redrawOnParentResize: true,
             redrawOnWindowResize: true,

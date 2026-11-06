@@ -44,6 +44,9 @@ class AccountingSalesInvoice extends Model
         'total_ht',
         'tax_rate',
         'tax_amount',
+        'tax_paid_at',
+        'tax_paid_by',
+        'tax_payment_reference',
         'total_ttc',
         'paid_total',
         'credit_total',
@@ -62,6 +65,7 @@ class AccountingSalesInvoice extends Model
             'total_ht' => 'decimal:2',
             'tax_rate' => 'decimal:2',
             'tax_amount' => 'decimal:2',
+            'tax_paid_at' => 'datetime',
             'total_ttc' => 'decimal:2',
             'paid_total' => 'decimal:2',
             'credit_total' => 'decimal:2',
@@ -124,9 +128,29 @@ class AccountingSalesInvoice extends Model
         return $this->hasMany(AccountingPaymentReminder::class, 'sales_invoice_id');
     }
 
+    public function taxPayer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'tax_paid_by');
+    }
+
     public function creditableAmount(): float
     {
         return max(0, round((float) $this->total_ttc - (float) $this->credit_total, 2));
+    }
+
+    public function hasTax(): bool
+    {
+        return (float) $this->tax_amount > 0;
+    }
+
+    public function isTaxPaid(): bool
+    {
+        return $this->tax_paid_at !== null;
+    }
+
+    public function isFullySettled(): bool
+    {
+        return $this->status === self::STATUS_PAID;
     }
 
     public function isEditable(): bool

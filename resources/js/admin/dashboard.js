@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
     const dataNode = document.getElementById('dashboardChartData');
 
     if (!dataNode) {
@@ -36,7 +36,7 @@
 
     const baseOptions = {
         chart: {
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'Inter Variable, Segoe UI, sans-serif',
             toolbar: { show: false },
             animations: { enabled: true, speed: 450 },
         },

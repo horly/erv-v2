@@ -258,6 +258,12 @@
             <div class="letter-subject"><strong>{{ __('main.invoice_subject') }} :</strong> {{ pdf_text($invoice->title) }}</div>
         @endif
 
+        @php
+            $hasDiscount = (float) $invoice->discount_total > 0
+                || $invoice->lines->contains(fn ($line) => (float) $line->discount_amount > 0);
+            $hasVat = (float) $invoice->tax_amount > 0 || (float) $invoice->tax_rate > 0;
+        @endphp
+
         <table class="items">
             <thead>
                 <tr>
@@ -265,7 +271,9 @@
                     <th class="description">{{ __('main.description') }}</th>
                     <th class="qty">{{ __('main.quantity') }}</th>
                     <th class="amount">{{ __('main.unit_price') }}</th>
-                    <th class="amount">{{ __('main.discount') }}</th>
+                    @if ($hasDiscount)
+                        <th class="amount">{{ __('main.discount') }}</th>
+                    @endif
                     <th class="amount">{{ __('main.total') }}</th>
                 </tr>
             </thead>
@@ -288,7 +296,9 @@
                         </td>
                         <td class="qty">{{ $formatAmount($line->quantity) }}</td>
                         <td class="amount">{{ $formatAmount($line->unit_price) }} {{ $currency }}</td>
-                        <td class="amount">{{ $discountLabel }}</td>
+                        @if ($hasDiscount)
+                            <td class="amount">{{ $discountLabel }}</td>
+                        @endif
                         <td class="amount">{{ $formatAmount($line->line_total) }} {{ $currency }}</td>
                     </tr>
                 @endforeach
@@ -312,11 +322,17 @@
                 </td>
                 <td class="summary-right">
                     <table class="totals">
-                        <tr><td class="label">{{ __('main.subtotal') }} :</td><td class="value">{{ $formatAmount($invoice->subtotal) }} {{ $currency }}</td></tr>
-                        <tr><td class="label">{{ __('main.discount_total') }} :</td><td class="value">{{ $formatAmount($invoice->discount_total) }} {{ $currency }}</td></tr>
-                        <tr><td class="label">{{ __('main.total_ht') }} :</td><td class="value">{{ $formatAmount($invoice->total_ht) }} {{ $currency }}</td></tr>
-                        <tr><td class="label">{{ __('main.global_vat_rate') }} :</td><td class="value">{{ $formatAmount($invoice->tax_rate) }} %</td></tr>
-                        <tr><td class="label">{{ __('main.vat_amount') }} :</td><td class="value">{{ $formatAmount($invoice->tax_amount) }} {{ $currency }}</td></tr>
+                        @if ($hasDiscount || $hasVat)
+                            <tr><td class="label">{{ __('main.subtotal') }} :</td><td class="value">{{ $formatAmount($invoice->subtotal) }} {{ $currency }}</td></tr>
+                        @endif
+                        @if ($hasDiscount)
+                            <tr><td class="label">{{ __('main.discount_total') }} :</td><td class="value">{{ $formatAmount($invoice->discount_total) }} {{ $currency }}</td></tr>
+                            <tr><td class="label">{{ __('main.total_ht') }} :</td><td class="value">{{ $formatAmount($invoice->total_ht) }} {{ $currency }}</td></tr>
+                        @endif
+                        @if ($hasVat)
+                            <tr><td class="label">{{ __('main.global_vat_rate') }} :</td><td class="value">{{ $formatAmount($invoice->tax_rate) }} %</td></tr>
+                            <tr><td class="label">{{ __('main.vat_amount') }} :</td><td class="value">{{ $formatAmount($invoice->tax_amount) }} {{ $currency }}</td></tr>
+                        @endif
                         <tr><td class="label">{{ __('main.paid_total') }} :</td><td class="value">{{ $formatAmount($invoice->paid_total) }} {{ $currency }}</td></tr>
                         <tr><td class="label">{{ __('main.balance_due') }} :</td><td class="value">{{ $formatAmount($invoice->balance_due) }} {{ $currency }}</td></tr>
                     </table>

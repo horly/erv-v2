@@ -186,7 +186,7 @@ class DocumentManagementController extends Controller
         }
 
         if ($record->file_path) {
-            Storage::disk('public')->delete($record->file_path);
+            Storage::disk('local')->delete($record->file_path);
         }
 
         $record->delete();
@@ -310,7 +310,7 @@ class DocumentManagementController extends Controller
         }
 
         if ($record->file_path) {
-            Storage::disk('public')->delete($record->file_path);
+            Storage::disk('local')->delete($record->file_path);
         }
 
         $record->delete();
@@ -437,7 +437,7 @@ class DocumentManagementController extends Controller
         }
 
         if ($record->file_path) {
-            Storage::disk('public')->delete($record->file_path);
+            Storage::disk('local')->delete($record->file_path);
         }
 
         $record->delete();
@@ -2007,10 +2007,10 @@ class DocumentManagementController extends Controller
         }
 
         if ($record?->file_path) {
-            Storage::disk('public')->delete($record->file_path);
+            Storage::disk('local')->delete($record->file_path);
         }
 
-        return $request->file('attachment')->store('document-management/'.$directory, 'public');
+        return $request->file('attachment')->store('document-management/'.$directory, 'local');
     }
 
     private function nextDocumentReference(): string

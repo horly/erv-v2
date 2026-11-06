@@ -22,6 +22,7 @@
         $sectionIcons = [
             'sales' => 'bi-receipt',
             'receipts' => 'bi-cash-coin',
+            'vat' => 'bi-percent',
             'purchases' => 'bi-bag-check',
             'treasury' => 'bi-activity',
             'stock' => 'bi-box-seam',
@@ -89,7 +90,7 @@
                                 <label class="form-label" for="reportDateTo">{{ __('main.date_to') }}</label>
                                 <input id="reportDateTo" name="date_to" class="form-control" type="date" value="{{ $filters['date_to'] }}">
                             </div>
-                            @if (in_array($section, ['sales', 'receipts'], true))
+                            @if (in_array($section, ['sales', 'receipts', 'vat'], true))
                                 <div class="col-12 col-md-6 col-xl-3">
                                     <label class="form-label" for="reportClient">{{ __('main.customer') }}</label>
                                     <select id="reportClient" name="client_id" class="form-select">
@@ -121,7 +122,7 @@
                                     </select>
                                 </div>
                             @endif
-                            @if (in_array($section, ['sales', 'purchases'], true))
+                            @if (in_array($section, ['sales', 'purchases', 'vat'], true))
                                 <div class="col-12 col-md-6 col-xl-3">
                                     <label class="form-label" for="reportStatus">{{ __('main.status') }}</label>
                                     <select id="reportStatus" name="status" class="form-select">
@@ -199,6 +200,41 @@
                                             <td class="amount-cell text-end">{{ $amount($invoice->paid_total) }}</td>
                                             <td class="amount-cell text-end">{{ $amount($invoice->balance_due) }}</td>
                                             <td><span class="status-pill sales-invoice-status-{{ $invoice->status }}">{{ $statusLabels[$invoice->status] ?? $invoice->status }}</span></td>
+                                        </tr>
+                                    @empty
+                                        <tr class="empty-row"><td colspan="8">{{ __('main.report_no_results') }}</td></tr>
+                                    @endforelse
+                                    <tr class="empty-row search-empty-row" hidden><td colspan="8">{{ __('admin.no_results') }}</td></tr>
+                                </tbody>
+                            @elseif ($section === 'vat')
+                                <thead><tr>
+                                    <th><button class="table-sort" type="button" data-sort-index="0" data-sort-type="number"># <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="1">{{ __('main.reference') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="2">{{ __('main.customer') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="3" data-sort-type="date">{{ __('main.date') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th class="text-end"><button class="table-sort justify-content-end" type="button" data-sort-index="4" data-sort-type="number">{{ __('main.total_ttc') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th class="text-end"><button class="table-sort justify-content-end" type="button" data-sort-index="5" data-sort-type="number">{{ __('main.vat') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="6">{{ __('main.status') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                    <th><button class="table-sort" type="button" data-sort-index="7">{{ __('main.invoice_tax_status') }} <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                </tr></thead>
+                                <tbody>
+                                    @forelse ($records as $invoice)
+                                        <tr>
+                                            <td>{{ ($records->firstItem() ?? 1) + $loop->index }}</td>
+                                            <td><span class="reference-pill">{{ $invoice->reference }}</span></td>
+                                            <td>{{ $invoice->client?->display_name ?? '-' }}</td>
+                                            <td>{{ optional($invoice->invoice_date)->format('d/m/Y') }}</td>
+                                            <td class="amount-cell text-end">{{ $amount($invoice->total_ttc) }}</td>
+                                            <td class="amount-cell text-end">{{ $amount($invoice->tax_amount) }}</td>
+                                            <td><span class="status-pill sales-invoice-status-{{ $invoice->status }}">{{ $salesInvoiceStatuses[$invoice->status] ?? $invoice->status }}</span></td>
+                                            <td>
+                                                @if ($invoice->isTaxPaid())
+                                                    <span class="status-pill sales-invoice-status-paid">{{ __('main.invoice_tax_paid') }}</span>
+                                                    <small class="d-block text-muted">{{ optional($invoice->tax_paid_at)->format('d/m/Y') }}{{ $invoice->tax_payment_reference ? ' · '.$invoice->tax_payment_reference : '' }}</small>
+                                                @else
+                                                    <span class="status-pill sales-invoice-status-overdue">{{ __('main.invoice_tax_pending') }}</span>
+                                                @endif
+                                            </td>
                                         </tr>
                                     @empty
                                         <tr class="empty-row"><td colspan="8">{{ __('main.report_no_results') }}</td></tr>

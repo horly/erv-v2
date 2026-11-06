@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
     const dataNode = document.getElementById('accountingDashboardData');
 
     if (!dataNode) {
@@ -22,7 +22,7 @@
         const element = document.querySelector(selector);
 
         if (element) {
-            element.innerHTML = `<div class="chart-empty">${message || data.emptyLabel || 'Aucune donnée'}</div>`;
+            element.innerHTML = `<div class="chart-empty">${message || data.emptyLabel || 'Aucune donnÃ©e'}</div>`;
         }
     };
 
@@ -40,7 +40,7 @@
     const charts = [];
     const baseOptions = {
         chart: {
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'Inter Variable, Segoe UI, sans-serif',
             toolbar: { show: false },
             animations: { enabled: true, speed: 450 },
             redrawOnParentResize: true,
@@ -197,7 +197,7 @@
 
     renderChart('#accountingDocumentsChart', {
         ...baseOptions,
-        chart: { ...baseOptions.chart, type: 'bar', height: '100%' },
+        chart: { ...baseOptions.chart, type: 'bar', height: 300 },
         colors: [colors.amber],
         plotOptions: {
             bar: {

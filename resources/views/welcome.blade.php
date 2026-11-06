@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
@@ -10,7 +10,7 @@
     <style>
         :root {
             color-scheme: light;
-            --font-app: "JetBrains Mono", monospace;
+            --font-app: 'Inter Variable', 'Segoe UI', sans-serif;
             --blue-950: #071a3f;
             --blue-900: #0b2554;
             --blue-800: #123a78;
@@ -530,7 +530,7 @@
 </head>
 <body>
     <main class="auth-shell" data-theme="light">
-        <section class="brand-side" aria-label="Présentation de la plateforme ERP">
+        <section class="brand-side" aria-label="PrÃ©sentation de la plateforme ERP">
             <div class="brand-inner">
                 <div class="logo-card" aria-label="{{ app_brand_name() }}">
                     <div>
@@ -543,34 +543,34 @@
                     <div class="brand-copy">
                         <h1 class="brand-title">
                             Pilotez votre entreprise
-                            <span>avec précision.</span>
+                            <span>avec prÃ©cision.</span>
                         </h1>
                         <p class="brand-lead">
-                            Une plateforme ERP unifiée pour la finance, les ressources humaines,
-                            les opérations et la relation client.
+                            Une plateforme ERP unifiÃ©e pour la finance, les ressources humaines,
+                            les opÃ©rations et la relation client.
                         </p>
                     </div>
 
-                    <div class="feature-list" aria-label="Bénéfices ERP">
+                    <div class="feature-list" aria-label="BÃ©nÃ©fices ERP">
                         <article class="feature-item">
                             <span class="feature-icon" aria-hidden="true"><i class="bi bi-bar-chart-fill"></i></span>
                             <div>
-                                <p class="feature-title">Décisions data-driven</p>
-                                <p class="feature-text">Tableaux de bord temps réel et reporting consolidé.</p>
+                                <p class="feature-title">DÃ©cisions data-driven</p>
+                                <p class="feature-text">Tableaux de bord temps rÃ©el et reporting consolidÃ©.</p>
                             </div>
                         </article>
                         <article class="feature-item">
                             <span class="feature-icon" aria-hidden="true"><i class="bi bi-shield-lock-fill"></i></span>
                             <div>
-                                <p class="feature-title">Sécurité de niveau entreprise</p>
-                                <p class="feature-text">Conformité, rôles utilisateurs et chiffrement de bout en bout.</p>
+                                <p class="feature-title">SÃ©curitÃ© de niveau entreprise</p>
+                                <p class="feature-text">ConformitÃ©, rÃ´les utilisateurs et chiffrement de bout en bout.</p>
                             </div>
                         </article>
                         <article class="feature-item">
                             <span class="feature-icon" aria-hidden="true"><i class="bi bi-diagram-3-fill"></i></span>
                             <div>
-                                <p class="feature-title">Modules intégrés</p>
-                                <p class="feature-text">Comptabilité, stocks, ventes, RH — un seul environnement.</p>
+                                <p class="feature-title">Modules intÃ©grÃ©s</p>
+                                <p class="feature-text">ComptabilitÃ©, stocks, ventes, RH â€” un seul environnement.</p>
                             </div>
                         </article>
                     </div>
@@ -592,9 +592,9 @@
 
             <div class="login-wrap">
                 <span class="access-badge">Espace collaborateur</span>
-                <h2 class="login-title">Connexion à votre compte</h2>
+                <h2 class="login-title">Connexion Ã  votre compte</h2>
                 <p class="login-description">
-                    Entrez vos identifiants professionnels pour accéder à la plateforme EXAD ERP.
+                    Entrez vos identifiants professionnels pour accÃ©der Ã  la plateforme EXAD ERP.
                 </p>
 
                 <form method="POST" action="#" class="needs-validation" novalidate>
@@ -620,7 +620,7 @@
                     <div class="mb-3">
                         <div class="field-meta mb-2">
                             <label for="password" class="form-label mb-0">Mot de passe</label>
-                            <a href="#" class="forgot-link small">Mot de passe oublié ?</a>
+                            <a href="#" class="forgot-link small">Mot de passe oubliÃ© ?</a>
                         </div>
                         <div class="field-row">
                             <span class="field-icon"><i class="bi bi-lock" aria-hidden="true"></i></span>
@@ -629,7 +629,7 @@
                                 name="password"
                                 type="password"
                                 class="form-control"
-                                placeholder="••••••••"
+                                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                                 autocomplete="current-password"
                                 minlength="6"
                                 required
@@ -659,8 +659,8 @@
             </div>
 
             <footer class="page-footer">
-                <span>© 2026 EXAD ERP — Tous droits réservés.</span>
-                <a href="#">Confidentialité</a>
+                <span>Â© 2026 EXAD ERP â€” Tous droits rÃ©servÃ©s.</span>
+                <a href="#">ConfidentialitÃ©</a>
             </footer>
         </section>
     </main>
